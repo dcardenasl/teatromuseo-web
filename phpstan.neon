@@ -1,0 +1,27 @@
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 8
+    paths:
+        - app/Controllers
+        - app/Libraries
+        - app/Services
+        - app/Filters
+        - app/ViewModels
+        - app/Common.php
+        - app/Config/Services.php
+    excludePaths:
+        - app/Views
+        - '*/Config/Routes.php'
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    scanFiles:
+        - app/Config/App.php
+        - app/Config/Services.php
+    treatPhpDocTypesAsCertain: false
+
+    # ignoreErrors limited to CI4 framework-dynamic patterns (not real bugs).
+    ignoreErrors:
+        # CI4 framework constants (intentionally undefined in phpstan-bootstrap.php)
+        - '#Constant (APPPATH|FCPATH|ROOTPATH|WRITEPATH|ENVIRONMENT) not found#'

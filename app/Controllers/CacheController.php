@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use CodeIgniter\HTTP\ResponseInterface;
+
+class CacheController extends BaseController
+{
+    /**
+     * POST /cache/invalidate
+     *
+     * Body:    {"scopes": ["pages", "menus"]}
+     * Auth:    X-Invalidate-Key header (shared secret, never logged)
+     */
+    public function invalidate(): ResponseInterface
+    {
+        $expectedKey = (string) env('CACHE_INVALIDATE_KEY', '');
+
+        if ($expectedKey === '') {
+            log_message('error', '[CacheController] CACHE_INVALIDATE_KEY is not configured.');
+
+            return $this->response
+                ->setStatusCode(ResponseInterface::HTTP_INTERNAL_SERVER_ERROR)
+                ->setJSON(['ok' => false, 'message' => 'Cache invalidation not configured.']);
+        }
+
+        $receivedKey = $this->request->getHeaderLine('X-Invalidate-Key');
+
+        if (! hash_equals($expectedKey, $receivedKey)) {
+            log_message('warning', '[CacheController] Invalid X-Invalidate-Key from IP: '
+                . $this->request->getIPAddress());
+
+            return $this->response
+                ->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)
+                ->setJSON(['ok' => false, 'message' => 'Unauthorized.']);
+        }
+
+        $body = $this->request instanceof \CodeIgniter\HTTP\IncomingRequest
+            ? $this->request->getJSON(true)
+            : null;
+        $rawScopes = is_array($body) && is_array($body['scopes'] ?? null) ? $body['scopes'] : [];
+        $scopes    = array_values(array_filter($rawScopes, 'is_string'));
+
+        if (empty($scopes)) {
+            return $this->response
+                ->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)
+                ->setJSON(['ok' => false, 'message' => 'scopes must be a non-empty array of strings.']);
+        }
+
+        $result = service('cacheInvalidator')->invalidate($scopes);
+
+        return $this->response->setJSON([
+            'ok'          => true,
+            'invalidated' => $result['invalidated'],
+            'deleted'     => $result['deleted'],
+        ]);
+    }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "ci4-website-builder-web",
+  "version": "1.0.0",
+  "packageManager": "npm@10.9.4",
+  "engines": {
+    "node": "^22.22.1 || >=24"
+  },
+  "description": "Public website frontend powered by ci4-website-builder-domain",
+  "scripts": {
+    "build:css": "tailwindcss -i ./public/assets/css/app.css -o ./public/assets/css/compiled.css --minify",
+    "dev:css": "tailwindcss -i ./public/assets/css/app.css -o ./public/assets/css/compiled.css --watch",
+    "build:js": "esbuild src/js/site.js --bundle --outfile=public/assets/js/site.js --format=iife --banner:js=\"/* Generated from src/js — do not edit directly. Run: npm run build:js */\" --minify",
+    "dev:js": "esbuild src/js/site.js --bundle --outfile=public/assets/js/site.js --format=iife --banner:js=\"/* Generated from src/js — do not edit directly. Run: npm run build:js */\" --watch",
+    "build:all": "npm run build:css && npm run build:js",
+    "lint:js": "eslint 'src/js/**/*.js'",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/js/**/*.js": [
+      "eslint --fix"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@tailwindcss/cli": "^4.3.0",
+    "@tailwindcss/postcss": "^4.3.1",
+    "autoprefixer": "^10.5.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^9.39.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.1"
+  }
+}

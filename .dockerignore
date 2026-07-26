@@ -1,0 +1,13 @@
+.git
+.github
+.env
+node_modules
+vendor
+writable/cache/*
+writable/debugbar/*
+writable/htmlpurifier/*
+writable/logs/*
+writable/session/*
+writable/uploads/*
+tests
+builds

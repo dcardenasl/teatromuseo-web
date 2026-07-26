@@ -1,0 +1,140 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use CodeIgniter\HTTP\ResponseInterface;
+use Config\Services;
+
+class SitemapController extends BasePublicWebController
+{
+    private const CACHE_TTL = 3600;
+
+    /**
+     * Generate XML sitemap.
+     */
+    public function index(): ResponseInterface
+    {
+        $lang = service('request')->getLocale();
+
+        // Try to get from cache
+        $cache = service('cache');
+        $cacheKey = "sitemap_{$lang}";
+        $xml = $cache->get($cacheKey);
+
+        if ($xml === null) {
+            $xml = $this->generateSitemap($lang);
+            $cache->save($cacheKey, $xml, self::CACHE_TTL);
+        }
+
+        return $this->response
+            ->setContentType('application/xml')
+            ->removeHeader('Cache-Control')
+            ->setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300')
+            ->setHeader('ETag', '"' . sha1($xml) . '"')
+            ->setHeader('Vary', 'Accept-Language')
+            ->setBody($xml);
+    }
+
+    /**
+     * Generate the XML sitemap content.
+     */
+    private function generateSitemap(string $lang): string
+    {
+        $pageService = Services::sitePageService();
+        $collectionService = Services::siteCollectionService();
+        $entryService = Services::siteEntryService();
+
+        $urls = [];
+
+        // Add homepage
+        $urls[] = [
+            'loc'        => base_url('/' . $lang . '/'),
+            'lastmod'    => date('c'),
+            'changefreq' => 'weekly',
+            'priority'   => '1.0',
+        ];
+
+        // Add pages
+        $pages = $pageService->listAll($lang);
+        foreach ($pages as $page) {
+            if (!isset($page['slug']) || !$page['is_in_sitemap']) {
+                continue;
+            }
+
+            $urls[] = [
+                'loc'        => base_url('/' . $lang . '/' . ltrim($page['slug'], '/')),
+                'lastmod'    => $page['updated_at'] ?? date('c'),
+                'changefreq' => $page['sitemap_changefreq'] ?? 'monthly',
+                'priority'   => $page['sitemap_priority'] ?? '0.8',
+            ];
+        }
+
+        // Add collections and their entries
+        $collections = $collectionService->getAll($lang);
+        foreach ($collections as $collection) {
+            $collectionKey = $collection['collection_key'] ?? '';
+            $urlPath       = collection_url_path($collection);
+            if ($urlPath === '') {
+                continue;
+            }
+
+            // Add entries
+            $result = $entryService->list($lang, $collectionKey, ['limit' => 500]);
+            foreach ($result['data'] ?? [] as $entry) {
+                if (!isset($entry['slug']) || !($entry['is_published'] ?? true)) {
+                    continue;
+                }
+
+                $urls[] = [
+                    'loc'        => base_url('/' . $lang . $urlPath . '/' . $entry['slug']),
+                    'lastmod'    => $entry['updated_at'] ?? date('c'),
+                    'changefreq' => 'weekly',
+                    'priority'   => '0.7',
+                ];
+            }
+        }
+
+        return $this->buildSitemapXml($urls);
+    }
+
+    /**
+     * Build the XML sitemap structure.
+     *
+     * @param array<array<string, string>> $urls
+     */
+    private function buildSitemapXml(array $urls): string
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL;
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . PHP_EOL;
+
+        foreach ($urls as $url) {
+            $xml .= '  <url>' . PHP_EOL;
+            $xml .= '    <loc>' . esc($url['loc']) . '</loc>' . PHP_EOL;
+
+            $lastmod = $url['lastmod'] ?? '';
+            if (is_array($lastmod)) {
+                $lastmod = $lastmod['date'] ?? '';
+            }
+            if (!empty($lastmod)) {
+                $ts = strtotime((string) $lastmod);
+                $xml .= '    <lastmod>' . esc(date('c', $ts !== false ? $ts : time())) . '</lastmod>' . PHP_EOL;
+            }
+
+            if (!empty($url['changefreq'])) {
+                $xml .= '    <changefreq>' . esc($url['changefreq']) . '</changefreq>' . PHP_EOL;
+            }
+
+            if (!empty($url['priority'])) {
+                $xml .= '    <priority>' . esc($url['priority']) . '</priority>' . PHP_EOL;
+            }
+
+            $xml .= '  </url>' . PHP_EOL;
+        }
+
+        $xml .= '</urlset>';
+
+        return $xml;
+    }
+}

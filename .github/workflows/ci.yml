@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  quality:
+    name: Quality PHP ${{ matrix.php-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['8.2', '8.3', '8.4', '8.5']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: mbstring, intl, json, curl
+          coverage: ${{ matrix.php-version == '8.2' && 'xdebug' || 'none' }}
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php-version }}-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Prepare writable directories
+        run: |
+          mkdir -p writable/cache writable/logs writable/session writable/uploads writable/debugbar writable/htmlpurifier
+          chmod -R 777 writable
+
+      - name: Create .env file
+        run: |
+          cp .env.example .env
+          echo 'CI_ENVIRONMENT = testing' >> .env
+          echo 'app.baseURL = "http://localhost/"' >> .env
+          echo 'WEB_API_BASE_URL = http://localhost:8190' >> .env
+          echo 'WEB_API_KEY = ci_testing_key' >> .env
+
+      - name: PHP CS Fixer (style check)
+        run: composer format:check
+
+      - name: PHPStan (static analysis)
+        run: composer analyse
+
+      # The web app has no database. Unit tests mock WebApiClient and run in
+      # isolation; feature tests are hermetic too — HermeticFeatureTestCase
+      # injects DeterministicDomainAdapter (or a mocked service/cache) so no
+      # live Domain API or network access is required.
+      - name: Unit tests
+        run: composer test:unit
+
+      - name: Feature tests
+        run: composer test:feature
+
+      - name: Coverage test suite
+        if: matrix.php-version == '8.2'
+        run: composer test:coverage
+
+      - name: Coverage gate (>= 54.75% line coverage)
+        if: matrix.php-version == '8.2'
+        run: composer coverage:check
+
+  frontend:
+    name: Frontend quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.1'
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint JavaScript
+        run: npm run lint:js
+
+      - name: Build frontend assets
+        run: npm run build:all
+
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=moderate

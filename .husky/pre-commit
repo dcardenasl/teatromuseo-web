@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# JS files: eslint (via lint-staged)
+npx lint-staged || exit 1
+
+# PHP files: style + static analysis (see ./pre-commit for the exact checks)
+./pre-commit
