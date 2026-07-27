@@ -277,9 +277,9 @@ final class FormControllerTest extends CIUnitTestCase
         $result = null;
         for ($i = 0; $i < 11; $i++) {
             $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-                ->post('forms/contact/submit', [
-                    'email' => "ada{$i}@example.com",
-                ]);
+                    ->post('forms/contact/submit', [
+                        'email' => "ada{$i}@example.com",
+                    ]);
         }
 
         $this->assertNotNull($result);
