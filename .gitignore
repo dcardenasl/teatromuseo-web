@@ -66,6 +66,7 @@ Vagrantfile
 /writable/htmlpurifier/*
 
 php_errors.log
+init.log
 
 #-------------------------
 # User Guide Temp Files
