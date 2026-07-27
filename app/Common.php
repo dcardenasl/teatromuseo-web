@@ -406,6 +406,45 @@ if (! function_exists('cms_block_preview_samples')) {
                 'video_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
                 'heading' => 'Video de Presentación de Ejemplo',
             ],
+            'compania_ficha' => [
+                'name' => 'Compañía de ejemplo',
+                'summary' => 'Colectivo artístico de referencia.',
+            ],
+            'persona_ficha' => [
+                'name' => 'Persona de ejemplo',
+                'role' => 'Dirección artística',
+            ],
+            'obra_ficha' => [
+                'subtitle' => 'Pieza escénica de ejemplo',
+                'synopsis' => '<p>Sinopsis breve de la obra.</p>',
+                'duration' => '90 min',
+            ],
+            'video_ficha' => [
+                'provider' => 'youtube',
+                'video_id' => 'example',
+            ],
+            'festival_ficha' => [
+                'edition' => 'Edición de ejemplo',
+                'venue' => 'Teatro Museo',
+                'status' => 'upcoming',
+            ],
+            'exposicion_ficha' => [
+                'venue' => 'Sala de exposiciones',
+                'description' => '<p>Descripción breve de la exposición.</p>',
+            ],
+            'curso_ficha' => [
+                'modality' => 'presencial',
+                'schedule' => 'Sábados, 10:00–13:00',
+                'venue' => 'Teatro Museo',
+                'capacity' => 20,
+            ],
+            'publicacion_metadata' => [
+                'publication_type' => 'editorial',
+                'publisher' => 'TeatroMuseo',
+            ],
+            'related_entries' => [
+                'relation_type' => 'related',
+            ],
             'alert' => [
                 'title' => 'Aviso Importante',
                 'message' => '<p>Este es un mensaje de alerta de ejemplo para mostrar cómo se ve el diseño en tu sitio público.</p>',

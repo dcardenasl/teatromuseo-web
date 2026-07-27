@@ -36,6 +36,7 @@ return [
     'copy_link'            => 'Copy link',
     'copied_label'         => 'Copied!',
     'related_stories'      => 'Related stories',
+    'related_content'      => 'Related content',
     'read_more'            => 'Read more →',
     'collection_index_label'  => 'Collection index',
     'collection_filter'       => 'Filter',
