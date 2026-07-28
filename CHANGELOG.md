@@ -12,3 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`entry_reference` / `related_entries` blocks** — pages and entries can now render cross-links
   to other published entries, with dedicated profile fichas for companies, people, works, videos,
   festivals, exhibitions, courses and publications.
+- **`MuseumController` / `/{locale}/museo/coleccion` routes** — public listing and detail pages
+  for the museum catalog collection, backed by `SiteCatalogService` against the new
+  `teatromuseo-catalog-domain` public API.
