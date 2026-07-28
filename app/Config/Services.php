@@ -169,4 +169,31 @@ class Services extends BaseService
 
         return new SocialLinksService(static::webApiClient());
     }
+
+    public static function catalogWebApiClient(bool $getShared = true): WebApiClientInterface
+    {
+        if ($getShared) {
+            /** @var WebApiClientInterface */
+            return static::getSharedInstance('catalogWebApiClient');
+        }
+
+        $config = config('App');
+
+        return new WebApiClient(
+            $config->catalogApiBaseUrl,
+            $config->webApiKey,
+            $config->webApiTimeout,
+            $config->webApiStaleTtl
+        );
+    }
+
+    public static function siteCatalogService(bool $getShared = true): \App\Services\SiteCatalogService
+    {
+        if ($getShared) {
+            /** @var \App\Services\SiteCatalogService */
+            return static::getSharedInstance('siteCatalogService');
+        }
+
+        return new \App\Services\SiteCatalogService(static::catalogWebApiClient());
+    }
 }

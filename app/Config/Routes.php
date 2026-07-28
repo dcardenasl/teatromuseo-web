@@ -30,6 +30,13 @@ $routes->post('{locale}/forms/(:segment)/submit', 'FormController::submit/$1', [
 // Localized routes
 $routes->get('{locale}', 'PageController::home', ['as' => 'home_localized']);
 $routes->get('{locale}/sitemap.xml', 'SitemapController::index', ['as' => 'sitemap_localized']);
+
+// Museum Catalog routes
+$routes->group('{locale}/museo', static function ($routes): void {
+    $routes->get('coleccion', '\App\Controllers\MuseumController::index', ['as' => 'museum_collection']);
+    $routes->get('coleccion/(:any)', '\App\Controllers\MuseumController::show/$1', ['as' => 'museum_collection_detail']);
+});
+
 $routes->get('{locale}/(:any)', 'PageController::resolve/$1');
 
 // Fallback non-localized routes (redirected/resolved dynamically)

@@ -163,6 +163,7 @@ class App extends BaseConfig
      */
     public string $webApiBaseUrl = '';
     public string $webApiKey = '';
+    public string $catalogApiBaseUrl = 'http://localhost:8191';
 
     /**
      * Timeout (seconds) for requests against the Domain API.
@@ -289,6 +290,9 @@ class App extends BaseConfig
             );
         }
         $this->webApiBaseUrl = $webApiBaseUrl;
+
+        $catalogApiBaseUrl = env('CATALOG_API_BASE_URL') ?: env('CATALOG_DOMAIN_API_BASE_URL') ?: $this->catalogApiBaseUrl;
+        $this->catalogApiBaseUrl = $catalogApiBaseUrl;
 
         $webApiKey = env('WEB_API_KEY');
         if (! is_string($webApiKey) || trim($webApiKey) === '') {
