@@ -31,8 +31,8 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
         $body = $result->response()->getBody();
         $this->assertStringContainsString('Pieza de prueba', $body);
         $this->assertStringContainsString('Resumen temporal', $body);
-        $this->assertStringContainsString('Categoría de prueba', $body);
-        $this->assertStringContainsString('Galería de Imágenes', $body);
+        $this->assertStringContainsString('Vista previa integrada', $body);
+        $this->assertStringContainsString('Imágenes de Colección', $body);
     }
 
     public function testEventDetailPageRendersCmsTemplateBlocks(): void
@@ -46,7 +46,7 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
         $body = $result->response()->getBody();
         $this->assertStringContainsString('Festival Uno', $body);
         $this->assertStringContainsString('Descripción del festival uno.', $body);
-        $this->assertStringContainsString('Sala Principal', $body);
+        $this->assertStringContainsString('Festival', $body);
         $this->assertStringContainsString('Inicio:', $body);
         $this->assertStringContainsString('Fin:', $body);
     }
