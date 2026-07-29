@@ -91,6 +91,12 @@ class EventItemsSource implements ListingSourceInterface
         $featuredImage = $entry['cover_image'] ?? $entry['featured_image'] ?? null;
         if (is_array($featuredImage)) {
             $entry['featured_image'] = ($this->mediaNormalizer)($featuredImage);
+        } elseif (is_string($featuredImage) && trim($featuredImage) !== '') {
+            $entry['featured_image'] = [
+                'source_kind' => 'external_url',
+                'file_id' => null,
+                'url' => trim($featuredImage),
+            ];
         } else {
             $entry['featured_image'] = null;
         }

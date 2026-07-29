@@ -116,6 +116,12 @@ class CatalogItemsSource implements ListingSourceInterface
         $featuredImage = $entry['cover_image'] ?? $entry['featured_image'] ?? $entry['main_image'] ?? null;
         if (is_array($featuredImage)) {
             $entry['featured_image'] = ($this->mediaNormalizer)($featuredImage);
+        } elseif (is_string($featuredImage) && trim($featuredImage) !== '') {
+            $entry['featured_image'] = [
+                'source_kind' => 'external_url',
+                'file_id' => null,
+                'url' => trim($featuredImage),
+            ];
         } else {
             $entry['featured_image'] = null;
         }
@@ -145,6 +151,7 @@ class CatalogItemsSource implements ListingSourceInterface
             'show_categories' => true,
             'show_tags' => false,
             'show_date' => false,
+            'fallback_image_url' => 'https://images.unsplash.com/photo-1544928147-79a2dbc1f389?auto=format&fit=crop&w=600&q=80',
         ];
     }
 
