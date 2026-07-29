@@ -23,7 +23,12 @@ class CollectionListingViewModel extends AbstractBlockViewModel
     public function vars(): array
     {
         $sourceType = $this->resolveSourceType();
+        $layoutVariant = $this->resolveLayoutVariant($this->configString('layout_variant', 'cards'));
         $source = $this->resolveSource($sourceType);
+
+        if ($source === null) {
+            return $this->emptyVars($this->fallbackDefaults(), $layoutVariant);
+        }
 
         $defaults = $source->defaults();
 
@@ -35,7 +40,6 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $orderBy = $this->resolveOrderBy($this->requestGet('order_by'), $defaults['order_by']);
         $orderDirection = $this->resolveOrderDirection($this->requestGet('order_direction'), $defaults['order_direction']);
         $perPage = max(1, min(100, $this->configInt('per_page', 12)));
-        $layoutVariant = $this->resolveLayoutVariant($this->configString('layout_variant', 'cards'));
 
         $query = new ListingQuery(
             page: $currentPage,
@@ -143,7 +147,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         ];
     }
 
-    private function resolveSource(string $sourceType): ListingSourceInterface
+    private function resolveSource(string $sourceType): ?ListingSourceInterface
     {
         $urlBuilder = fn (ListingQuery $query) => $this->buildUrl([
             'category' => $query->category ?: null,
@@ -157,28 +161,81 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $mediaNormalizer = fn (array $media) => $this->normalizeMediaReference($media);
 
         return match ($sourceType) {
-            'catalog_items' => new CatalogItemsSource(
-                $this->contextService('siteCatalogService', SiteCatalogService::class),
-                $urlBuilder,
-                $mediaNormalizer
-            ),
-            'event_items' => new EventItemsSource(
-                $this->contextService('siteEventService', SiteEventService::class),
-                $urlBuilder,
-                $mediaNormalizer
-            ),
-            default => new CmsCollectionSource(
-                $this->contextService('siteCollectionService', SiteCollectionService::class),
-                $this->contextService('siteEntryService', SiteEntryService::class),
-                $this->contextService('siteCategoryService', SiteCategoryService::class),
-                $this->contextService('siteTagService', SiteTagService::class),
-                $this->configInt('collection_id', 0),
-                $urlBuilder,
-                $mediaNormalizer
-            )
+            'catalog_items' => $this->resolveCatalogItemsSource($urlBuilder, $mediaNormalizer),
+            'event_items' => $this->resolveEventItemsSource($urlBuilder, $mediaNormalizer),
+            default => $this->resolveCmsCollectionSource($urlBuilder, $mediaNormalizer),
         };
     }
 
+    private function resolveCatalogItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): ?CatalogItemsSource
+    {
+        $catalogService = $this->contextService('siteCatalogService', SiteCatalogService::class);
+
+        return $catalogService !== null
+            ? new CatalogItemsSource($catalogService, $urlBuilder, $mediaNormalizer)
+            : null;
+    }
+
+    private function resolveEventItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): ?EventItemsSource
+    {
+        $eventService = $this->contextService('siteEventService', SiteEventService::class);
+
+        return $eventService !== null
+            ? new EventItemsSource($eventService, $urlBuilder, $mediaNormalizer)
+            : null;
+    }
+
+    private function resolveCmsCollectionSource(\Closure $urlBuilder, \Closure $mediaNormalizer): ?CmsCollectionSource
+    {
+        $collectionService = $this->contextService('siteCollectionService', SiteCollectionService::class);
+        $entryService = $this->contextService('siteEntryService', SiteEntryService::class);
+        $categoryService = $this->contextService('siteCategoryService', SiteCategoryService::class);
+        $tagService = $this->contextService('siteTagService', SiteTagService::class);
+
+        if ($collectionService === null || $entryService === null || $categoryService === null || $tagService === null) {
+            return null;
+        }
+
+        return new CmsCollectionSource(
+            $collectionService,
+            $entryService,
+            $categoryService,
+            $tagService,
+            $this->configInt('collection_id', 0),
+            $urlBuilder,
+            $mediaNormalizer
+        );
+    }
+
+    /**
+     * Generic listing defaults used only when the required context
+     * collaborators are unavailable (e.g. a view model built without going
+     * through BlockRenderer) and no real source could be resolved.
+     *
+     * @return array<string, mixed>
+     */
+    private function fallbackDefaults(): array
+    {
+        return [
+            'order_by' => 'published_at',
+            'order_direction' => 'desc',
+            'show_categories' => true,
+            'show_tags' => false,
+            'show_date' => true,
+            'page_title' => lang('Site.collection_index_label'),
+            'intro_text' => '',
+            'section_label' => lang('Site.collection_index_label'),
+            'item_label' => lang('Site.collection_listing_item'),
+            'featured_item_label' => lang('Site.collection_listing_featured'),
+            'count_label' => lang('Site.collection_listing_count'),
+            'fallback_image_url' => '',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $defaults
+     * @return array<string, mixed>
+     */
     private function emptyVars(array $defaults, string $layoutVariant): array
     {
         return [
@@ -279,6 +336,9 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         return lang('Site.collection_listing_empty') ?: 'No se encontraron resultados que coincidan con la búsqueda.';
     }
 
+    /**
+     * @param array<string, mixed> $params
+     */
     private function buildUrl(array $params): string
     {
         $request = $this->contextRequest();
@@ -292,6 +352,10 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         return $currentUrl . '?' . $queryStr;
     }
 
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
     private function prepareEntries(array $entries): array
     {
         $normalized = [];
@@ -316,6 +380,10 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         return $normalized;
     }
 
+    /**
+     * @param array<string, mixed>|null $image
+     * @return array<string, mixed>|null
+     */
     private function normalizeListingImage(?array $image): ?array
     {
         $url = is_string($image['url'] ?? null) ? trim($image['url']) : '';
@@ -329,6 +397,10 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         ];
     }
 
+    /**
+     * @param array<string, mixed>|null $action
+     * @return array<string, mixed>|null
+     */
     private function normalizeListingAction(?array $action): ?array
     {
         $label = is_string($action['label'] ?? null) ? trim($action['label']) : '';
@@ -343,11 +415,17 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         ];
     }
 
+    /**
+     * @param array<string, mixed> $collection
+     */
     private function resolvedCollectionUrlPath(array $collection): string
     {
         return localized_collection_url_path($collection, $this->lang);
     }
 
+    /**
+     * @return array<string, string>
+     */
     private function localizedSourceUrls(string $sourcePath): array
     {
         $urls = [];
