@@ -70,7 +70,7 @@ class CatalogItemDetailsViewModel extends AbstractBlockViewModel
             }
         }
 
-        $names = array_values(array_unique(array_filter($names, static fn (string $value): bool => $value !== '')));
+        $names = array_values(array_unique($names));
 
         return $names;
     }

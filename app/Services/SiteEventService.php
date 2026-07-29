@@ -35,7 +35,7 @@ class SiteEventService extends BaseSiteService
      * List events/shows.
      *
      * @param array<string, mixed> $queryParams
-     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     * @return array{data: list<array<string, mixed>>, meta: array<string, mixed>}
      */
     public function listEvents(string $lang, array $queryParams = []): array
     {
@@ -52,7 +52,7 @@ class SiteEventService extends BaseSiteService
         );
 
         return [
-            'data' => is_array($response['data'] ?? null) ? $response['data'] : [],
+            'data' => is_array($response['data'] ?? null) ? array_values($response['data']) : [],
             'meta' => ['pagination' => $pagination],
         ];
     }

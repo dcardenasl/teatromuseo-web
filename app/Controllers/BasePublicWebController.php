@@ -313,7 +313,7 @@ abstract class BasePublicWebController extends BaseController
     }
 
     /**
-     * @param list<array<string, mixed>> $blocks
+     * @param array<mixed> $blocks
      */
     private function pageHasHeroHeading(array $blocks): bool
     {

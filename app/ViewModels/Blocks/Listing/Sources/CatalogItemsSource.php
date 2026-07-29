@@ -63,26 +63,21 @@ class CatalogItemsSource implements ListingSourceInterface
 
         try {
             $categoriesData = $this->catalogService->listCategories($lang);
-            if (is_array($categoriesData)) {
-                foreach ($categoriesData as $category) {
-                    if (! is_array($category)) {
-                        continue;
-                    }
-                    $slug = trim((string) ($category['slug'] ?? ''), '/');
-                    if ($slug === '') {
-                        continue;
-                    }
-
-                    $categoryQuery = clone $query;
-                    $categoryQuery->category = $slug;
-                    $categoryQuery->tag = '';
-                    $categoryQuery->page = 1;
-
-                    $category['url'] = ($this->urlBuilder)($categoryQuery);
-                    $categories[] = $category;
-
-                    $this->categoryLookup[$slug] = $category;
+            foreach ($categoriesData as $category) {
+                $slug = trim((string) ($category['slug'] ?? ''), '/');
+                if ($slug === '') {
+                    continue;
                 }
+
+                $categoryQuery = clone $query;
+                $categoryQuery->category = $slug;
+                $categoryQuery->tag = '';
+                $categoryQuery->page = 1;
+
+                $category['url'] = ($this->urlBuilder)($categoryQuery);
+                $categories[] = $category;
+
+                $this->categoryLookup[$slug] = $category;
             }
         } catch (\Throwable) {
         }
@@ -168,15 +163,10 @@ class CatalogItemsSource implements ListingSourceInterface
 
         try {
             $categoriesData = $this->catalogService->listCategories($lang);
-            if (is_array($categoriesData)) {
-                foreach ($categoriesData as $category) {
-                    if (! is_array($category)) {
-                        continue;
-                    }
-                    $slug = trim((string) ($category['slug'] ?? ''), '/');
-                    if ($slug !== '') {
-                        $this->categoryLookup[$slug] = $category;
-                    }
+            foreach ($categoriesData as $category) {
+                $slug = trim((string) ($category['slug'] ?? ''), '/');
+                if ($slug !== '') {
+                    $this->categoryLookup[$slug] = $category;
                 }
             }
         } catch (\Throwable) {
