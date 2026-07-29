@@ -73,49 +73,39 @@ class CmsCollectionSource implements ListingSourceInterface
         $tags = [];
 
         try {
-            $categoriesData = $this->categoryService->listCategories($lang, $collectionKey);
-            if (is_array($categoriesData)) {
-                foreach ($categoriesData as $category) {
-                    if (! is_array($category)) {
-                        continue;
-                    }
-                    $slug = trim((string) ($category['slug'] ?? ''), '/');
-                    if ($slug === '') {
-                        continue;
-                    }
-
-                    $categoryQuery = clone $query;
-                    $categoryQuery->category = $slug;
-                    $categoryQuery->tag = '';
-                    $categoryQuery->page = 1;
-
-                    $category['url'] = ($this->urlBuilder)($categoryQuery);
-                    $categories[] = $category;
+            $categoriesData = $this->categoryService->list($lang, $collectionKey);
+            foreach ($categoriesData as $category) {
+                $slug = trim((string) ($category['slug'] ?? ''), '/');
+                if ($slug === '') {
+                    continue;
                 }
+
+                $categoryQuery = clone $query;
+                $categoryQuery->category = $slug;
+                $categoryQuery->tag = '';
+                $categoryQuery->page = 1;
+
+                $category['url'] = ($this->urlBuilder)($categoryQuery);
+                $categories[] = $category;
             }
         } catch (\Throwable) {
         }
 
         try {
-            $tagsData = $this->tagService->listTags($lang, $collectionKey);
-            if (is_array($tagsData)) {
-                foreach ($tagsData as $tag) {
-                    if (! is_array($tag)) {
-                        continue;
-                    }
-                    $slug = trim((string) ($tag['slug'] ?? ''), '/');
-                    if ($slug === '') {
-                        continue;
-                    }
-
-                    $tagQuery = clone $query;
-                    $tagQuery->tag = $slug;
-                    $tagQuery->category = '';
-                    $tagQuery->page = 1;
-
-                    $tag['url'] = ($this->urlBuilder)($tagQuery);
-                    $tags[] = $tag;
+            $tagsData = $this->tagService->list($lang, $collectionKey);
+            foreach ($tagsData as $tag) {
+                $slug = trim((string) ($tag['slug'] ?? ''), '/');
+                if ($slug === '') {
+                    continue;
                 }
+
+                $tagQuery = clone $query;
+                $tagQuery->tag = $slug;
+                $tagQuery->category = '';
+                $tagQuery->page = 1;
+
+                $tag['url'] = ($this->urlBuilder)($tagQuery);
+                $tags[] = $tag;
             }
         } catch (\Throwable) {
         }
@@ -195,6 +185,9 @@ class CmsCollectionSource implements ListingSourceInterface
         ]);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getCollectionData(string $lang, bool $isPreview): ?array
     {
         $collection = $this->resolveCollection($lang);
@@ -211,6 +204,9 @@ class CmsCollectionSource implements ListingSourceInterface
         return $collection;
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     private function resolveCollection(string $lang): ?array
     {
         if ($this->collection !== null) {
