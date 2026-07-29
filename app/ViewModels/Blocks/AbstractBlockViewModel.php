@@ -102,6 +102,28 @@ abstract class AbstractBlockViewModel
     }
 
     /**
+     * @param array<mixed> $default
+     * @return array<mixed>
+     */
+    protected function configArray(string $key, array $default = []): array
+    {
+        $value = $this->config()[$key] ?? $default;
+
+        return is_array($value) ? $value : $default;
+    }
+
+    /**
+     * @param array<mixed> $default
+     * @return array<mixed>
+     */
+    protected function dataArray(string $key, array $default = []): array
+    {
+        $value = $this->data()[$key] ?? $default;
+
+        return is_array($value) ? $value : $default;
+    }
+
+    /**
      * @return array{source_kind: string, file_id: int|null, url: string}
      */
     protected function configMediaReference(string $key): array

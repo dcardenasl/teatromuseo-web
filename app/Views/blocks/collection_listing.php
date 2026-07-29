@@ -228,7 +228,11 @@ $sectionClass = trim($cssClass . ' section');
                             }
                         }
                     }
-                    $entryImage = is_array($entry['featured_image'] ?? null) ? (string) ($entry['featured_image']['url'] ?? '') : '';
+                    $imageArr = is_array($entry['featured_image'] ?? null) ? $entry['featured_image'] : (is_array($entry['cover_image'] ?? null) ? $entry['cover_image'] : (is_array($entry['main_image'] ?? null) ? $entry['main_image'] : []));
+                    $entryImage = is_string($imageArr['url'] ?? null) ? (string) $imageArr['url'] : '';
+                    if ($entryImage === '') {
+                        $entryImage = $fallbackImageUrl ?? '';
+                    }
                     $listingContent = is_array($entry['listing_content'] ?? null) ? $entry['listing_content'] : [];
                     $extraImage = is_array($listingContent['image'] ?? null) ? $listingContent['image'] : null;
                     $extraAction = is_array($listingContent['secondary_action'] ?? null) ? $listingContent['secondary_action'] : null;
@@ -241,12 +245,16 @@ $sectionClass = trim($cssClass . ' section');
                         <!-- Image Container with Zoom effect on hover -->
                         <?php if ($entryImage !== ''): ?>
                             <a href="<?= esc($entryUrl) ?>" class="block overflow-hidden <?= esc($imageClass) ?>" tabindex="-1" aria-hidden="true">
-                                <?= view('components/responsive-image', [
-                                    'src'      => $entryImage,
-                                    'alt'      => $entryTitle,
-                                    'class'    => 'h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-103',
-                                    'variants' => $entry['featured_image']['variants'] ?? null,
-                                ], ['saveData' => false]) ?>
+                                <?php if (str_starts_with($entryImage, 'http')): ?>
+                                    <img src="<?= esc($entryImage) ?>" alt="<?= esc($entryTitle) ?>" class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105" loading="lazy">
+                                <?php else: ?>
+                                    <?= view('components/responsive-image', [
+                                        'src'      => $entryImage,
+                                        'alt'      => $entryTitle,
+                                        'class'    => 'h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105',
+                                        'variants' => $imageArr['variants'] ?? null,
+                                    ], ['saveData' => false]) ?>
+                                <?php endif; ?>
                             </a>
                         <?php else: ?>
                             <div class="relative overflow-hidden <?= esc($imageClass) ?> bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200">

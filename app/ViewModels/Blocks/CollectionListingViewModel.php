@@ -139,6 +139,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'metaDescription' => $displayIntro !== ''
                 ? $displayIntro
                 : $defaults['intro_text'],
+            'fallbackImageUrl' => $this->textString('fallback_image_url', $defaults['fallback_image_url'] ?? ''),
         ];
     }
 

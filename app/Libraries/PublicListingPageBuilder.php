@@ -83,6 +83,7 @@ final class PublicListingPageBuilder
                         'featured_item_label' => $spec['featured_item_label'],
                         'count_label' => $spec['count_label'],
                         'entry_cta_label' => $spec['entry_cta_label'],
+                        'fallback_image_url' => $spec['fallback_image_url'],
                     ],
                     'block_data' => [],
                     'children' => [],
@@ -112,6 +113,7 @@ final class PublicListingPageBuilder
                 'show_tags' => false,
                 'show_date' => false,
                 'css_class' => 'public-listing public-listing--museum',
+                'fallback_image_url' => 'https://images.unsplash.com/photo-1544928147-79a2dbc1f389?auto=format&fit=crop&w=600&q=80',
             ],
             'event_items' => [
                 'source_path' => \App\Support\PublicPaths::EVENTS,
@@ -128,6 +130,7 @@ final class PublicListingPageBuilder
                 'show_tags' => true,
                 'show_date' => true,
                 'css_class' => 'public-listing public-listing--event',
+                'fallback_image_url' => 'https://images.unsplash.com/photo-1507676184212-d0330a15183e?auto=format&fit=crop&w=600&q=80',
             ],
             default => throw new InvalidArgumentException('Unsupported public listing source: ' . $sourceType),
         };
