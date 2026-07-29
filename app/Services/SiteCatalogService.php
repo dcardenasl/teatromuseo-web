@@ -79,7 +79,13 @@ class SiteCatalogService extends BaseSiteService
 
         return [
             'data' => is_array($response['data']) ? $response['data'] : [],
-            'meta' => ['pagination' => $response['meta']],
+            'meta' => [
+                'pagination' => $this->normalizePagination(
+                    is_array($response['meta'] ?? null) ? $response['meta'] : [],
+                    isset($query['page']) ? (int) $query['page'] : 1,
+                    isset($query['per_page']) ? (int) $query['per_page'] : 20
+                ),
+            ],
         ];
     }
 

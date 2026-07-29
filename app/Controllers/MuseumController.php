@@ -15,55 +15,11 @@ class MuseumController extends BasePublicWebController
     public function index(): ResponseInterface
     {
         $lang = $this->request->getLocale();
-        $catalogService = Services::siteCatalogService();
-
-        // Get filter inputs safely
-        $searchVal = $this->request->getGet('search');
-        $search = is_string($searchVal) ? trim($searchVal) : '';
-
-        $categoryVal = $this->request->getGet('category');
-        $categoryId = is_string($categoryVal) ? trim($categoryVal) : '';
-
-        $pageVal = $this->request->getGet('page');
-        $page = is_numeric($pageVal) ? (int) $pageVal : 1;
-
-        $perPage = 12; // Premium card layout looks best with 12 items per page
-
-        // Build query params for the catalog domain API
-        $queryParams = [
-            'page'     => $page,
-            'per_page' => $perPage,
-        ];
-
-        if ($search !== '') {
-            $queryParams['search'] = $search;
-        }
-
-        // Apply category filter if set
-        $filter = [];
-        if ($categoryId !== '') {
-            $filter['category_id'] = $categoryId;
-        }
-        $queryParams['filter'] = $filter;
-
-        // Fetch data
-        $categories = $catalogService->listCategories($lang);
-        $result = $catalogService->listItems($lang, $queryParams);
-
-        $items = $result['data'] ?? [];
-        $meta = $result['meta'] ?? [];
-        $pagination = $meta['pagination'] ?? [];
-
-        return $this->render('museum/index', [
-            'title'           => lang('Site.museum_collection_title') ?: 'Colección de Museo',
-            'categories'      => $categories,
-            'currentCategory' => $categoryId,
-            'search'          => $search,
-            'data'            => $items,
-            'currentPage'     => $page,
-            'pagination'      => $pagination,
-            'lang'            => $lang,
-        ]);
+        return $this->renderCmsPageOrFallbackListing(
+            $lang,
+            \App\Support\PublicPaths::CATALOG,
+            static fn (string $language): array => Services::publicListingPageBuilder()->museum($language)
+        );
     }
 
     /**
@@ -90,11 +46,41 @@ class MuseumController extends BasePublicWebController
             }
         }
 
-        return $this->render('museum/show', [
-            'title'           => (string) ($item['name'] ?? ''),
-            'item'            => $item,
-            'categoryName'    => $categoryName,
-            'lang'            => $lang,
+        $pageTitle = (string) ($item['localized']['name'] ?? $item['name'] ?? '');
+        $pageExcerpt = (string) ($item['localized']['summary'] ?? $item['summary'] ?? '');
+
+        $featuredImage = $item['cover_image'] ?? $item['featured_image'] ?? $item['main_image'] ?? null;
+        $ogImageUrl = is_array($featuredImage) ? (string) ($featuredImage['url'] ?? '') : '';
+        if ($ogImageUrl === '' && is_string($featuredImage)) {
+            $ogImageUrl = $featuredImage;
+        }
+
+        // Use the actual localized slug for canonical if available, else fallback
+        $canonicalSlug = (string) ($item['slug'] ?? $idOrCode);
+        $canonicalUrl = site_url('/' . $lang . '/' . \App\Support\PublicPaths::CATALOG . '/' . $canonicalSlug);
+
+        $localizedUrls = [];
+        $apiSlugs = is_array($item['slugs'] ?? null) ? $item['slugs'] : [];
+        foreach (config('App')->supportedLocales as $locale) {
+            if (isset($apiSlugs[$locale]) && is_string($apiSlugs[$locale]) && $apiSlugs[$locale] !== '') {
+                $localizedUrls[$locale] = site_url('/' . $locale . '/' . \App\Support\PublicPaths::CATALOG . '/' . ltrim($apiSlugs[$locale], '/'));
+            }
+        }
+
+        return $this->renderTemplatePage('template_catalog_item', $lang, [
+            'title'              => $pageTitle,
+            'excerpt'            => $pageExcerpt,
+            'showPageHeading'    => false,
+            'pageTitle'          => $pageTitle,
+            'metaDescription'    => $pageExcerpt,
+            'canonicalUrl'       => $canonicalUrl,
+            'ogImage'            => $ogImageUrl,
+            'metaRobots'         => 'index, follow',
+            'schemaData'         => null,
+            'localized_urls'     => $localizedUrls,
+        ], [
+            'catalog_item' => $item,
+            'category_name' => $categoryName,
         ]);
     }
 }

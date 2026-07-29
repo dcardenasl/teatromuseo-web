@@ -17,6 +17,7 @@
  * @var string $orderDirection
  * @var string $layoutVariant
  * @var string $cssClass
+ * @var string $sectionLabel
  * @var bool $showSearch
  * @var bool $showCategories
  * @var bool $showTags
@@ -30,6 +31,9 @@
  * @var string $emptyMessage
  * @var string $introTitle
  * @var string $introText
+ * @var string $itemLabel
+ * @var string $featuredItemLabel
+ * @var string $countLabel
  * @var list<array<string, mixed>> $categories
  * @var list<array<string, mixed>> $tags
  * @var string $pageTitle
@@ -67,6 +71,10 @@ $nextLabel = lang('Site.collection_next');
 $noResultsLabel = lang('Site.collection_empty');
 $headerTitle = $introTitle !== '' ? $introTitle : collection_display_title($collection ?? []);
 $headerIntro = $introText !== '' ? $introText : collection_display_intro($collection ?? []);
+$sectionLabel = trim((string) ($sectionLabel ?? ($collection['section_label'] ?? lang('Site.collection_index_label'))));
+$itemLabel = trim((string) ($itemLabel ?? ($collection['item_label'] ?? lang('Site.collection_listing_item'))));
+$featuredItemLabel = trim((string) ($featuredItemLabel ?? ($collection['featured_item_label'] ?? lang('Site.collection_listing_featured'))));
+$countLabel = trim((string) ($countLabel ?? ($collection['count_label'] ?? lang('Site.collection_listing_count'))));
 // COL-002: editable per-collection CTA label (Collections.field_entry_cta_label in the admin)
 // takes priority; the collection_type fallback only covers the two shipped starter presets so
 // custom collection types get a neutral label instead of an assumed "Ver proyecto".
@@ -105,10 +113,10 @@ $sectionClass = trim($cssClass . ' section');
         <?php if ($headerTitle !== '' || $headerIntro !== ''): ?>
             <header class="max-w-4xl mb-8">
                 <p class="text-xs font-bold uppercase tracking-[0.24em] text-primary mb-2">
-                    <?= esc(lang('Site.collection_index_label')) ?>
+                    <?= esc($sectionLabel !== '' ? $sectionLabel : lang('Site.collection_index_label')) ?>
                 </p>
                 <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-                    <?= esc($headerTitle !== '' ? $headerTitle : lang('Site.collection_index_label')) ?>
+                    <?= esc($headerTitle !== '' ? $headerTitle : ($sectionLabel !== '' ? $sectionLabel : lang('Site.collection_index_label'))) ?>
                 </h2>
                 <?php if ($headerIntro !== ''): ?>
                     <div class="mt-4 text-slate-500 max-w-2xl leading-relaxed text-base">
@@ -197,7 +205,7 @@ $sectionClass = trim($cssClass . ' section');
                 <!-- List Metadata Bar -->
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-6">
                     <span class="text-xs font-bold uppercase tracking-[0.15em] text-slate-400" data-listing-count>
-                        <?= esc(str_replace('{count}', (string) count($entries), lang('Site.collection_listing_count'))) ?>
+                        <?= esc(str_replace('{count}', (string) count($entries), $countLabel !== '' ? $countLabel : lang('Site.collection_listing_count'))) ?>
                     </span>
                 </div>
 
@@ -245,8 +253,8 @@ $sectionClass = trim($cssClass . ' section');
                                 <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.95),transparent_55%)]"></div>
                                 <div class="relative flex h-full w-full items-end p-5">
                                     <div>
-                                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"><?= esc(lang('Site.collection_listing_item')) ?></p>
-                                        <p class="mt-1 text-base font-semibold text-slate-700 line-clamp-2"><?= esc($entryTitle !== '' ? $entryTitle : lang('Site.collection_listing_featured')) ?></p>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"><?= esc($itemLabel !== '' ? $itemLabel : lang('Site.collection_listing_item')) ?></p>
+                                        <p class="mt-1 text-base font-semibold text-slate-700 line-clamp-2"><?= esc($entryTitle !== '' ? $entryTitle : ($featuredItemLabel !== '' ? $featuredItemLabel : lang('Site.collection_listing_featured'))) ?></p>
                                     </div>
                                 </div>
                             </div>

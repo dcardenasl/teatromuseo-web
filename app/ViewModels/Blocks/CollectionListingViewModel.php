@@ -4,152 +4,97 @@ declare(strict_types=1);
 
 namespace App\ViewModels\Blocks;
 
+use App\Services\SiteCatalogService;
 use App\Services\SiteCategoryService;
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
+use App\Services\SiteEventService;
 use App\Services\SiteTagService;
+use App\ViewModels\Blocks\Listing\ListingQuery;
+use App\ViewModels\Blocks\Listing\ListingSourceInterface;
+use App\ViewModels\Blocks\Listing\Sources\CatalogItemsSource;
+use App\ViewModels\Blocks\Listing\Sources\CmsCollectionSource;
+use App\ViewModels\Blocks\Listing\Sources\EventItemsSource;
 
 class CollectionListingViewModel extends AbstractBlockViewModel
 {
-    private const ORDER_COLUMNS = ['published_at', 'sort_order', 'created_at', 'title'];
     private const LAYOUT_VARIANTS = ['cards', 'compact', 'portfolio', 'list'];
-
-    /** @var array<string, mixed>|null */
-    private ?array $collection = null;
 
     public function vars(): array
     {
-        $collectionId = $this->configInt('collection_id', 0);
-        $collection = $this->resolveCollection($collectionId);
+        $sourceType = $this->resolveSourceType();
+        $source = $this->resolveSource($sourceType);
 
-        if ($collection === null && $this->isPreviewRequest()) {
-            $collection = [
-                'id' => 999,
-                'name' => 'Colección de Ejemplo',
-                'collection_key' => 'mock-collection',
-                'slug' => 'mock-collection',
-                'listing_title' => 'Colección de Ejemplo en Vista Previa',
-                'default_meta_description' => 'Descripción de ejemplo para metadatos de la colección.',
-            ];
-        }
-
-        $this->collection = $collection;
-
-        if ($collection === null) {
-            return [
-                'isValid' => false,
-                'entries' => [],
-                'categories' => [],
-                'tags' => [],
-                'pagination' => [],
-                'currentPage' => 1,
-                'currentCategory' => '',
-                'currentTag' => '',
-                'currentQuery' => '',
-                'orderBy' => 'published_at',
-                'orderDirection' => 'desc',
-                'layoutVariant' => 'cards',
-                'cssClass' => $this->configString('css_class'),
-                'showSearch' => $this->configBool('show_search', true),
-                'showCategories' => $this->configBool('show_categories', true),
-                'showTags' => $this->configBool('show_tags', false),
-                'showExcerpt' => $this->configBool('show_excerpt', true),
-                'showDate' => $this->configBool('show_date', true),
-                'showButton' => $this->configBool('show_button', true),
-                'showItemCategories' => $this->configBool('show_item_categories', true),
-                'showExtraRichtext' => $this->configBool('show_extra_richtext', false),
-                'showExtraLink' => $this->configBool('show_extra_link', false),
-                'showExtraImage' => $this->configBool('show_extra_image', false),
-                'emptyMessage' => $this->dataString('empty_message'),
-                'introTitle' => $this->dataString('intro_title'),
-                'introText' => $this->dataString('intro_text'),
-                'collection' => null,
-                'collectionUrlPath' => '',
-                'localizedUrls' => [],
-            ];
-        }
+        $defaults = $source->defaults();
 
         $currentPage = max(1, (int) ($this->requestGet('page') ?: 1));
         $currentCategory = trim($this->requestGet('category'));
         $currentTag = trim($this->requestGet('tag'));
         $currentQuery = trim($this->requestGet('q'));
 
-        $orderBy = $this->resolveOrderBy($this->requestGet('order_by'));
-        $orderDirection = $this->resolveOrderDirection($this->requestGet('order_direction'));
+        $orderBy = $this->resolveOrderBy($this->requestGet('order_by'), $defaults['order_by']);
+        $orderDirection = $this->resolveOrderDirection($this->requestGet('order_direction'), $defaults['order_direction']);
         $perPage = max(1, min(100, $this->configInt('per_page', 12)));
         $layoutVariant = $this->resolveLayoutVariant($this->configString('layout_variant', 'cards'));
-        $collectionKey = (string) ($collection['collection_key'] ?? '');
-        $collectionUrlPath = $this->resolvedCollectionUrlPath($collection);
-        $localizedUrls = localized_collection_urls($collection);
 
-        $query = [
-            'page' => $currentPage,
-            'per_page' => $perPage,
-            'order_by' => $orderBy,
-            'order_direction' => $orderDirection,
-            'include' => 'listing_content',
+        $query = new ListingQuery(
+            page: $currentPage,
+            perPage: $perPage,
+            category: $currentCategory,
+            tag: $currentTag,
+            query: $currentQuery,
+            orderBy: $orderBy,
+            orderDirection: $orderDirection
+        );
+
+        $result = $source->fetch($query, $this->lang);
+
+        if ((empty($result->data) || !is_array($result->data)) && $this->isPreviewRequest()) {
+            $result = $source->previewResult();
+        }
+
+        $facets = $source->facets($query, $this->lang);
+        $categories = $this->configBool('show_categories', $defaults['show_categories']) ? ($facets['categories'] ?? []) : [];
+        $tags = $this->configBool('show_tags', $defaults['show_tags']) ? ($facets['tags'] ?? []) : [];
+
+        $normalizedEntries = $this->prepareEntries(
+            array_map(fn ($entry) => $source->normalizeEntry($entry), $result->data)
+        );
+
+        $pagination = $result->pagination;
+        $currentPage = max(1, (int) ($pagination['current_page'] ?? $currentPage));
+
+        $collectionKey = $sourceType;
+        $collectionUrlPath = $defaults['source_path'];
+        $localizedUrls = $this->localizedSourceUrls($collectionUrlPath);
+        $collection = [
+            'id' => 0,
+            'collection_key' => $sourceType,
+            'collection_type' => $sourceType,
+            'slug' => $collectionUrlPath,
+            'name' => $defaults['page_title'],
+            'listing_title' => $this->textString('intro_title', $defaults['page_title']),
+            'listing_intro' => $this->textString('intro_text', $defaults['intro_text']),
+            'default_meta_description' => $this->textString('intro_text', $defaults['intro_text']),
+            'entry_cta_label' => $this->textString('entry_cta_label', $defaults['entry_cta_label']),
+            'section_label' => $this->textString('section_label', $defaults['section_label']),
+            'item_label' => $this->textString('item_label', $defaults['item_label']),
+            'featured_item_label' => $this->textString('featured_item_label', $defaults['featured_item_label']),
+            'count_label' => $this->textString('count_label', $defaults['count_label']),
         ];
-        if ($currentCategory !== '') {
-            $query['category'] = $currentCategory;
-        }
-        if ($currentTag !== '') {
-            $query['tag'] = $currentTag;
-        }
-        if ($currentQuery !== '') {
-            $query['q'] = $currentQuery;
-        }
 
-        $entryService = $this->contextService('siteEntryService', SiteEntryService::class);
-        $result = ['data' => [], 'meta' => ['pagination' => []]];
-        if ($entryService !== null) {
-            try {
-                $result = $entryService->list($this->lang, $collectionKey, $query);
-            } catch (\Throwable) {
-                $result = ['data' => [], 'meta' => ['pagination' => []]];
+        if ($sourceType === 'cms_collection' && $source instanceof CmsCollectionSource) {
+            $cmsCollection = $source->getCollectionData($this->lang, $this->isPreviewRequest());
+            if ($cmsCollection !== null) {
+                $collection = $cmsCollection;
+                $collectionKey = (string) ($collection['collection_key'] ?? '');
+                $collectionUrlPath = $this->resolvedCollectionUrlPath($collection);
+                $localizedUrls = localized_collection_urls($collection);
+            } else {
+                return $this->emptyVars($defaults, $layoutVariant);
             }
         }
 
-        if ((empty($result['data']) || !is_array($result['data'])) && $this->isPreviewRequest()) {
-            $result = [
-                'data' => [
-                    [
-                        'id' => 1,
-                        'slug' => 'mock-entry-1',
-                        'title' => 'Caso de Éxito de Ejemplo 1',
-                        'summary' => 'Esta es una descripción corta para la primera entrada de ejemplo en la lista.',
-                        'published_at' => date('Y-m-d H:i:s'),
-                        'featured_image' => $this->normalizeMediaReference(['source_kind' => 'external_url', 'file_id' => null, 'url' => 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80']),
-                        'categories' => [['title' => 'Casos', 'slug' => 'casos']],
-                        'tags' => [['title' => 'Tag 1', 'slug' => 'tag-1']],
-                    ],
-                    [
-                        'id' => 2,
-                        'slug' => 'mock-entry-2',
-                        'title' => 'Lanzamiento de Producto Especial',
-                        'summary' => 'Esta es una descripción corta para la segunda entrada de ejemplo en la lista.',
-                        'published_at' => date('Y-m-d H:i:s', strtotime('-1 day')),
-                        'featured_image' => $this->normalizeMediaReference(['source_kind' => 'external_url', 'file_id' => null, 'url' => 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=600&q=80']),
-                        'categories' => [['title' => 'Productos', 'slug' => 'productos']],
-                        'tags' => [['title' => 'Tag 2', 'slug' => 'tag-2']],
-                    ]
-                ],
-                'meta' => [
-                    'pagination' => [
-                        'currentPage' => 1,
-                        'totalPages' => 1,
-                        'perPage' => 12,
-                        'totalItems' => 2,
-                    ]
-                ]
-            ];
-        }
-
-        $categories = $this->configBool('show_categories', true)
-            ? $this->resolveCategories($collectionKey, $currentPage, $currentCategory, $currentTag, $currentQuery, $orderBy, $orderDirection, $perPage)
-            : [];
-        $tags = $this->configBool('show_tags', false)
-            ? $this->resolveTags($collectionKey, $currentPage, $currentCategory, $currentTag, $currentQuery, $orderBy, $orderDirection, $perPage)
-            : [];
         $displayTitle = collection_display_title($collection);
         $displayIntro = collection_display_intro($collection);
 
@@ -159,8 +104,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'collectionUrlPath' => $collectionUrlPath,
             'localizedUrls' => $localizedUrls,
             'collectionKey' => $collectionKey,
-            'entries' => $this->prepareEntries($result['data'] ?? []),
-            'pagination' => is_array($result['meta']['pagination'] ?? null) ? $result['meta']['pagination'] : [],
+            'entries' => $normalizedEntries,
+            'pagination' => $pagination,
             'currentPage' => $currentPage,
             'currentCategory' => $currentCategory,
             'currentTag' => $currentTag,
@@ -170,47 +115,109 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'layoutVariant' => $layoutVariant,
             'cssClass' => $this->configString('css_class'),
             'showSearch' => $this->configBool('show_search', true),
-            'showCategories' => $this->configBool('show_categories', true),
-            'showTags' => $this->configBool('show_tags', false),
+            'showCategories' => $this->configBool('show_categories', $defaults['show_categories']),
+            'showTags' => $this->configBool('show_tags', $defaults['show_tags']),
             'showExcerpt' => $this->configBool('show_excerpt', true),
-            'showDate' => $this->configBool('show_date', true),
+            'showDate' => $this->configBool('show_date', $defaults['show_date']),
             'showButton' => $this->configBool('show_button', true),
             'showItemCategories' => $this->configBool('show_item_categories', true),
             'showExtraRichtext' => $this->configBool('show_extra_richtext', false),
             'showExtraLink' => $this->configBool('show_extra_link', false),
             'showExtraImage' => $this->configBool('show_extra_image', false),
-            'emptyMessage' => $this->dataString('empty_message', $this->defaultEmptyMessage()),
-            'introTitle' => $this->dataString('intro_title'),
-            'introText' => $this->dataString('intro_text'),
+            'emptyMessage' => $this->textString('empty_message', $this->defaultEmptyMessage()),
+            'introTitle' => $this->textString('intro_title', $defaults['page_title']),
+            'introText' => $this->textString('intro_text', $defaults['intro_text']),
+            'sectionLabel' => $collection['section_label'] ?? $this->textString('section_label', $defaults['section_label']),
+            'itemLabel' => $collection['item_label'] ?? $this->textString('item_label', $defaults['item_label']),
+            'featuredItemLabel' => $collection['featured_item_label'] ?? $this->textString('featured_item_label', $defaults['featured_item_label']),
+            'countLabel' => $collection['count_label'] ?? $this->textString('count_label', $defaults['count_label']),
             'categories' => $categories,
             'tags' => $tags,
             'pageTitle' => $displayTitle !== ''
                 ? $displayTitle
-                : lang('Site.collection_index_label'),
+                : $defaults['page_title'],
             'metaDescription' => $displayIntro !== ''
                 ? $displayIntro
-                : (string) ($collection['default_meta_description'] ?? ''),
+                : $defaults['intro_text'],
         ];
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function resolveCollection(int $collectionId): ?array
+    private function resolveSource(string $sourceType): ListingSourceInterface
     {
-        if ($collectionId <= 0) {
-            return null;
-        }
+        $urlBuilder = fn (ListingQuery $query) => $this->buildUrl([
+            'category' => $query->category ?: null,
+            'tag' => $query->tag ?: null,
+            'q' => $query->query ?: null,
+            'order_by' => $query->orderBy ?: null,
+            'order_direction' => $query->orderDirection ?: null,
+            'page' => $query->page > 1 ? $query->page : null,
+        ]);
 
-        $service = $this->contextService('siteCollectionService', SiteCollectionService::class);
-        if ($service === null) {
-            return null;
-        }
+        $mediaNormalizer = fn (array $media) => $this->normalizeMediaReference($media);
 
-        return $this->findCollection(
-            $service->getAll($this->lang),
-            static fn (array $collection): bool => (int) ($collection['id'] ?? 0) === $collectionId
-        );
+        return match ($sourceType) {
+            'catalog_items' => new CatalogItemsSource(
+                $this->contextService('siteCatalogService', SiteCatalogService::class),
+                $urlBuilder,
+                $mediaNormalizer
+            ),
+            'event_items' => new EventItemsSource(
+                $this->contextService('siteEventService', SiteEventService::class),
+                $urlBuilder,
+                $mediaNormalizer
+            ),
+            default => new CmsCollectionSource(
+                $this->contextService('siteCollectionService', SiteCollectionService::class),
+                $this->contextService('siteEntryService', SiteEntryService::class),
+                $this->contextService('siteCategoryService', SiteCategoryService::class),
+                $this->contextService('siteTagService', SiteTagService::class),
+                $this->configInt('collection_id', 0),
+                $urlBuilder,
+                $mediaNormalizer
+            )
+        };
+    }
+
+    private function emptyVars(array $defaults, string $layoutVariant): array
+    {
+        return [
+            'isValid' => false,
+            'entries' => [],
+            'categories' => [],
+            'tags' => [],
+            'pagination' => [],
+            'currentPage' => 1,
+            'currentCategory' => '',
+            'currentTag' => '',
+            'currentQuery' => '',
+            'orderBy' => $defaults['order_by'],
+            'orderDirection' => $defaults['order_direction'],
+            'layoutVariant' => $layoutVariant,
+            'cssClass' => $this->configString('css_class'),
+            'showSearch' => $this->configBool('show_search', true),
+            'showCategories' => $this->configBool('show_categories', $defaults['show_categories']),
+            'showTags' => $this->configBool('show_tags', $defaults['show_tags']),
+            'showExcerpt' => $this->configBool('show_excerpt', true),
+            'showDate' => $this->configBool('show_date', $defaults['show_date']),
+            'showButton' => $this->configBool('show_button', true),
+            'showItemCategories' => $this->configBool('show_item_categories', true),
+            'showExtraRichtext' => $this->configBool('show_extra_richtext', false),
+            'showExtraLink' => $this->configBool('show_extra_link', false),
+            'showExtraImage' => $this->configBool('show_extra_image', false),
+            'emptyMessage' => $this->textString('empty_message', $this->defaultEmptyMessage()),
+            'introTitle' => $this->textString('intro_title', $defaults['page_title']),
+            'introText' => $this->textString('intro_text', $defaults['intro_text']),
+            'sectionLabel' => $this->textString('section_label', $defaults['section_label']),
+            'itemLabel' => $this->textString('item_label', $defaults['item_label']),
+            'featuredItemLabel' => $this->textString('featured_item_label', $defaults['featured_item_label']),
+            'countLabel' => $this->textString('count_label', $defaults['count_label']),
+            'collection' => null,
+            'collectionUrlPath' => '',
+            'localizedUrls' => [],
+            'collectionKey' => '',
+            'pageTitle' => $defaults['page_title'],
+            'metaDescription' => $defaults['intro_text'],
+        ];
     }
 
     private function requestGet(string $key): string
@@ -225,34 +232,67 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         return is_scalar($value) ? (string) $value : '';
     }
 
-    private function resolveOrderBy(string $value): string
+    private function resolveSourceType(): string
     {
-        return in_array($value, self::ORDER_COLUMNS, true) ? $value : 'published_at';
+        $value = strtolower(trim($this->configString('source_type', 'cms_collection')));
+
+        return in_array($value, ['cms_collection', 'catalog_items', 'event_items'], true)
+            ? $value
+            : 'cms_collection';
     }
 
-    private function resolveOrderDirection(string $value): string
+    private function resolveOrderBy(string $requestValue, string $default): string
     {
-        return strtolower($value) === 'asc' ? 'asc' : 'desc';
+        $value = strtolower(trim($requestValue));
+        return in_array($value, ['published_at', 'sort_order', 'created_at', 'title', 'name', 'start_time'], true)
+            ? $value
+            : $default;
     }
 
-    private function resolveLayoutVariant(string $value): string
+    private function resolveOrderDirection(string $requestValue, string $default): string
     {
-        return in_array($value, self::LAYOUT_VARIANTS, true) ? $value : 'cards';
+        $value = strtolower(trim($requestValue));
+        return in_array($value, ['asc', 'desc'], true) ? $value : $default;
     }
 
-    /**
-     * Normalize the optional Domain projection once, keeping the template free
-     * from URL policy and rich-text sanitization concerns.
-     *
-     * @param mixed $entries
-     * @return list<array<string, mixed>>
-     */
-    private function prepareEntries(mixed $entries): array
+    private function resolveLayoutVariant(string $variant): string
     {
-        if (!is_array($entries)) {
-            return [];
+        $variant = strtolower(trim($variant));
+        return in_array($variant, self::LAYOUT_VARIANTS, true) ? $variant : 'cards';
+    }
+
+    private function textString(string $key, string $default = ''): string
+    {
+        $value = trim($this->dataString($key, ''));
+        if ($value !== '') {
+            return $value;
         }
 
+        $value = trim($this->configString($key, ''));
+
+        return $value !== '' ? $value : $default;
+    }
+
+    private function defaultEmptyMessage(): string
+    {
+        return lang('Site.collection_listing_empty') ?: 'No se encontraron resultados que coincidan con la búsqueda.';
+    }
+
+    private function buildUrl(array $params): string
+    {
+        $request = $this->contextRequest();
+        $currentUrl = $request !== null ? (string) $request->getUri()->setQuery('') : '';
+        $queryStr = http_build_query(array_filter($params, static fn ($v) => $v !== null && $v !== ''));
+
+        if ($queryStr === '') {
+            return $currentUrl;
+        }
+
+        return $currentUrl . '?' . $queryStr;
+    }
+
+    private function prepareEntries(array $entries): array
+    {
         $normalized = [];
         foreach ($entries as $entry) {
             if (!is_array($entry)) {
@@ -263,24 +303,18 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $image = is_array($content['image'] ?? null) ? $content['image'] : null;
             $action = is_array($content['secondary_action'] ?? null) ? $content['secondary_action'] : null;
             $richText = is_string($content['rich_text'] ?? null) ? trim($content['rich_text']) : '';
-            $featuredImage = $this->mediaReferenceFromPayload($entry, 'featured_image');
 
             $entry['listing_content'] = [
                 'rich_text' => $richText !== '' ? \App\Libraries\HtmlSanitizer::clean($richText) : '',
                 'image' => $this->normalizeListingImage($image),
                 'secondary_action' => $this->normalizeListingAction($action),
             ];
-            $entry['featured_image'] = $featuredImage['url'] !== '' ? $featuredImage : null;
             $normalized[] = $entry;
         }
 
         return $normalized;
     }
 
-    /**
-     * @param array<string, mixed>|null $image
-     * @return array{url: string, alt: string}|null
-     */
     private function normalizeListingImage(?array $image): ?array
     {
         $url = is_string($image['url'] ?? null) ? trim($image['url']) : '';
@@ -294,10 +328,6 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         ];
     }
 
-    /**
-     * @param array<string, mixed>|null $action
-     * @return array{label: string, url: string}|null
-     */
     private function normalizeListingAction(?array $action): ?array
     {
         $label = is_string($action['label'] ?? null) ? trim($action['label']) : '';
@@ -312,123 +342,17 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         ];
     }
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function resolveCategories(string $collectionKey, int $currentPage, string $currentCategory, string $currentTag, string $currentQuery, string $orderBy, string $orderDirection, int $perPage): array
-    {
-        $service = $this->contextService('siteCategoryService', SiteCategoryService::class);
-        try {
-            $categories = $service?->list($this->lang, $collectionKey) ?? [];
-        } catch (\Throwable) {
-            $categories = [];
-        }
-
-        $filters = $this->baseFilterParams($currentPage, $currentCategory, $currentTag, $currentQuery, $orderBy, $orderDirection, $perPage);
-        $result = [];
-
-        foreach ($categories as $category) {
-            if (! is_array($category)) {
-                continue;
-            }
-
-            $slug = trim((string) ($category['slug'] ?? ''), '/');
-            if ($slug === '') {
-                continue;
-            }
-
-            $filters['category'] = $slug;
-            $filters['tag'] = null;
-            $filters['page'] = null;
-            $category['url'] = $this->buildUrl($filters);
-            $result[] = $category;
-        }
-
-        return $result;
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function resolveTags(string $collectionKey, int $currentPage, string $currentCategory, string $currentTag, string $currentQuery, string $orderBy, string $orderDirection, int $perPage): array
-    {
-        $service = $this->contextService('siteTagService', SiteTagService::class);
-        try {
-            $tags = $service?->list($this->lang, $collectionKey) ?? [];
-        } catch (\Throwable) {
-            $tags = [];
-        }
-
-        $filters = $this->baseFilterParams($currentPage, $currentCategory, $currentTag, $currentQuery, $orderBy, $orderDirection, $perPage);
-        $result = [];
-
-        foreach ($tags as $tag) {
-            if (! is_array($tag)) {
-                continue;
-            }
-
-            $slug = trim((string) ($tag['slug'] ?? ''), '/');
-            if ($slug === '') {
-                continue;
-            }
-
-            $filters['tag'] = $slug;
-            $filters['category'] = null;
-            $filters['page'] = null;
-            $tag['url'] = $this->buildUrl($filters);
-            $result[] = $tag;
-        }
-
-        return $result;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function baseFilterParams(int $page, string $category, string $tag, string $q, string $orderBy, string $orderDirection, int $perPage): array
-    {
-        return [
-            'page' => $page,
-            'per_page' => $perPage,
-            'category' => $category !== '' ? $category : null,
-            'tag' => $tag !== '' ? $tag : null,
-            'q' => $q !== '' ? $q : null,
-            'order_by' => $orderBy !== '' ? $orderBy : null,
-            'order_direction' => $orderDirection !== '' ? $orderDirection : null,
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $params
-     */
-    private function buildUrl(array $params): string
-    {
-        $path = $this->resolvedCollectionUrlPath($this->collection ?? []);
-        $query = http_build_query(array_filter($params, static fn ($value) => $value !== null && $value !== ''));
-
-        return $path !== ''
-            ? lang_url($path, $this->lang) . ($query !== '' ? '?' . $query : '')
-            : '#';
-    }
-
-    private function defaultEmptyMessage(): string
-    {
-        return lang('Site.collection_empty');
-    }
-
-    /**
-     * Resolve the base path used for filter links and entry cards.
-     *
-     * Delegates to `localized_collection_url_path()`, the single source of
-     * truth for a collection's canonical URL (index page slug, or the
-     * `collection_key` fallback when there is none) — do not reintroduce a
-     * page-derived fallback here; that made entry links depend on which page
-     * happened to render the block (see the 2026-07-15 dead-link fix).
-     *
-     * @param array<string, mixed> $collection
-     */
     private function resolvedCollectionUrlPath(array $collection): string
     {
         return localized_collection_url_path($collection, $this->lang);
+    }
+
+    private function localizedSourceUrls(string $sourcePath): array
+    {
+        $urls = [];
+        foreach (config('App')->supportedLocales as $locale) {
+            $urls[$locale] = site_url('/' . $locale . '/' . $sourcePath);
+        }
+        return $urls;
     }
 }
