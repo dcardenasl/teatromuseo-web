@@ -42,28 +42,6 @@ class PageController extends BasePublicWebController
     }
 
     /**
-     * Reads the preview query params off the incoming request and forwards
-     * them opaquely — this app never validates the signature itself, only
-     * Domain does (PreviewToken::verify). Passing an invalid or missing
-     * signature through just means Domain falls back to published-only rules.
-     *
-     * @return array{0: bool, 1: ?string, 2: ?string}
-     */
-    private function previewParams(): array
-    {
-        $request = service('request');
-        $preview = $request->getGet('preview') === '1';
-        $previewExpires = $request->getGet('preview_expires');
-        $previewSig = $request->getGet('preview_sig');
-
-        return [
-            $preview,
-            is_string($previewExpires) ? $previewExpires : null,
-            is_string($previewSig) ? $previewSig : null,
-        ];
-    }
-
-    /**
      * Render the homepage.
      */
     public function home(): ResponseInterface
@@ -73,7 +51,7 @@ class PageController extends BasePublicWebController
         }
 
         $lang = service('request')->getLocale();
-        [$preview, $previewExpires, $previewSig] = $this->previewParams();
+        [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
 
         // For now, try to fetch a page by slug 'home'
         $pageService = Services::sitePageService();
@@ -83,7 +61,7 @@ class PageController extends BasePublicWebController
             return $this->notFound('Página de inicio no encontrada');
         }
 
-        return $this->renderPage($page, $lang);
+        return $this->renderCmsPage($page, $lang);
     }
 
     /**
@@ -97,13 +75,28 @@ class PageController extends BasePublicWebController
 
         $lang = service('request')->getLocale();
         $path = trim(implode('/', $segments), '/');
-        [$preview, $previewExpires, $previewSig] = $this->previewParams();
+        [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
 
         if (empty($path)) {
             return $this->home();
         }
 
-        // Step 1: Try collection prefix match first.
+        // Step 1: Resolve explicit redirects before collection prefixes.
+        // This keeps legacy slugs like /obras from shadowing the intended
+        // public listing when a manual redirect exists.
+        $redirectService = Services::siteRedirectService();
+        $redirect = $redirectService->resolve($path);
+        if ($redirect) {
+            $statusCode = match ($redirect['redirect_type'] ?? 301) {
+                'temporary' => 302,
+                'permanent' => 301,
+                default => 301,
+            };
+
+            return redirect()->to(lang_url((string) $redirect['new_url'], $lang))->setStatusCode($statusCode);
+        }
+
+        // Step 2: Try collection prefix match.
         $collectionService = Services::siteCollectionService();
         $entryService = Services::siteEntryService();
         $pageService = Services::sitePageService();
@@ -124,7 +117,7 @@ class PageController extends BasePublicWebController
             if ($remainder === '') {
                 $page = $pageService->getBySlug($lang, $path, $preview, $previewExpires, $previewSig);
                 if ($page && (string) ($page['page_type'] ?? '') === 'collection_index' && (int) ($page['collection_id'] ?? 0) === (int) ($collection['id'] ?? 0)) {
-                    return $this->renderPage($page, $lang);
+                    return $this->renderCmsPage($page, $lang);
                 }
 
                 // The path matched this collection's prefix (its own index page,
@@ -143,7 +136,7 @@ class PageController extends BasePublicWebController
             }
         }
 
-        // Step 2: Support CMS pages that host collection listings directly
+        // Step 3: Support CMS pages that host collection listings directly
         // under their own slug, e.g. /es/festivales/{slug}. If the first
         // segment resolves to a page and that page contains a collection
         // listing block, treat the remainder as an entry slug.
@@ -177,83 +170,15 @@ class PageController extends BasePublicWebController
             }
         }
 
-        // Step 3: Try CMS page by slug only when the path is not a collection route.
+        // Step 4: Try CMS page by slug only when the path is not a collection route.
         $page = $pageService->getBySlug($lang, $path, $preview, $previewExpires, $previewSig);
 
         if ($page) {
-            return $this->renderPage($page, $lang);
-        }
-
-        // Step 4: Try redirect
-        $redirectService = Services::siteRedirectService();
-        $redirect = $redirectService->resolve($path);
-
-        if ($redirect) {
-            $statusCode = match ($redirect['redirect_type'] ?? 301) {
-                'temporary' => 302,
-                'permanent' => 301,
-                default => 301,
-            };
-
-            return redirect()->to((string) $redirect['new_url'])->setStatusCode($statusCode);
+            return $this->renderCmsPage($page, $lang);
         }
 
         // Step 5: 404
         return $this->notFound("No se encontró la página: {$path}");
-    }
-
-    /**
-     * Render a CMS page.
-     *
-     * @param array<string, mixed> $page
-     */
-    private function renderPage(array $page, string $lang): ResponseInterface
-    {
-        $blockRenderer = Services::blockRenderer();
-
-        // Get the translation for the current language
-        $translation = $this->getPageTranslation($page, $lang);
-        $blocks = $page['blocks'] ?? [];
-        $hasHeroHeading = false;
-        foreach ($blocks as $block) {
-            $blockKey = $block['block_key'] ?? '';
-            if (in_array($blockKey, ['hero_slider', 'hero_banner', 'page_header'], true)) {
-                $hasHeroHeading = true;
-                break;
-            }
-        }
-
-        $localizedUrls = [];
-        foreach (($page['localized_slugs'] ?? []) as $loc => $slug) {
-            if ($slug !== null) {
-                $slugPath = trim($slug, '/');
-                if ($slugPath === 'home' || $slugPath === '') {
-                    $localizedUrls[$loc] = site_url('/' . $loc);
-                } else {
-                    $localizedUrls[$loc] = site_url('/' . $loc . '/' . ltrim($slugPath, '/'));
-                }
-            }
-        }
-
-        $data = [
-            'title'              => $translation['title'] ?? '',
-            'excerpt'            => $translation['excerpt'] ?? '',
-            'showPageHeading'    => ! $hasHeroHeading,
-            'pageTitle'          => (isset($translation['meta_title']) && trim((string) $translation['meta_title']) !== '') ? $translation['meta_title'] : ($translation['title'] ?? ''),
-            'metaDescription'    => (isset($translation['meta_description']) && trim((string) $translation['meta_description']) !== '') ? $translation['meta_description'] : ($translation['excerpt'] ?? ''),
-            'canonicalUrl'       => ($translation['canonical_url'] ?? '') !== ''
-                ? $translation['canonical_url']
-                : site_url('/' . $lang . '/' . ltrim((string) ($translation['slug'] ?? ''), '/')),
-            'ogImage'            => is_array($translation['og_image'] ?? null)
-                ? (string) ($translation['og_image']['url'] ?? '')
-                : '',
-            'metaRobots'         => (isset($translation['robots']) && trim((string) $translation['robots']) !== '') ? $translation['robots'] : 'index, follow',
-            'schemaData'         => !empty($translation['schema_data']) ? json_decode($translation['schema_data'], true) : null,
-            'renderedBlocks'     => $blockRenderer->render($blocks, $lang),
-            'localized_urls'     => $localizedUrls,
-        ];
-
-        return $this->render('page', $data);
     }
 
     /**
@@ -386,40 +311,6 @@ class PageController extends BasePublicWebController
         ];
 
         return $this->render('collection/show', $data);
-    }
-
-    /**
-     * Extract translation data from a page based on language.
-     *
-     * @param array<string, mixed> $page
-     * @return array<string, mixed>
-     */
-    private function getPageTranslation(array $page, string $lang): array
-    {
-        if (isset($page['title'])) {
-            $translation = $page;
-            if (! isset($translation['og_image']) && isset($page['translations']) && is_array($page['translations'])) {
-                foreach ($page['translations'] as $trans) {
-                    if (($trans['language_id'] ?? null) === $lang || ($trans['language_code'] ?? null) === $lang) {
-                        $translation = array_merge($translation, $trans);
-                        break;
-                    }
-                }
-            }
-
-            return $translation;
-        }
-
-        $translations = $page['translations'] ?? [];
-
-        foreach ($translations as $trans) {
-            if (($trans['language_id'] ?? null) === $lang || ($trans['language_code'] ?? null) === $lang) {
-                return $trans;
-            }
-        }
-
-        // Fallback to first translation
-        return $translations[0] ?? [];
     }
 
     /**

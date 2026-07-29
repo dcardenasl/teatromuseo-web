@@ -32,9 +32,15 @@ $routes->get('{locale}', 'PageController::home', ['as' => 'home_localized']);
 $routes->get('{locale}/sitemap.xml', 'SitemapController::index', ['as' => 'sitemap_localized']);
 
 // Museum Catalog routes
-$routes->group('{locale}/museo', static function ($routes): void {
-    $routes->get('coleccion', '\App\Controllers\MuseumController::index', ['as' => 'museum_collection']);
-    $routes->get('coleccion/(:any)', '\App\Controllers\MuseumController::show/$1', ['as' => 'museum_collection_detail']);
+$routes->group('{locale}/' . \App\Support\PublicPaths::CATALOG, static function ($routes): void {
+    $routes->get('', '\App\Controllers\MuseumController::index', ['as' => 'museum_collection']);
+    $routes->get('(:any)', '\App\Controllers\MuseumController::show/$1', ['as' => 'museum_collection_detail']);
+});
+
+// Event / Shows routes
+$routes->group('{locale}/' . \App\Support\PublicPaths::EVENTS, static function ($routes): void {
+    $routes->get('', '\App\Controllers\EventController::index', ['as' => 'event_listing']);
+    $routes->get('(:any)', '\App\Controllers\EventController::show/$1', ['as' => 'event_show_detail']);
 });
 
 $routes->get('{locale}/(:any)', 'PageController::resolve/$1');

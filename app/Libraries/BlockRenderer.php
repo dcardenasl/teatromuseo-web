@@ -82,9 +82,10 @@ class BlockRenderer
      * Render an array of blocks to HTML.
      *
      * @param array<array<string, mixed>> $blocks Array of block data from the API
+     * @param array<string, mixed> $context Optional context data for dynamic templates
      * @return string Rendered HTML
      */
-    public function render(array $blocks, string $lang = 'es'): string
+    public function render(array $blocks, string $lang = 'es', array $context = []): string
     {
         $this->imageCount = 0;
         $this->imagePreloads = [];
@@ -92,7 +93,7 @@ class BlockRenderer
 
         $html = '';
         foreach ($blocks as $block) {
-            $html .= $this->renderBlock($block, $lang);
+            $html .= $this->renderBlock($block, $lang, $context);
         }
 
         return $html;
@@ -102,8 +103,9 @@ class BlockRenderer
      * Render a single block and its children recursively.
      *
      * @param array<string, mixed> $block
+     * @param array<string, mixed> $context
      */
-    private function renderBlock(array $block, string $lang): string
+    private function renderBlock(array $block, string $lang, array $context = []): string
     {
         $blockKey = $block['block_key'] ?? 'unknown';
         $config   = $block['block_config'] ?? [];
@@ -112,7 +114,7 @@ class BlockRenderer
 
         $renderedChildren = '';
         foreach ($children as $child) {
-            $renderedChildren .= $this->renderBlock($child, $lang);
+            $renderedChildren .= $this->renderBlock($child, $lang, $context);
         }
 
         $formDefinition = null;
@@ -133,25 +135,30 @@ class BlockRenderer
             'renderedChildren' => $renderedChildren,
             'lang'             => $lang,
             'formDefinition'   => $formDefinition,
+            'context'          => $context,
         ];
 
         if (is_string($blockKey) && isset(self::VIEW_MODELS[$blockKey])) {
             $viewModelClass = self::VIEW_MODELS[$blockKey];
-            $context        = ['formDefinition' => $formDefinition];
+            $viewModelContext = ['formDefinition' => $formDefinition];
             if ($blockKey === 'collection_grid' || $blockKey === 'collection_listing') {
                 // These two view models need the current request (GET filters,
                 // preview-mode detection) and the Site*Service adapters. Resolving
                 // them here — the composition boundary — keeps the view models
                 // themselves free of service()/Config\Services::x() calls.
-                $context += [
+                $viewModelContext += [
                     'request' => service('request'),
                     'siteCollectionService' => \Config\Services::siteCollectionService(),
                     'siteEntryService' => \Config\Services::siteEntryService(),
                     'siteCategoryService' => \Config\Services::siteCategoryService(),
                     'siteTagService' => \Config\Services::siteTagService(),
+                    'siteCatalogService' => \Config\Services::siteCatalogService(),
+                    'siteEventService' => \Config\Services::siteEventService(),
                 ];
             }
-            $viewModel = new $viewModelClass($block, $lang, $context);
+            // Also merge the dynamic template context so view models can access it if needed
+            $viewModelContext = array_merge($viewModelContext, $context);
+            $viewModel = new $viewModelClass($block, $lang, $viewModelContext);
             $viewData  = array_merge($viewData, $viewModel->vars());
         } else {
             // Safety net: automatically localize any URLs in data and config if no view model exists

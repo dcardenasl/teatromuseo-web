@@ -43,4 +43,14 @@ class SitePageService extends BaseSiteService
     {
         return $this->fetchData("public/{$lang}/pages", [], self::CACHE_TTL_LIST, 'pages') ?? [];
     }
+
+    /**
+     * Get a singleton template page by type.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getByType(string $lang, string $type): ?array
+    {
+        return $this->fetchData("public/{$lang}/pages/by-type/{$type}", [], self::CACHE_TTL_DETAIL, 'pages');
+    }
 }
