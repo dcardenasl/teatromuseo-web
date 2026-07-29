@@ -31,6 +31,14 @@ class BlockRenderer
         'pdf_viewer'         => \App\ViewModels\Blocks\PdfViewerViewModel::class,
         'accordion'          => \App\ViewModels\Blocks\AccordionViewModel::class,
         'team_member'        => \App\ViewModels\Blocks\TeamMemberViewModel::class,
+        'event_item_header'    => \App\ViewModels\Blocks\EventItemHeaderViewModel::class,
+        'event_item_details'   => \App\ViewModels\Blocks\EventItemDetailsViewModel::class,
+        'event_item_content'   => \App\ViewModels\Blocks\EventItemContentViewModel::class,
+        'event_item_gallery'   => \App\ViewModels\Blocks\EventItemGalleryViewModel::class,
+        'catalog_item_header'  => \App\ViewModels\Blocks\CatalogItemHeaderViewModel::class,
+        'catalog_item_details' => \App\ViewModels\Blocks\CatalogItemDetailsViewModel::class,
+        'catalog_item_content' => \App\ViewModels\Blocks\CatalogItemContentViewModel::class,
+        'catalog_item_gallery' => \App\ViewModels\Blocks\CatalogItemGalleryViewModel::class,
     ];
 
     /** @var array<string, array<string, mixed>|null> form definitions pre-loaded per render pass */

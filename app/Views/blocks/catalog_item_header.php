@@ -1,41 +1,67 @@
 <?php
 /**
- * Bloque: Cabecera Dinámica de Catálogo
- * Muestra el título y la imagen principal de la obra extraída del contexto.
+ * Bloque: Cabecera Dinámica de Pieza del Museo
+ * Usa CatalogItemHeaderViewModel
  */
 
-$item = $context['catalog_item'] ?? null;
-if (!$item):
-    // Fallback in case it's previewed without context in the CMS
+if (!($hasItem ?? false)):
+    $fallbackTitle = $fallbackTitle ?? 'Cabecera de Colección';
 ?>
-<div class="p-8 bg-gray-100 text-center border border-dashed border-gray-300">
-    <h2 class="text-2xl font-bold text-gray-400">Cabecera de Obra (Previsualización)</h2>
-    <p class="text-gray-500">Este bloque mostrará el título y la imagen de la obra del catálogo.</p>
+<div class="p-8 bg-slate-50 text-center border border-dashed border-slate-300">
+    <h2 class="text-xl font-bold text-slate-500"><?= esc($fallbackTitle) ?> (Previsualización)</h2>
 </div>
-<?php else: 
-    $title = $item['name'] ?? 'Obra sin título';
-    $summary = $item['summary'] ?? '';
-    $categoryName = trim((string) ($context['category_name'] ?? ''));
-    $image = $item['cover_image'] ?? $item['featured_image'] ?? null;
-    $imageUrl = is_array($image) ? ($image['url'] ?? '') : (is_string($image) ? $image : '');
-?>
-<header class="relative w-full h-[50vh] min-h-[400px] flex items-end justify-start bg-gray-900 mb-12">
-    <?php if ($imageUrl !== ''): ?>
-        <img src="<?= esc($imageUrl) ?>" alt="<?= esc($title) ?>" class="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay">
-    <?php endif; ?>
-    
-    <div class="relative z-10 p-8 md:p-16 max-w-4xl text-white">
-        <?php if ($categoryName !== ''): ?>
-            <div class="mb-4">
-                <span class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/85">
-                    <?= esc($categoryName) ?>
-                </span>
-            </div>
-        <?php endif; ?>
-        <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight mb-4"><?= esc($title) ?></h1>
-        <?php if ($summary !== ''): ?>
-            <p class="text-lg md:text-xl font-medium text-gray-200"><?= esc($summary) ?></p>
+<?php else: ?>
+<!-- ── Breadcrumb ─────────────────────────────────────────────────── -->
+<div class="bg-white border-b border-slate-100">
+    <div class="container-narrow py-3">
+        <nav class="flex items-center gap-2 text-sm text-text-muted" aria-label="Breadcrumb">
+            <a href="<?= lang_url('/') ?>" class="hover:text-primary transition-colors">
+                <?= esc($homeLabel ?? 'Inicio') ?>
+            </a>
+            <span aria-hidden="true">/</span>
+            <a href="<?= esc($breadcrumbUrl ?? '') ?>" class="hover:text-primary transition-colors">
+                <?= esc($breadcrumbLabel ?? '') ?>
+            </a>
+            <span aria-hidden="true">/</span>
+            <span class="text-text-primary line-clamp-1 max-w-xs" aria-current="page">
+                <?= esc($title ?? '') ?>
+            </span>
+        </nav>
+    </div>
+</div>
+
+<article class="section bg-background pt-12 pb-0">
+    <div class="container-narrow">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="section-title text-3xl sm:text-4xl leading-tight mb-4">
+                <?= esc($title ?? '') ?>
+            </h1>
+
+            <?php if (($summary ?? '') !== ''): ?>
+                <p class="text-lg text-text-secondary leading-relaxed mb-6">
+                    <?= esc($summary) ?>
+                </p>
+            <?php endif; ?>
+        </header>
+
+        <!-- Featured image -->
+        <?php if (($imageUrl ?? '') !== ''): ?>
+            <figure class="mb-12 -mx-4 sm:mx-0 overflow-hidden sm:rounded-xl">
+                <?php if (str_starts_with($imageUrl, 'http')): ?>
+                    <img src="<?= esc($imageUrl) ?>" alt="<?= esc($title ?? '') ?>" class="w-full aspect-video object-cover" loading="eager" fetchpriority="high">
+                <?php else: ?>
+                    <?= view('components/responsive-image', [
+                        'src'           => $imageUrl,
+                        'alt'           => $title ?? '',
+                        'class'         => 'w-full aspect-video object-cover shadow-sm',
+                        'variants'      => null,
+                        'loading'       => 'eager',
+                        'fetchPriority' => 'high',
+                    ], ['saveData' => false]) ?>
+                <?php endif; ?>
+            </figure>
         <?php endif; ?>
     </div>
-</header>
+</article>
 <?php endif; ?>
