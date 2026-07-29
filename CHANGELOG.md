@@ -20,3 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`MuseumController` / `/{locale}/museo/coleccion` routes** — public listing and detail pages
   for the museum catalog collection, backed by `SiteCatalogService` against the new
   `teatromuseo-catalog-domain` public API.
+- **Cache invalidation scopes** — `CacheInvalidator` now accepts `events`, `categories`,
+  `techniques`, and `collection_items` in addition to the existing CMS scopes, so admin writes to
+  those resources can purge their public cache entries via the `/cache/invalidate` webhook.
+
+### Fixed
+
+- **Default public base URL port** — corrected the default/example `app.baseURL` and every
+  reference in docs, `init.sh`, and tests from `8186` (the totem app's port) to `8184`.
+- **`CmsCollectionSource` facets** — `facets()` called the non-existent
+  `SiteCategoryService::listCategories()` / `SiteTagService::listTags()`; both services only
+  expose `list($lang, $collectionKey)`, so requesting category/tag facets on a CMS collection
+  listing crashed instead of rendering.
+- **`CollectionListingViewModel`** — resolving a listing source with a missing context
+  collaborator (e.g. a view model built without going through `BlockRenderer`) threw a
+  `TypeError` instead of rendering an empty/invalid listing.
