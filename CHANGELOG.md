@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Localized catalog and event item rendering** — public listing labels now include catalog and event metadata terms, public listing sources normalize external featured images, and catalog/event detail blocks render headers, details, content, and galleries with locale-aware fallbacks.
 - **Base web controller & service architecture** — introduced `BasePublicWebController` and `BaseSiteService` to unify page resolution, i18n locale handling, SEO metadata, and API domain consumption across the web frontend.
 - **Dynamic public listing page builder** — added `PublicListingPageBuilder` to resolve and render CMS pages of type `events` and `catalog_listing` with dynamic listing blocks and filters.
 - **Public Event detail pages & integration** — created `EventController` and `SiteEventService` to render public event detail views (`event_item_header.php`) consumed from `teatromuseo-event-domain`.
