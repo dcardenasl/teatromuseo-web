@@ -9,7 +9,7 @@
 #   ./init.sh --yes --skip-server  same, and never offers to start `php spark serve`
 #
 # Non-interactive (--yes) required env vars:
-#   WEB_APP_BASE_URL   e.g. http://localhost:8186
+#   WEB_APP_BASE_URL   e.g. http://localhost:8184
 #   WEB_API_BASE_URL   e.g. http://localhost:8190 (the domain app)
 #   WEB_API_KEY        shared secret registered in the domain admin panel
 #   CACHE_INVALIDATE_KEY  shared secret for the /cache/invalidate webhook
@@ -87,7 +87,7 @@ prompt_required() {
     printf -v "$var_name" '%s' "$input"
 }
 
-prompt_required WEB_APP_BASE_URL "Public base URL (e.g. http://localhost:8186)"
+prompt_required WEB_APP_BASE_URL "Public base URL (e.g. http://localhost:8184)"
 prompt_required WEB_API_BASE_URL "Domain API base URL (e.g. http://localhost:8190)"
 prompt_required WEB_API_KEY "WEB_API_KEY (shared secret registered in the domain admin panel)"
 prompt_required CACHE_INVALIDATE_KEY "CACHE_INVALIDATE_KEY (shared secret for /cache/invalidate)"

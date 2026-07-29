@@ -18,7 +18,7 @@ de `ci4-website-builder-domain`.
 | :--- | :--- | :--- |
 | API Hub | `8180` | `http://localhost:8180/` |
 | Admin | `8182` | `http://localhost:8182/` |
-| Sitio público | `8186` | `http://localhost:8186/` |
+| Sitio público | `8184` | `http://localhost:8184/` |
 | Domain CMS | `8190` | `http://localhost:8190/` |
 
 Usa `localhost` para navegar. No mezcles `localhost` y `127.0.0.1` durante
@@ -32,7 +32,7 @@ Desde la raíz del monorepo:
 cd ci4-website-builder-api && php spark serve --port 8180
 cd ci4-website-builder-domain && php spark serve --port 8190
 cd ci4-website-builder-admin && php spark serve --port 8182
-cd ci4-website-builder-web && php spark serve --port 8186
+cd ci4-website-builder-web && php spark serve --port 8184
 ```
 
 Para trabajar en assets del sitio público:
@@ -47,7 +47,7 @@ npm run dev:js
 Variables principales:
 
 ```dotenv
-app.baseURL=http://localhost:8186/
+app.baseURL=http://localhost:8184/
 app.defaultLocale=es
 WEB_API_BASE_URL=http://localhost:8190
 WEB_API_KEY=web_api_test_key
@@ -116,8 +116,8 @@ baseline para cerrar cambios ordinarios.
 
 Con los cuatro servidores activos:
 
-1. Abrir `http://localhost:8186/` y confirmar redirección/localización.
-2. Abrir `http://localhost:8186/es`.
+1. Abrir `http://localhost:8184/` y confirmar redirección/localización.
+2. Abrir `http://localhost:8184/es`.
 3. Abrir una colección publicada.
 4. Abrir una entrada publicada.
 5. Enviar un formulario CMS válido.

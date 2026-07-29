@@ -28,7 +28,7 @@ File: `app/Config/App.php`
 - Adds webApiBaseUrl (default: http://localhost:8190)
 - Adds webApiKey (default: web_api_test_key)
 - Sets default locale to 'es'
-- Configures baseURL to http://localhost:8186/
+- Configures baseURL to http://localhost:8184/
 
 ## 5. Site Services Layer
 Implements 6 API adapter services with automatic caching:
@@ -200,7 +200,7 @@ Files: `tailwind.config.js`, `postcss.config.js`, `public/assets/css/app.css`
 ## 13. Environment Configuration
 File: `.env`
 - CI_ENVIRONMENT = development
-- app.baseURL = http://localhost:8186/
+- app.baseURL = http://localhost:8184/
 - app.defaultLocale = es
 - WEB_API_BASE_URL = http://localhost:8190
 - WEB_API_KEY = web_api_test_key

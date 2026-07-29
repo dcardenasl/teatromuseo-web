@@ -115,7 +115,7 @@ class BlockPreviewController extends BasePublicWebController
 
         if ($blockKey === 'document_download') {
             if (! is_array($config['document'] ?? null) || empty($config['document']['url'])) {
-                $config['document'] = $this->mediaReference('http://localhost:8186/uploads/reporte_anual_2025.pdf');
+                $config['document'] = $this->mediaReference('http://localhost:8184/uploads/reporte_anual_2025.pdf');
             }
         }
 
