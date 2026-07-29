@@ -164,6 +164,7 @@ class App extends BaseConfig
     public string $webApiBaseUrl = '';
     public string $webApiKey = '';
     public string $catalogApiBaseUrl = 'http://localhost:8191';
+    public string $eventApiBaseUrl = 'http://localhost:8193';
 
     /**
      * Timeout (seconds) for requests against the Domain API.
@@ -293,6 +294,9 @@ class App extends BaseConfig
 
         $catalogApiBaseUrl = env('CATALOG_API_BASE_URL') ?: env('CATALOG_DOMAIN_API_BASE_URL') ?: $this->catalogApiBaseUrl;
         $this->catalogApiBaseUrl = $catalogApiBaseUrl;
+
+        $eventApiBaseUrl = env('EVENT_API_BASE_URL') ?: env('EVENT_DOMAIN_API_BASE_URL') ?: $this->eventApiBaseUrl;
+        $this->eventApiBaseUrl = $eventApiBaseUrl;
 
         $webApiKey = env('WEB_API_KEY');
         if (! is_string($webApiKey) || trim($webApiKey) === '') {

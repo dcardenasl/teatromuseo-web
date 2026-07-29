@@ -6,6 +6,7 @@ namespace Config;
 
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
+use App\Libraries\PublicListingPageBuilder;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
 use App\Services\SiteCategoryService;
@@ -150,6 +151,16 @@ class Services extends BaseService
         return new CacheInvalidator();
     }
 
+    public static function publicListingPageBuilder(bool $getShared = true): PublicListingPageBuilder
+    {
+        if ($getShared) {
+            /** @var PublicListingPageBuilder */
+            return static::getSharedInstance('publicListingPageBuilder');
+        }
+
+        return new PublicListingPageBuilder();
+    }
+
     public static function siteFormService(bool $getShared = true): SiteFormService
     {
         if ($getShared) {
@@ -195,5 +206,32 @@ class Services extends BaseService
         }
 
         return new \App\Services\SiteCatalogService(static::catalogWebApiClient());
+    }
+
+    public static function eventWebApiClient(bool $getShared = true): WebApiClientInterface
+    {
+        if ($getShared) {
+            /** @var WebApiClientInterface */
+            return static::getSharedInstance('eventWebApiClient');
+        }
+
+        $config = config('App');
+
+        return new WebApiClient(
+            $config->eventApiBaseUrl,
+            $config->webApiKey,
+            $config->webApiTimeout,
+            $config->webApiStaleTtl
+        );
+    }
+
+    public static function siteEventService(bool $getShared = true): \App\Services\SiteEventService
+    {
+        if ($getShared) {
+            /** @var \App\Services\SiteEventService */
+            return static::getSharedInstance('siteEventService');
+        }
+
+        return new \App\Services\SiteEventService(static::eventWebApiClient());
     }
 }

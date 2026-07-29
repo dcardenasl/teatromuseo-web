@@ -37,4 +37,34 @@ abstract class BaseSiteService
 
         return is_array($response['data']) ? $response['data'] : null;
     }
+
+    /**
+     * Normalize the compact pagination contract used by the domain APIs into
+     * the richer shape expected by the public site and block templates.
+     *
+     * @param array<string, mixed> $meta
+     * @return array{total: int, total_items: int, page: int, current_page: int, per_page: int, total_pages: int, has_next_page: bool, has_previous_page: bool}
+     */
+    protected function normalizePagination(array $meta, int $defaultPage = 1, int $defaultPerPage = 20): array
+    {
+        $total = (int) ($meta['total'] ?? $meta['total_items'] ?? $meta['count'] ?? 0);
+        $page = (int) ($meta['page'] ?? $meta['current_page'] ?? $defaultPage);
+        $perPage = (int) ($meta['per_page'] ?? $meta['perPage'] ?? $defaultPerPage);
+
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $totalPages);
+
+        return [
+            'total' => $total,
+            'total_items' => $total,
+            'page' => $page,
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => $totalPages,
+            'has_next_page' => $page < $totalPages,
+            'has_previous_page' => $page > 1,
+        ];
+    }
 }
