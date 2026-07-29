@@ -10,7 +10,7 @@ generated browser assets.
 ```bash
 cd /Users/davidcardenas/Developer/PHP/ci4-website-starter/ci4-website-builder-web
 
-php spark serve --port 8186
+php spark serve --port 8184
 npm run dev:css
 npm run dev:js
 ```
@@ -42,7 +42,7 @@ The root `pre-commit` hook runs PHP formatting checks and PHPStan. Husky runs
 
 Key environment variables:
 
-- `app.baseURL=http://localhost:8186/`
+- `app.baseURL=http://localhost:8184/`
 - `app.defaultLocale=es`
 - `WEB_API_BASE_URL=http://localhost:8190`
 - `WEB_API_KEY=web_api_test_key`
@@ -96,6 +96,8 @@ Services::injectMock('webApiClient', $fake);
 
 `CacheInvalidator` accepts known scopes only and deletes keys matching
 `web_api_*_{scope}_*`, which purges fresh and stale entries together.
+Current public scopes include `events`, `collection_items`, `categories`, and
+`techniques` in addition to the CMS scopes.
 
 Webhook:
 
@@ -104,7 +106,7 @@ POST /cache/invalidate
 X-Invalidate-Key: <CACHE_INVALIDATE_KEY>
 Content-Type: application/json
 
-{"scopes":["pages","entries"]}
+{"scopes":["pages","entries","events","collection_items","categories","techniques"]}
 ```
 
 ## Block Rendering
@@ -165,7 +167,7 @@ Generated `site.js` should keep its banner:
 
 ## Manual Smoke Checks
 
-With Domain on `8190` and Web on `8186`, verify:
+With Domain on `8190` and Web on `8184`, verify:
 
 - localized home page;
 - collection index;

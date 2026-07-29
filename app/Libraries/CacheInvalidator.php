@@ -14,6 +14,10 @@ class CacheInvalidator
         'collections',
         'entries',
         'taxonomies',
+        'events',
+        'categories',
+        'techniques',
+        'collection_items',
         'redirects',
         'forms',
     ];

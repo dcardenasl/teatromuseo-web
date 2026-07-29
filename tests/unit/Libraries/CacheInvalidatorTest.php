@@ -94,6 +94,10 @@ final class CacheInvalidatorTest extends CIUnitTestCase
 
         $this->assertContains('pages', $scopes);
         $this->assertContains('forms', $scopes);
-        $this->assertCount(8, $scopes);
+        $this->assertContains('events', $scopes);
+        $this->assertContains('categories', $scopes);
+        $this->assertContains('techniques', $scopes);
+        $this->assertContains('collection_items', $scopes);
+        $this->assertCount(12, $scopes);
     }
 }
