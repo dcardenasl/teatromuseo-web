@@ -71,6 +71,27 @@ final class PageResolutionTest extends HermeticFeatureTestCase
         $result->assertDontSee('CMS page that should not win');
     }
 
+    public function testRedirectWinsOverCollectionPrefix(): void
+    {
+        $locale = $this->locale();
+        $collection = $this->collection('listing');
+        $this->domainAdapter->fakeGet($this->domainPath('collections'), [$collection]);
+        $this->domainAdapter->fakeGet($this->domainPath('pages/obras'), $this->page(
+            'obras',
+            'CMS page that should not win',
+            ['page_type' => 'collection_index', 'collection_id' => $collection['id']],
+        ));
+        $this->domainAdapter->fakeGet('public/redirects/obras', [
+            'new_url' => '/cartelera',
+            'redirect_type' => 'permanent',
+        ]);
+
+        $result = $this->get($locale . '/obras');
+
+        $result->assertStatus(301);
+        $result->assertHeader('Location', site_url('/' . $locale . '/cartelera'));
+    }
+
     public function testResolvesCollectionEntry(): void
     {
         $locale = $this->locale();

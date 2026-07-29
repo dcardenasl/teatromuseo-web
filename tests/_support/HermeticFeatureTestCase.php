@@ -22,6 +22,8 @@ abstract class HermeticFeatureTestCase extends CIUnitTestCase
         $config->defaultLocale = 'es';
         $this->domainAdapter = new DeterministicDomainAdapter();
         Services::injectMock('webApiClient', $this->domainAdapter);
+        Services::injectMock('catalogWebApiClient', $this->domainAdapter);
+        Services::injectMock('eventWebApiClient', $this->domainAdapter);
     }
 
     protected function locale(int $position = 0): string
@@ -37,6 +39,8 @@ abstract class HermeticFeatureTestCase extends CIUnitTestCase
         config('App')->defaultLocale = $locales[0];
         $this->domainAdapter = new DeterministicDomainAdapter($locales);
         Services::injectMock('webApiClient', $this->domainAdapter);
+        Services::injectMock('catalogWebApiClient', $this->domainAdapter);
+        Services::injectMock('eventWebApiClient', $this->domainAdapter);
     }
 
     /** @return list<string> */
