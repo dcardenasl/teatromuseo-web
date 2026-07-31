@@ -14,7 +14,7 @@ if (!($hasItem ?? false)):
 <?php else: ?>
 <section class="section pt-0">
     <div class="container-narrow">
-        <h3 class="text-xl font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm border-b border-slate-100 pb-3">Detalles Técnicos</h3>
+        <h3 class="text-xl font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm border-b border-slate-100 pb-3"><?= esc(lang('Site.catalog_technical_details_title')) ?></h3>
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
             <?php if (!empty($techniques ?? [])): ?>
             <div class="sm:col-span-1">

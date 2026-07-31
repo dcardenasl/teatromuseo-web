@@ -53,13 +53,13 @@ if (!($hasEvent ?? false)):
             <div class="flex items-center gap-4 text-sm text-text-muted">
                 <?php if (($startTime ?? '') !== ''): ?>
                     <time datetime="<?= esc($startTimeIso ?? '') ?>">
-                        Inicio: <?= esc($startTime) ?>
+                        <?= esc(lang('Site.event_starts_label')) ?>: <?= esc($startTime) ?>
                     </time>
                 <?php endif; ?>
                 <?php if (($endTime ?? '') !== '' && ($endTime !== $startTime)): ?>
                     <span class="mx-1">&mdash;</span>
                     <time datetime="<?= esc($endTimeIso ?? '') ?>">
-                        Fin: <?= esc($endTime) ?>
+                        <?= esc(lang('Site.event_ends_label')) ?>: <?= esc($endTime) ?>
                     </time>
                 <?php endif; ?>
             </div>

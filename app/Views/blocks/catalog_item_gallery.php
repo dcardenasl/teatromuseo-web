@@ -26,7 +26,7 @@ if (!($hasItem ?? false)):
 ?>
 <section class="section py-0 mb-12">
     <div class="container-base">
-        <h2 class="text-2xl font-bold text-slate-900 mb-2">Imágenes de Colección</h2>
+        <h2 class="text-2xl font-bold text-slate-900 mb-2"><?= esc(lang('Site.catalog_gallery_title')) ?></h2>
         <?= view('blocks/gallery', [
             'config' => ['presentation_mode' => 'inline_preview'],
             'renderedChildren' => $renderedChildren

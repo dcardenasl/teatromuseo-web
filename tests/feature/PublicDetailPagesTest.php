@@ -32,7 +32,7 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
         $this->assertStringContainsString('Pieza de prueba', $body);
         $this->assertStringContainsString('Resumen temporal', $body);
         $this->assertStringContainsString('Vista previa integrada', $body);
-        $this->assertStringContainsString('Imágenes de Colección', $body);
+        $this->assertStringContainsString('Imágenes de colección', $body);
     }
 
     public function testEventDetailPageRendersCmsTemplateBlocks(): void
