@@ -131,3 +131,6 @@ _modules/*
 
 /results/
 /phpunit.xml
+
+# Local FTP deploy tooling (credentials + generated artifacts)
+.deploy/
