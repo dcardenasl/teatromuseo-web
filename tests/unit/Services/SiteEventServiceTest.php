@@ -21,13 +21,15 @@ final class SiteEventServiceTest extends CIUnitTestCase
         return new SiteEventService($apiClient);
     }
 
-    public function testGetEventMatchesLocalizedTitleSlug(): void
+    public function testGetEventFetchesByLocaleAwareSlugInOneCall(): void
     {
         $event = [
             'id' => 12,
             'uuid' => 'evt-12',
             'title' => 'Muestra de verano',
             'status' => 'published',
+            'slug' => 'muestra-de-verano',
+            'slugs' => ['es' => 'muestra-de-verano'],
             'localized' => [
                 'title' => 'Muestra de verano',
             ],
@@ -37,13 +39,8 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $apiClient
             ->expects($this->once())
             ->method('get')
-            ->with(
-                'public/events',
-                ['per_page' => 100, 'search' => 'muestra de verano', 'page' => 1],
-                180,
-                'events'
-            )
-            ->willReturn(['ok' => true, 'data' => [$event], 'meta' => []]);
+            ->with('public/events/muestra-de-verano', [], 300, 'events')
+            ->willReturn(['ok' => true, 'data' => $event, 'meta' => []]);
 
         $service = new SiteEventService($apiClient);
         $result = $service->getEvent('es', 'muestra-de-verano');
@@ -51,7 +48,7 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $this->assertSame($event, $result);
     }
 
-    public function testGetEventMatchesUuidWhenSlugDoesNotComeFromTitle(): void
+    public function testGetEventFetchesByUuid(): void
     {
         $event = [
             'id' => 24,
@@ -67,13 +64,8 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $apiClient
             ->expects($this->once())
             ->method('get')
-            ->with(
-                'public/events',
-                ['per_page' => 100, 'search' => 'event 24', 'page' => 1],
-                180,
-                'events'
-            )
-            ->willReturn(['ok' => true, 'data' => [$event], 'meta' => []]);
+            ->with('public/events/event-24', [], 300, 'events')
+            ->willReturn(['ok' => true, 'data' => $event, 'meta' => []]);
 
         $service = new SiteEventService($apiClient);
         $result = $service->getEvent('es', 'event-24');
@@ -81,19 +73,14 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $this->assertSame($event, $result);
     }
 
-    public function testGetEventReturnsNullWhenNoPublishedEventMatches(): void
+    public function testGetEventReturnsNullWhenTheDomainReportsNotFound(): void
     {
+        // The domain already excludes non-published events from the public
+        // detail endpoint (404), so a failed lookup — not a draft payload —
+        // is the only shape SiteEventService needs to handle here.
         $service = $this->makeService([
-            'ok' => true,
-            'data' => [
-                [
-                    'id' => 1,
-                    'uuid' => 'evt-1',
-                    'title' => 'Evento privado',
-                    'status' => 'draft',
-                    'localized' => ['title' => 'Evento privado'],
-                ],
-            ],
+            'ok' => false,
+            'data' => null,
             'meta' => [],
         ]);
 
