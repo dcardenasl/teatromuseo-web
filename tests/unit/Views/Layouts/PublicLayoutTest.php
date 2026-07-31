@@ -16,7 +16,9 @@ final class PublicLayoutTest extends CIUnitTestCase
         $html = view('layouts/public', [
             'view' => 'page',
             'mainMenu' => ['items' => []],
-            'footerMenu' => ['name' => 'Menu variant', 'items' => []],
+            'footerMenu' => ['name' => 'Menu variant', 'items' => [
+                ['label' => 'Test Link', 'custom_url' => '/test', 'children' => []],
+            ]],
             'legalMenu' => ['items' => []],
             'settings' => [
                 'site_name' => 'Mi Sitio',

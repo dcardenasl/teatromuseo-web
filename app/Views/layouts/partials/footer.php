@@ -23,15 +23,46 @@
     $isFooterVertical = ($footerLayout === 'vertical');
     $isLegalVertical = ($legalLayout === 'vertical');
 
+    // Menu items with children render as their own labeled column (e.g. the
+    // "Explora"/"Institución"/"Prensa y Medios" groups); items without
+    // children fall back into a single flat "menu name" column, same as
+    // before grouping existed.
+    $footerMenuGroups = [];
+    $footerMenuFlatItems = [];
+    foreach (($menu['items'] ?? []) as $item) {
+        if (!empty($item['children'])) {
+            $footerMenuGroups[] = $item;
+        } else {
+            $footerMenuFlatItems[] = $item;
+        }
+    }
+    $footerMenuBlockCount = count($footerMenuGroups) + ($footerMenuFlatItems !== [] ? 1 : 0);
+
+    // A flat, ungrouped list of every leaf link — used by the horizontal
+    // layout, which has no room to render nested dropdown-style groups.
+    $flattenMenuItems = static function (array $items) use (&$flattenMenuItems): array {
+        $out = [];
+        foreach ($items as $item) {
+            if (!empty($item['children'])) {
+                $out = array_merge($out, $flattenMenuItems($item['children']));
+            } else {
+                $out[] = $item;
+            }
+        }
+
+        return $out;
+    };
+    $footerMenuFlatAll = $flattenMenuItems($menu['items'] ?? []);
+
     $verticalCols = 2; // Site Info y Social Links siempre son columnas verticales
     if ($isFooterVertical) {
-        $verticalCols++;
+        $verticalCols += max($footerMenuBlockCount, 1);
     }
     if ($isLegalVertical) {
         $verticalCols++;
     }
 
-    if ($verticalCols === 2) {
+    if ($verticalCols <= 2) {
         $gridColsClass = 'grid-cols-1 md:grid-cols-2';
     } elseif ($verticalCols === 3) {
         $gridColsClass = 'grid-cols-1 md:grid-cols-3';
@@ -61,19 +92,36 @@
             </div>
 
             <?php if ($isFooterVertical): ?>
-                <!-- Navigation Menu Links (Vertical) -->
-                <div class="space-y-4">
-                    <p class="section-eyebrow"><?= esc($menu['name'] ?? lang('Site.footer_menu_label')) ?></p>
-                    <ul class="space-y-2.5">
-                        <?php foreach (($menu['items'] ?? []) as $item): ?>
-                            <li>
-                                <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" class="text-sm font-medium text-slate-600 hover:text-primary transition-colors duration-150">
-                                    <?= esc($item['label'] ?? '') ?>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+                <!-- Navigation Menu Links (Vertical) — one column per group -->
+                <?php foreach ($footerMenuGroups as $group): ?>
+                    <div class="space-y-4">
+                        <p class="section-eyebrow"><?= esc($group['label'] ?? '') ?></p>
+                        <ul class="space-y-2.5">
+                            <?php foreach ($group['children'] as $child): ?>
+                                <li>
+                                    <a href="<?= esc(lang_url($child['custom_url'] ?? '#')) ?>" class="text-sm font-medium text-slate-600 hover:text-primary transition-colors duration-150">
+                                        <?= esc($child['label'] ?? '') ?>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endforeach; ?>
+
+                <?php if ($footerMenuFlatItems !== []): ?>
+                    <div class="space-y-4">
+                        <p class="section-eyebrow"><?= esc($menu['name'] ?? lang('Site.footer_menu_label')) ?></p>
+                        <ul class="space-y-2.5">
+                            <?php foreach ($footerMenuFlatItems as $item): ?>
+                                <li>
+                                    <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" class="text-sm font-medium text-slate-600 hover:text-primary transition-colors duration-150">
+                                        <?= esc($item['label'] ?? '') ?>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
 
             <?php if ($isLegalVertical): ?>
@@ -95,7 +143,7 @@
             <!-- Social Links -->
             <?php
             $socialLinks = \Config\Services::socialLinksService()->getActiveLinks();
-            ?>
+    ?>
             <?php if (!empty($socialLinks)): ?>
                 <div class="space-y-4">
                     <p class="section-eyebrow"><?= lang('Site.footer_social_label') ?></p>
@@ -112,10 +160,10 @@
 
         <!-- Copyright & Secondary Menu -->
         <div class="border-t border-slate-200/60 pt-8 mt-8 space-y-6">
-            <?php if (!$isFooterVertical && !empty($menu['items'])): ?>
-                <!-- Horizontal Main Menu -->
+            <?php if (!$isFooterVertical && !empty($footerMenuFlatAll)): ?>
+                <!-- Horizontal Main Menu — grouped items are flattened to their leaf links -->
                 <div class="flex flex-wrap justify-center items-center text-sm border-b border-slate-100/50 pb-6 mb-4">
-                    <?php foreach ($menu['items'] as $idx => $item): ?>
+                    <?php foreach ($footerMenuFlatAll as $idx => $item): ?>
                         <?php if ($idx > 0): ?>
                             <span class="text-slate-300 select-none hidden sm:inline mx-3" aria-hidden="true">•</span>
                         <?php endif; ?>
@@ -153,9 +201,9 @@
 </footer>
 <?php
 $siteJsPath = FCPATH . 'assets/js/site.js';
-$siteJsVersion = is_file($siteJsPath)
-    ? (string) (md5_file($siteJsPath) ?: filemtime($siteJsPath))
-    : (string) time();
-?>
+    $siteJsVersion = is_file($siteJsPath)
+        ? (string) (md5_file($siteJsPath) ?: filemtime($siteJsPath))
+        : (string) time();
+    ?>
 <script src="<?= base_url('assets/js/alpine.min.js') ?>" defer></script>
 <script src="<?= base_url('assets/js/site.js?v=' . $siteJsVersion) ?>" defer></script>
