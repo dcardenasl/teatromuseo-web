@@ -140,11 +140,26 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'pageTitle' => $displayTitle !== ''
                 ? $displayTitle
                 : $defaults['page_title'],
-            'metaDescription' => $displayIntro !== ''
-                ? $displayIntro
-                : $defaults['intro_text'],
+            'metaDescription' => $this->resolveCollectionMetaDescription($collection, $displayIntro, $defaults['intro_text']),
             'fallbackImageUrl' => $this->textString('fallback_image_url', $defaults['fallback_image_url'] ?? ''),
         ];
+    }
+
+    /**
+     * SEO description takes priority over the on-page intro text: a collection
+     * may have a curated `default_meta_description` distinct from what's
+     * displayed above the listing (`listing_intro`/`description`).
+     *
+     * @param array<string, mixed> $collection
+     */
+    private function resolveCollectionMetaDescription(array $collection, string $displayIntro, string $fallback): string
+    {
+        $metaDescription = trim((string) ($collection['default_meta_description'] ?? ''));
+        if ($metaDescription !== '') {
+            return $metaDescription;
+        }
+
+        return $displayIntro !== '' ? $displayIntro : $fallback;
     }
 
     private function resolveSource(string $sourceType): ?ListingSourceInterface
