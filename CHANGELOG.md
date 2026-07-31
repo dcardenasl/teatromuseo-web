@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cache invalidation scopes** — `CacheInvalidator` now accepts `events`, `categories`,
   `techniques`, and `collection_items` in addition to the existing CMS scopes, so admin writes to
   those resources can purge their public cache entries via the `/cache/invalidate` webhook.
+- **Grouped footer navigation** — the vertical footer now renders one labeled column per menu
+  group (matching the CMS's grouped navigation seeder) instead of a single flat link list; the
+  horizontal layout flattens grouped items back to a single row of leaf links.
 
 ### Fixed
 
@@ -35,3 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`CollectionListingViewModel`** — resolving a listing source with a missing context
   collaborator (e.g. a view model built without going through `BlockRenderer`) threw a
   `TypeError` instead of rendering an empty/invalid listing.
+- **Detail and gallery block labels** — catalog/event detail and gallery block headings were
+  hardcoded in Spanish; they now use `lang()` keys and render correctly in every active locale.
+- **`CollectionListingViewModel`** — a collection's curated `default_meta_description` now takes
+  priority over its on-page intro text for the listing page's SEO description.
