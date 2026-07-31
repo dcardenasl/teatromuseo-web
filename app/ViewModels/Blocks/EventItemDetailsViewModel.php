@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\ViewModels\Blocks;
 
+use App\ViewModels\Blocks\Concerns\FormatsLocalizedDateTime;
+
 class EventItemDetailsViewModel extends AbstractBlockViewModel
 {
+    use FormatsLocalizedDateTime;
+
     public function vars(): array
     {
         $event = $this->context['event_item'] ?? null;
@@ -18,8 +22,8 @@ class EventItemDetailsViewModel extends AbstractBlockViewModel
 
         $startTime = (string) ($event['start_time'] ?? '');
         $endTime = (string) ($event['end_time'] ?? '');
-        $startTimeLabel = $this->formatDisplayDateTime($startTime);
-        $endTimeLabel = $this->formatDisplayDateTime($endTime);
+        $startTimeLabel = $this->formatDisplayDateTime($startTime, $this->lang);
+        $endTimeLabel = $this->formatDisplayDateTime($endTime, $this->lang);
         $startTimeIso = $this->formatIsoDateTime($startTime);
         $endTimeIso = $this->formatIsoDateTime($endTime);
         $venue = (string) ($event['venue'] ?? '');
@@ -38,34 +42,6 @@ class EventItemDetailsViewModel extends AbstractBlockViewModel
             'availableSpots' => $availableSpots,
             'status' => $status,
         ];
-    }
-
-    private function formatIsoDateTime(string $value): string
-    {
-        if ($value === '') {
-            return '';
-        }
-
-        $timestamp = strtotime($value);
-        if ($timestamp === false) {
-            return '';
-        }
-
-        return date(DATE_ATOM, $timestamp);
-    }
-
-    private function formatDisplayDateTime(string $value): string
-    {
-        if ($value === '') {
-            return '';
-        }
-
-        $timestamp = strtotime($value);
-        if ($timestamp === false) {
-            return '';
-        }
-
-        return date('d M Y · H:i', $timestamp);
     }
 
     /**
