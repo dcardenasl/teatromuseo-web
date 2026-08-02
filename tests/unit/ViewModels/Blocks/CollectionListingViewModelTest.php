@@ -126,6 +126,26 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame('Últimas noticias.', $vars['metaDescription']);
     }
 
+    public function testFallbackImageUrlIsNeverUsedEvenWhenConfigured(): void
+    {
+        // block_config can carry an admin-authored placeholder photo (a leftover from the
+        // template catalog's demo content) — it must never be surfaced, even when explicitly
+        // set, so every card without a real cover just shows no image instead of the same
+        // generic stock photo repeated across the grid.
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1, 'fallback_image_url' => 'https://images.unsplash.com/photo-placeholder']],
+            'es',
+            $this->context(
+                [self::COLLECTION],
+                ['data' => [], 'meta' => ['pagination' => ['total' => 0]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame('', $vars['fallbackImageUrl']);
+    }
+
     public function testResolvedCollectionFallsBackToNameWhenListingTitleIsEmpty(): void
     {
         $collection = self::COLLECTION;

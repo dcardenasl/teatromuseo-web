@@ -20,11 +20,13 @@ class CatalogItemHeaderViewModel extends AbstractBlockViewModel
         $summary = $item['summary'] ?? '';
         $categoryName = trim((string) ($this->context['category_name'] ?? ''));
 
+        // No fallback to configString('fallback_image_url', '') here on purpose: that config
+        // key holds an admin-authored placeholder meant only for the block-editor preview (the
+        // !hasItem branch above), not for a real item that simply has no cover of its own —
+        // showing a generic stock photo as if it belonged to a specific piece was misleading.
+        // The view already hides the <figure> entirely when imageUrl is empty.
         $image = $item['cover_image'] ?? $item['featured_image'] ?? null;
         $imageUrl = is_array($image) ? ($image['url'] ?? '') : (is_string($image) ? $image : '');
-        if ($imageUrl === '') {
-            $imageUrl = $this->configString('fallback_image_url', '');
-        }
 
         return [
             'hasItem' => true,

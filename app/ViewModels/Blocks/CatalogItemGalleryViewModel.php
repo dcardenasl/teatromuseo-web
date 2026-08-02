@@ -17,10 +17,13 @@ class CatalogItemGalleryViewModel extends AbstractBlockViewModel
             ];
         }
 
+        // No fallback to configArray('fallback_gallery_images', []) here on purpose: that
+        // config key holds admin-authored placeholder/demo images meant only for the
+        // block-editor preview (the !hasItem branch above), not for a real catalog item that
+        // simply has no gallery of its own — showing generic stock photos as if they belonged
+        // to a specific piece was misleading. The section only renders when real images exist,
+        // via the view's `!empty($gallery)` guard.
         $gallery = $item['gallery_images'] ?? $item['gallery'] ?? $item['images'] ?? [];
-        if (empty($gallery)) {
-            $gallery = $this->configArray('fallback_gallery_images', []);
-        }
 
         return [
             'hasItem' => true,

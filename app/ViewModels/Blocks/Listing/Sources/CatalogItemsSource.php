@@ -146,7 +146,6 @@ class CatalogItemsSource implements ListingSourceInterface
             'show_categories' => true,
             'show_tags' => false,
             'show_date' => false,
-            'fallback_image_url' => 'https://images.unsplash.com/photo-1544928147-79a2dbc1f389?auto=format&fit=crop&w=600&q=80',
         ];
     }
 

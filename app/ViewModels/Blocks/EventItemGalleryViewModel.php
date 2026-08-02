@@ -17,10 +17,13 @@ class EventItemGalleryViewModel extends AbstractBlockViewModel
             ];
         }
 
+        // No fallback to configArray('fallback_gallery_images', []) here on purpose: that
+        // config key holds admin-authored placeholder/demo images meant only for the
+        // block-editor preview (the !hasEvent branch above), not for a real event that simply
+        // has no gallery of its own — showing generic stock photos as if they belonged to a
+        // specific event was misleading. The section only renders when real images exist,
+        // via the view's `!empty($gallery)` guard.
         $gallery = $event['gallery_images'] ?? $event['gallery'] ?? $event['images'] ?? [];
-        if (empty($gallery)) {
-            $gallery = $this->configArray('fallback_gallery_images', []);
-        }
 
         return [
             'hasEvent' => true,

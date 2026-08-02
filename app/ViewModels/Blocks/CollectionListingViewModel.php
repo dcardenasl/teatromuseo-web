@@ -141,7 +141,10 @@ class CollectionListingViewModel extends AbstractBlockViewModel
                 ? $displayTitle
                 : $defaults['page_title'],
             'metaDescription' => $this->resolveCollectionMetaDescription($collection, $displayIntro, $defaults['intro_text']),
-            'fallbackImageUrl' => $this->textString('fallback_image_url', $defaults['fallback_image_url'] ?? ''),
+            // No fallback to a configured/admin-authored placeholder here on purpose: showing
+            // the same generic stock photo on every card without a real cover was misleading.
+            // The card view already hides the image container entirely when it's empty.
+            'fallbackImageUrl' => '',
         ];
     }
 

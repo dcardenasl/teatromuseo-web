@@ -23,11 +23,13 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
         $title = $event['title'] ?? $event['name'] ?? 'Evento sin título';
         $summary = $event['localized']['description'] ?? $event['description'] ?? '';
 
+        // No fallback to configString('fallback_image_url', '') here on purpose: that config
+        // key holds an admin-authored placeholder meant only for the block-editor preview (the
+        // !hasEvent branch above), not for a real event that simply has no cover of its own —
+        // showing a generic stock photo as if it belonged to a specific event was misleading.
+        // The view already hides the <figure> entirely when imageUrl is empty.
         $image = $event['cover_image'] ?? $event['featured_image'] ?? null;
         $imageUrl = is_array($image) ? ($image['url'] ?? '') : (is_string($image) ? $image : '');
-        if ($imageUrl === '') {
-            $imageUrl = $this->configString('fallback_image_url', '');
-        }
 
         $startTime = (string) ($event['start_time'] ?? '');
         $endTime = (string) ($event['end_time'] ?? '');
