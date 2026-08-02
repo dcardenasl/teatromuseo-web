@@ -16,6 +16,7 @@
  * @var string $orderBy
  * @var string $orderDirection
  * @var string $layoutVariant
+ * @var string $imageAspectRatio
  * @var string $cssClass
  * @var string $sectionLabel
  * @var bool $showSearch
@@ -98,10 +99,18 @@ $cardClass = match ($layoutVariant) {
     default => 'surface-card overflow-hidden transition-colors hover:border-slate-300 group flex flex-col',
 };
 
-$imageClass = match ($layoutVariant) {
-    'portfolio' => 'aspect-[4/3]',
-    'list' => 'aspect-video md:aspect-auto md:w-80 md:shrink-0',
+// The image container's width always comes from the grid/card layout above —
+// the aspect ratio only ever changes its computed height, never the width.
+$imageRatioClass = match ($imageAspectRatio) {
+    '4/3' => 'aspect-[4/3]',
+    '1/1' => 'aspect-square',
+    '3/4' => 'aspect-[3/4]',
+    '2/3' => 'aspect-[2/3]',
     default => 'aspect-video',
+};
+$imageClass = match ($layoutVariant) {
+    'list' => $imageRatioClass . ' md:aspect-auto md:w-80 md:shrink-0',
+    default => $imageRatioClass,
 };
 $bodyClass = $layoutVariant === 'portfolio' ? 'p-7' : 'p-5';
 $sectionClass = trim($cssClass . ' section');

@@ -38,6 +38,7 @@ final class CollectionListingPaginationTest extends CIUnitTestCase
             'orderBy' => 'name',
             'orderDirection' => 'asc',
             'layoutVariant' => 'cards',
+            'imageAspectRatio' => '16/9',
             'cssClass' => '',
             'showSearch' => true,
             'showCategories' => true,

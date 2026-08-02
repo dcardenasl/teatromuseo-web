@@ -383,6 +383,25 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame('mock-collection', $vars['collection']['collection_key']);
     }
 
+    public function testImageAspectRatioDefaultsTo16By9AndHonorsExplicitConfig(): void
+    {
+        $context = $this->context([self::COLLECTION], ['data' => [], 'meta' => []]);
+
+        $vmDefault = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $context
+        );
+        $this->assertSame('16/9', $vmDefault->vars()['imageAspectRatio']);
+
+        $vmSquare = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1, 'image_aspect_ratio' => '1/1']],
+            'es',
+            $context
+        );
+        $this->assertSame('1/1', $vmSquare->vars()['imageAspectRatio']);
+    }
+
     public function testMissingContextCollaboratorsProduceSafeDefaultsInsteadOfErrors(): void
     {
         // No request, no services in context — plain array construction must

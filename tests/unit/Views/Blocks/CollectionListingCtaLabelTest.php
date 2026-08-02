@@ -42,6 +42,7 @@ final class CollectionListingCtaLabelTest extends CIUnitTestCase
             'orderBy' => 'published_at',
             'orderDirection' => 'desc',
             'layoutVariant' => 'cards',
+            'imageAspectRatio' => '16/9',
             'cssClass' => '',
             'showSearch' => false,
             'showCategories' => false,
