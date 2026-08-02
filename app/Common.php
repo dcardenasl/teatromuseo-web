@@ -280,6 +280,59 @@ if (! function_exists('localized_entry_urls')) {
     }
 }
 
+if (! function_exists('localized_date_intl_locale')) {
+    /**
+     * Maps a page language code to the ICU locale used for date formatting.
+     * Shared by `format_localized_date()` below and
+     * `App\ViewModels\Blocks\Concerns\FormatsLocalizedDateTime` so both stay
+     * in sync from a single source.
+     */
+    function localized_date_intl_locale(string $lang): string
+    {
+        return match ($lang) {
+            'en' => 'en_US',
+            'fr' => 'fr_FR',
+            'pt' => 'pt_PT',
+            default => 'es_ES',
+        };
+    }
+}
+
+if (! function_exists('format_localized_date')) {
+    /**
+     * Locale-aware, date-only display string (day + month name + year, no time
+     * component) for entry cards and listings. PHP's `date()` always renders
+     * English month names regardless of the page language — this formats
+     * through `IntlDateFormatter` so "04 Aug 2026" reads as "4 ago 2026" on a
+     * Spanish page, "4 août 2026" on a French one, etc.
+     */
+    function format_localized_date(string $value, string $lang): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return '';
+        }
+
+        if (class_exists(\IntlDateFormatter::class)) {
+            $formatter = new \IntlDateFormatter(
+                localized_date_intl_locale($lang),
+                \IntlDateFormatter::MEDIUM,
+                \IntlDateFormatter::NONE,
+            );
+            $formatted = $formatter->format($timestamp);
+            if (is_string($formatted) && $formatted !== '') {
+                return $formatted;
+            }
+        }
+
+        return date('d-m-Y', $timestamp);
+    }
+}
+
 if (! function_exists('block_text_content')) {
     /**
      * Resolve rich text content from the canonical block field.

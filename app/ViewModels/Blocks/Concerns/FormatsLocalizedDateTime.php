@@ -57,11 +57,6 @@ trait FormatsLocalizedDateTime
 
     private function intlLocale(string $lang): string
     {
-        return match ($lang) {
-            'en' => 'en_US',
-            'fr' => 'fr_FR',
-            'pt' => 'pt_PT',
-            default => 'es_ES',
-        };
+        return localized_date_intl_locale($lang);
     }
 }

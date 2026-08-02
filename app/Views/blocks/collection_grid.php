@@ -47,7 +47,7 @@ if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
                 <?php foreach ($entries as $entry):
                     $entryTitle   = $entry['title'] ?? '';
                     $entryExcerpt = $entry['excerpt'] ?? '';
-                    $entryDate    = $entry['published_at'] ?? $entry['created_at'] ?? '';
+                    $entryDate    = $entry['display_date'] ?? $entry['published_at'] ?? $entry['created_at'] ?? '';
                     $entrySlug    = $entry['slug'] ?? '';
                     $entryImage   = is_array($entry['featured_image'] ?? null) ? ($entry['featured_image']['url'] ?? '') : '';
                     $entryUrl     = $canonicalViewAllUrl !== '' && $entrySlug !== ''
@@ -73,7 +73,7 @@ if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
                         <div class="<?= esc($bodyClass) ?>">
                             <?php if ($entryDate): ?>
                                 <p class="text-xs uppercase tracking-[0.2em] text-slate-500">
-                                    <?= esc(date('d M Y', strtotime($entryDate))) ?>
+                                    <?= esc(format_localized_date($entryDate, $lang)) ?>
                                 </p>
                             <?php endif; ?>
                             <h3 class="mt-2 text-lg font-semibold leading-tight text-slate-900">

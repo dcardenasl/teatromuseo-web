@@ -214,7 +214,7 @@ $sectionClass = trim($cssClass . ' section');
                 <?php foreach ($entries as $index => $entry):
                     $entryTitle = (string) ($entry['title'] ?? '');
                     $entryExcerpt = (string) ($entry['excerpt'] ?? '');
-                    $entryDate = (string) ($entry['published_at'] ?? $entry['created_at'] ?? '');
+                    $entryDate = (string) ($entry['display_date'] ?? $entry['published_at'] ?? $entry['created_at'] ?? '');
                     $entrySlug = (string) ($entry['slug'] ?? '');
                     if ($entrySlug === '' && is_array($entry['localized_slugs'] ?? null)) {
                         $entrySlug = (string) ($entry['localized_slugs'][$lang] ?? '');
@@ -284,7 +284,7 @@ $sectionClass = trim($cssClass . ' section');
                             <!-- Entry Date -->
                             <?php if ($showDate && $entryDate !== ''): ?>
                                 <time datetime="<?= esc($entryDate) ?>" class="text-[10px] uppercase tracking-[0.2em] font-semibold text-slate-500 block mb-2">
-                                    <?= esc(date('d M Y', strtotime($entryDate))) ?>
+                                    <?= esc(format_localized_date($entryDate, $lang)) ?>
                                 </time>
                             <?php endif; ?>
 

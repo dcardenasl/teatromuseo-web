@@ -79,7 +79,7 @@ $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $fe
                 <?php if (!empty($published_at) && !$isPortfolio): ?>
                     <time datetime="<?= esc($published_at) ?>">
                         <span class="sr-only"><?= esc($publishedLabel) ?>: </span>
-                        <?= esc(date('d M Y', strtotime($published_at))) ?>
+                        <?= esc(format_localized_date($published_at, $lang)) ?>
                     </time>
                 <?php endif; ?>
             </div>

@@ -9,7 +9,7 @@
 $slug       = $entry['slug'] ?? '';
 $title      = $entry['title'] ?? '';
 $excerpt    = $entry['excerpt'] ?? '';
-$date       = $entry['published_at'] ?? $entry['created_at'] ?? '';
+$date       = $entry['display_date'] ?? $entry['published_at'] ?? $entry['created_at'] ?? '';
 $image      = is_array($entry['featured_image'] ?? null) ? $entry['featured_image'] : (is_array($entry['cover_image'] ?? null) ? $entry['cover_image'] : []);
 $imageUrl   = is_string($image['url'] ?? null) ? trim((string) $image['url']) : '';
 
@@ -52,7 +52,7 @@ $readMore   = lang('Site.read_more');
 
         <?php if ($date): ?>
             <p class="text-xs text-text-muted uppercase tracking-widest mb-2">
-                <?= esc(date('d M Y', strtotime($date))) ?>
+                <?= esc(format_localized_date($date, $lang)) ?>
             </p>
         <?php endif; ?>
 
