@@ -35,7 +35,9 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
         $this->assertStringContainsString('Ver ficha', $body);
         $this->assertStringContainsString('/es/museo/coleccion/obra-uno', $body);
         $this->assertStringContainsString('data-listing-pagination', $body);
-        $this->assertStringContainsString('1 / 2', $body);
+        // Numbered pagination: current page (1) marked, page 2 reachable directly.
+        $this->assertStringContainsString('aria-current="page"', $body);
+        $this->assertMatchesRegularExpression('/href="[^"]*page=2[^"]*"/', $body);
         $this->assertStringContainsString('Siguiente', $body);
         $this->assertStringContainsString('hreflang="es"', $body);
         $this->assertStringContainsString('hreflang="en"', $body);
@@ -113,7 +115,9 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
         $this->assertStringContainsString('Ver evento', $body);
         $this->assertStringContainsString('/es/cartelera/festival-uno', $body);
         $this->assertStringContainsString('data-listing-pagination', $body);
-        $this->assertStringContainsString('1 / 2', $body);
+        // Numbered pagination: current page (1) marked, page 2 reachable directly.
+        $this->assertStringContainsString('aria-current="page"', $body);
+        $this->assertMatchesRegularExpression('/href="[^"]*page=2[^"]*"/', $body);
         $this->assertStringContainsString('Siguiente', $body);
         $this->assertStringContainsString('hreflang="es"', $body);
         $this->assertStringContainsString('hreflang="en"', $body);

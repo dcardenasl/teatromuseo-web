@@ -353,24 +353,76 @@ $sectionClass = trim($cssClass . ' section');
 
         <!-- ── 4. Pagination ──────────────────────────────────────────────── -->
         <?php if ($totalPages > 1): ?>
-            <nav class="mt-12 flex flex-wrap items-center justify-center gap-3" aria-label="<?= esc(lang('Site.pagination')) ?>" data-listing-pagination>
+            <?php
+            // Base query params shared by every page link — only `page` varies.
+            $pageUrl = static function (int $page) use ($buildUrl, $currentCategory, $currentTag, $currentQuery, $orderBy, $orderDirection, $pagination): string {
+                return $buildUrl([
+                    'page' => $page,
+                    'category' => $currentCategory !== '' ? $currentCategory : null,
+                    'tag' => $currentTag !== '' ? $currentTag : null,
+                    'q' => $currentQuery !== '' ? $currentQuery : null,
+                    'order_by' => $orderBy,
+                    'order_direction' => $orderDirection,
+                    'per_page' => (int) ($pagination['per_page'] ?? 12),
+                ]);
+            };
+
+            // Windowed page list with ellipsis gaps — always keeps the first and last
+            // page reachable in one click, plus a small neighborhood around the
+            // current page, instead of forcing a click-through of every page in between.
+            $paginationItems = static function (int $current, int $total, int $delta = 2): array {
+                $range = [];
+                for ($i = 1; $i <= $total; $i++) {
+                    if ($i === 1 || $i === $total || ($i >= $current - $delta && $i <= $current + $delta)) {
+                        $range[] = $i;
+                    }
+                }
+
+                $items = [];
+                $previous = 0;
+                foreach ($range as $page) {
+                    if ($previous > 0 && $page - $previous > 1) {
+                        $items[] = ['type' => 'ellipsis'];
+                    }
+                    $items[] = ['type' => 'page', 'page' => $page];
+                    $previous = $page;
+                }
+
+                return $items;
+            };
+            ?>
+            <nav class="mt-12 flex flex-wrap items-center justify-center gap-2" aria-label="<?= esc(lang('Site.pagination')) ?>" data-listing-pagination>
                 <?php if ($currentPage > 1): ?>
-                                    <a href="<?= esc($buildUrl(['page' => $currentPage - 1, 'category' => $currentCategory !== '' ? $currentCategory : null, 'tag' => $currentTag !== '' ? $currentTag : null, 'q' => $currentQuery !== '' ? $currentQuery : null, 'order_by' => $orderBy, 'order_direction' => $orderDirection, 'per_page' => (int) ($pagination['per_page'] ?? 12)])) ?>"
-                                       class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold !text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:!bg-slate-100 !no-underline">
-                                        <?= esc($previousLabel) ?>
-                                    </a>
-                                <?php endif; ?>
+                    <a href="<?= esc($pageUrl($currentPage - 1)) ?>" rel="prev"
+                       class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold !text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:!bg-slate-100 !no-underline">
+                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+                        <span class="hidden sm:inline"><?= esc($previousLabel) ?></span>
+                    </a>
+                <?php endif; ?>
 
-                                <span class="text-sm font-medium text-slate-500 px-3">
-                                    <?= esc((string) ($pagination['current_page'] ?? $currentPage)) ?> / <?= esc((string) $totalPages) ?>
-                                </span>
+                <div class="flex items-center gap-1">
+                    <?php foreach ($paginationItems($currentPage, $totalPages) as $item): ?>
+                        <?php if ($item['type'] === 'ellipsis'): ?>
+                            <span class="px-1.5 text-sm text-slate-400 select-none" aria-hidden="true">&hellip;</span>
+                        <?php else: ?>
+                            <?php $isCurrent = $item['page'] === $currentPage; ?>
+                            <a href="<?= esc($pageUrl($item['page'])) ?>"
+                               class="inline-flex h-10 min-w-[2.5rem] items-center justify-center rounded-xl px-3 text-sm font-semibold !no-underline transition-colors <?= $isCurrent ? '!bg-primary !border-primary !text-white shadow-sm' : 'border border-slate-200 bg-white !text-slate-600 hover:border-slate-300 hover:!bg-slate-100' ?>"
+                               <?= $isCurrent ? 'aria-current="page"' : '' ?>
+                               aria-label="<?= esc(lang('Site.pagination_page_of', [(string) $item['page'], (string) $totalPages])) ?>">
+                                <?= esc((string) $item['page']) ?>
+                            </a>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </div>
 
-                                <?php if ($currentPage < $totalPages): ?>
-                                    <a href="<?= esc($buildUrl(['page' => $currentPage + 1, 'category' => $currentCategory !== '' ? $currentCategory : null, 'tag' => $currentTag !== '' ? $currentTag : null, 'q' => $currentQuery !== '' ? $currentQuery : null, 'order_by' => $orderBy, 'order_direction' => $orderDirection, 'per_page' => (int) ($pagination['per_page'] ?? 12)])) ?>"
-                                       class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold !text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:!bg-slate-100 !no-underline">
-                                        <?= esc($nextLabel) ?>
-                                    </a>
-                                <?php endif; ?>
+                <?php if ($currentPage < $totalPages): ?>
+                    <a href="<?= esc($pageUrl($currentPage + 1)) ?>" rel="next"
+                       class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold !text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:!bg-slate-100 !no-underline">
+                        <span class="hidden sm:inline"><?= esc($nextLabel) ?></span>
+                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                    </a>
+                <?php endif; ?>
             </nav>
         <?php endif; ?>
     </div>
