@@ -89,7 +89,8 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
             role="dialog"
             aria-modal="true"
             aria-hidden="true"
-            class="fixed inset-0 z-[100] hidden flex-col bg-black/95 p-2 text-white select-none sm:p-4 md:p-8"
+            class="fixed inset-0 hidden flex-col bg-black/95 p-2 text-white select-none sm:p-4 md:p-8"
+            style="z-index: 9999; background-color: rgba(0, 0, 0, 0.95);"
         >
             <!-- Close button (top-right) -->
             <div class="flex justify-end flex-shrink-0">
@@ -125,9 +126,10 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
                 <div class="relative flex-1 flex items-center justify-center min-h-0 min-w-0">
                     <img
                         data-gallery-modal-image
-                        src=""
+                        src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
                         alt=""
-                        class="max-h-full max-w-full object-contain rounded shadow-2xl transition-all duration-300"
+                        class="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl transition-all duration-300"
+                        style="max-height: 90vh; max-width: 90vw;"
                         decoding="async"
                         onerror="this.classList.add('opacity-50'); this.alt='<?= esc(lang('Site.image_failed_to_load')) ?>';"
                     >
@@ -304,13 +306,16 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
     }
 
     const modal = root.querySelector('[data-gallery-modal]');
-    const modalImage = root.querySelector('[data-gallery-modal-image]');
-    const modalCaption = root.querySelector('[data-gallery-modal-caption]');
-    const modalCounter = root.querySelector('[data-gallery-modal-counter]');
-    const modalLink = root.querySelector('[data-gallery-modal-link]');
-    const closeButton = root.querySelector('[data-gallery-close]');
-    const prevButton = root.querySelector('[data-gallery-prev]');
-    const nextButton = root.querySelector('[data-gallery-next]');
+    if (modal) {
+        document.body.appendChild(modal);
+    }
+    const modalImage = modal ? modal.querySelector('[data-gallery-modal-image]') : null;
+    const modalCaption = modal ? modal.querySelector('[data-gallery-modal-caption]') : null;
+    const modalCounter = modal ? modal.querySelector('[data-gallery-modal-counter]') : null;
+    const modalLink = modal ? modal.querySelector('[data-gallery-modal-link]') : null;
+    const closeButton = modal ? modal.querySelector('[data-gallery-close]') : null;
+    const prevButton = modal ? modal.querySelector('[data-gallery-prev]') : null;
+    const nextButton = modal ? modal.querySelector('[data-gallery-next]') : null;
     let activeIndex = 0;
 
     const renderModal = (index) => {
@@ -320,6 +325,7 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
         }
 
         activeIndex = index;
+        modalImage.classList.remove('opacity-50');
         modalImage.src = data.url;
         modalImage.alt = data.alt || '';
         modalCaption.textContent = data.caption || '';

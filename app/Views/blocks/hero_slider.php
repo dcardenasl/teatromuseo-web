@@ -130,7 +130,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
             <div
                 data-hero-overlay
                 class="absolute inset-0"
-                style="background: <?= !empty($slides[0]['overlay_color']) ? esc($slides[0]['overlay_color']) : 'linear-gradient(to bottom, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 100%)' ?>;"
+                style="background: <?= !empty($slides[0]['overlay_color']) ? esc($slides[0]['overlay_color']) : 'linear-gradient(to bottom, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 100%)' ?>;<?= $captionIsOverlay ? '' : ' display: none;' ?>"
             ></div>
 
             <?php if ($captionIsOverlay): ?>

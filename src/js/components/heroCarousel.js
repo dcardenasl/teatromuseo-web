@@ -162,9 +162,7 @@ const initHeroCarousel = (root) => {
       const imageUrl = slide.image?.url || slide.image?.external_url || '';
       const shouldAnimate = hasRendered && image.getAttribute('src') !== imageUrl;
 
-      // A carousel reuses one <img> node. Any responsive candidates rendered
-      // for the first slide would otherwise keep winning source selection after
-      // src changes, leaving the browser on the first image forever.
+      image.classList.remove('opacity-50');
       image.removeAttribute('srcset');
       image.removeAttribute('sizes');
       image.src = imageUrl;
@@ -196,11 +194,18 @@ const initHeroCarousel = (root) => {
     });
 
     if (overlay) {
-      if (slide.overlay_color) {
-        overlay.style.background = slide.overlay_color;
+      const captionPosition = root.dataset.captionPosition || 'below';
+      const isOverlayCaption = captionPosition.startsWith('overlay');
+      if (!isOverlayCaption) {
+        overlay.style.display = 'none';
       } else {
-        const overlayOpacity = root.dataset.overlayPct || '0';
-        overlay.style.background = `linear-gradient(to bottom, rgba(15, 23, 42, ${overlayOpacity / 100}) 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, ${overlayOpacity / 100}) 100%)`;
+        overlay.style.display = 'block';
+        if (slide.overlay_color) {
+          overlay.style.background = slide.overlay_color;
+        } else {
+          const overlayOpacity = root.dataset.overlayPct || '0';
+          overlay.style.background = `linear-gradient(to bottom, rgba(15, 23, 42, ${overlayOpacity / 100}) 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, ${overlayOpacity / 100}) 100%)`;
+        }
       }
     }
     if (captionCard || captionTitles.length) {
