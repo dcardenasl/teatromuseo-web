@@ -122,7 +122,7 @@ class BlockRenderer
 
         $renderedChildren = '';
         foreach ($children as $child) {
-            $renderedChildren .= $this->renderBlock($child, $lang, $context);
+            $renderedChildren .= $this->renderBlock($child, $lang, array_merge($context, ['is_child' => true]));
         }
 
         $formDefinition = null;

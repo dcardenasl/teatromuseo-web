@@ -27,10 +27,13 @@ $sent   = session()->getFlashdata("form_sent_{$formKey}");
 $errors = (array) (session()->getFlashdata("form_errors_{$formKey}") ?? []);
 
 $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && ($infoEmailLabel !== '' || $infoPhoneLabel !== '')));
+$isChild = $context['is_child'] ?? false;
 ?>
 
+<?php if (!$isChild): ?>
 <section class="section <?= esc($cssClass) ?>">
     <div class="container-base">
+<?php endif; ?>
         <?php if ($hasLeftContent): ?>
             <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
 
@@ -80,7 +83,7 @@ $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && 
                 <?php /* ── Right column: form ── */ ?>
                 <div class="pt-6 lg:pl-10 lg:pt-0">
         <?php else: ?>
-            <div class="max-w-2xl mx-auto w-full">
+            <div class="<?= $isChild ? 'surface-card p-6 sm:p-8 w-full' : 'max-w-2xl mx-auto w-full' ?>">
                 <?php if ($sent): ?>
                     <div class="surface-card p-6 sm:p-8 shadow-sm text-center">
                         <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4">
@@ -250,7 +253,10 @@ $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && 
                 </div> <?php /* Close pt-6 lg:pl-10 lg:pt-0 */ ?>
             </div> <?php /* Close grid ... */ ?>
         <?php else: ?>
-            </div> <?php /* Close max-w-2xl mx-auto w-full */ ?>
+            </div> <?php /* Close max-w-2xl or card wrapper */ ?>
         <?php endif; ?>
+
+<?php if (!$isChild): ?>
     </div>
 </section>
+<?php endif; ?>
