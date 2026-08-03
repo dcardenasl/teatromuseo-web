@@ -9,6 +9,8 @@
  * @var string                     $emptyMessage
  * @var string                     $collectionKey
  * @var string                     $layoutVariant
+ * @var string                     $imageAspectRatio
+ * @var string                     $imageAspectRatioClass
  * @var string                     $cssClass
  * @var string                     $canonicalViewAllUrl
  * @var list<array<string, mixed>> $entries
@@ -56,7 +58,10 @@ if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
                     $articleClass = $layoutVariant === 'portfolio'
                         ? 'bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col group hover:shadow-lg transition-all duration-300'
                         : 'surface-card overflow-hidden transition-colors hover:border-slate-300 group';
-                    $imageClass = $layoutVariant === 'portfolio' ? 'aspect-[4/3]' : 'aspect-video';
+                    $imageClass = $imageAspectRatioClass;
+                    if ($layoutVariant === 'list') {
+                        $imageClass .= ' md:aspect-auto md:w-80 md:shrink-0';
+                    }
                     $bodyClass = $layoutVariant === 'portfolio' ? 'p-6' : 'p-5';
                 ?>
                     <article class="<?= esc($articleClass) ?>">

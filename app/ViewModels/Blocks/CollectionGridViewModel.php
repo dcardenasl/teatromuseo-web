@@ -4,17 +4,25 @@ declare(strict_types=1);
 
 namespace App\ViewModels\Blocks;
 
+use App\Services\SiteCatalogService;
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
+use App\Services\SiteEventService;
+use App\ViewModels\Blocks\Listing\ListingQuery;
+use App\ViewModels\Blocks\Listing\Sources\CatalogItemsSource;
+use App\ViewModels\Blocks\Listing\Sources\EventItemsSource;
 
 class CollectionGridViewModel extends AbstractBlockViewModel
 {
     private const ORDER_COLUMNS   = ['published_at', 'sort_order', 'created_at', 'title'];
     private const LAYOUT_VARIANTS = ['cards', 'compact', 'portfolio'];
+    private const IMAGE_ASPECT_RATIOS = ['16/9', '4/3', '1/1', '3/4', '2/3'];
+    private const SOURCE_TYPES = ['auto', 'cms_collection', 'catalog_items', 'event_items'];
 
     public function vars(): array
     {
         $collectionKey = $this->configString('collection_key');
+        $sourceType = $this->resolveSourceType($collectionKey);
         $itemsLimit    = max(1, min(100, $this->configInt('items_limit', 3)));
 
         $orderBy = $this->configString('order_by');
@@ -29,6 +37,11 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             $layoutVariant = 'cards';
         }
 
+        $imageAspectRatio = $this->resolveImageAspectRatio(
+            $this->configString('image_aspect_ratio'),
+            $collectionKey,
+        );
+
         $canonicalViewAllUrl = $collectionKey !== ''
             ? $this->canonicalViewAllUrl($collectionKey, $this->dataString('view_all_url'))
             : '';
@@ -40,9 +53,11 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             'emptyMessage'        => $this->dataString('empty_message'),
             'collectionKey'       => $collectionKey,
             'layoutVariant'       => $layoutVariant,
+            'imageAspectRatio'    => $imageAspectRatio,
+            'imageAspectRatioClass' => self::aspectRatioClass($imageAspectRatio),
             'cssClass'            => $this->configString('css_class'),
             'canonicalViewAllUrl' => $canonicalViewAllUrl,
-            'entries'             => $this->resolvePreviewEntries($collectionKey, $itemsLimit, $orderBy, $orderDirection),
+            'entries'             => $this->resolvePreviewEntries($collectionKey, $sourceType, $itemsLimit, $orderBy, $orderDirection),
             'sectionClass'        => $layoutVariant === 'portfolio' ? 'section-lg bg-slate-50/50' : 'section',
             'containerClass'      => $layoutVariant === 'portfolio' ? 'max-w-6xl mx-auto px-4' : 'container-base',
             'gridClass'           => match ($layoutVariant) {
@@ -51,6 +66,18 @@ class CollectionGridViewModel extends AbstractBlockViewModel
                 default     => 'grid gap-6 md:grid-cols-3',
             },
         ];
+    }
+
+    public static function aspectRatioClass(string $ratio): string
+    {
+        return match ($ratio) {
+            '16/9' => 'aspect-video',
+            '4/3'  => 'aspect-[4/3]',
+            '1/1'  => 'aspect-square',
+            '3/4'  => 'aspect-[3/4]',
+            '2/3'  => 'aspect-[2/3]',
+            default => 'aspect-[4/3]',
+        };
     }
 
     /**
@@ -86,6 +113,26 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         $urlPath = localized_collection_url_path($collection, $this->lang);
 
         return $urlPath !== '' ? $urlPath : $fallback;
+    }
+
+    private function resolveImageAspectRatio(string $ratio, string $collectionKey): string
+    {
+        $ratio = trim($ratio);
+
+        if (in_array($ratio, self::IMAGE_ASPECT_RATIOS, true)) {
+            return $ratio;
+        }
+
+        $defaultRatio = match (strtolower(trim($collectionKey))) {
+            'cartelera', 'events', 'eventos', 'obras', 'works', 'noticias', 'news', 'publicaciones', 'publications', 'festivales', 'festivals', 'companias', 'companies' => '1/1',
+            'personas', 'people' => '3/4',
+            'exposiciones', 'exhibitions' => '2/3',
+            'cursos', 'courses' => '3/4',
+            'videos', 'video', 'multimedia' => '16/9',
+            default => '4/3',
+        };
+
+        return $defaultRatio;
     }
 
     /**
@@ -133,8 +180,16 @@ class CollectionGridViewModel extends AbstractBlockViewModel
      *
      * @return array<int, array<string, mixed>>
      */
-    private function resolvePreviewEntries(string $collectionKey, int $itemsLimit, string $orderBy, string $orderDirection): array
+    private function resolvePreviewEntries(string $collectionKey, string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection): array
     {
+        if ($sourceType === 'event_items') {
+            return $this->externalEntries('event_items', $itemsLimit, $orderBy, $orderDirection);
+        }
+
+        if ($sourceType === 'catalog_items') {
+            return $this->externalEntries('catalog_items', $itemsLimit, $orderBy, $orderDirection);
+        }
+
         $entries = [];
         if ($collectionKey !== '') {
             $entries = $this->entries($collectionKey, $itemsLimit, $orderBy, $orderDirection);
@@ -176,5 +231,80 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         }
 
         return $entries;
+    }
+
+    /**
+     * Cartelera is owned by the event domain, not by the CMS collections table.
+     * Keep the collection_grid presentation while routing this special source
+     * through the same event normalizer used by the full cartelera listing.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function externalEntries(string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection): array
+    {
+        $source = match ($sourceType) {
+            'event_items' => $this->eventSource(),
+            'catalog_items' => $this->catalogSource(),
+            default => null,
+        };
+
+        if ($source === null) {
+            return [];
+        }
+
+        try {
+            $sort = $sourceType === 'event_items' ? 'start_time' : ($orderBy !== '' ? $orderBy : 'name');
+            $direction = $sourceType === 'event_items' ? 'asc' : $orderDirection;
+            $result = $source->fetch(new ListingQuery(1, $itemsLimit, '', '', '', $sort, $direction), $this->lang);
+
+            return array_map(
+                fn (array $entry): array => $source->normalizeEntry($entry),
+                $result->data,
+            );
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private function eventSource(): ?EventItemsSource
+    {
+        $service = $this->contextService('siteEventService', SiteEventService::class);
+        if ($service === null) {
+            return null;
+        }
+
+        return new EventItemsSource(
+            $service,
+            static fn (ListingQuery $query): string => '',
+            fn (array $media): array => $this->normalizeMediaReference($media),
+        );
+    }
+
+    private function catalogSource(): ?CatalogItemsSource
+    {
+        $service = $this->contextService('siteCatalogService', SiteCatalogService::class);
+        if ($service === null) {
+            return null;
+        }
+
+        return new CatalogItemsSource(
+            $service,
+            static fn (ListingQuery $query): string => '',
+            fn (array $media): array => $this->normalizeMediaReference($media),
+        );
+    }
+
+    private function resolveSourceType(string $collectionKey): string
+    {
+        $configured = strtolower(trim($this->configString('source_type', 'auto')));
+        if ($configured !== 'auto' && in_array($configured, self::SOURCE_TYPES, true)) {
+            return $configured;
+        }
+
+        return match (strtolower(trim($collectionKey))) {
+            'cartelera', 'events', 'eventos' => 'event_items',
+            'museo', 'catalogo', 'catalog', 'fichas', 'collection_items' => 'catalog_items',
+            default => 'cms_collection',
+        };
     }
 }

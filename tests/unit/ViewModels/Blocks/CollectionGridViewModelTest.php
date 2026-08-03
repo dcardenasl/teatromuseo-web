@@ -94,8 +94,67 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $vars = $vm->vars();
 
         $this->assertSame('cards', $vars['layoutVariant']);
+        $this->assertSame('1/1', $vars['imageAspectRatio']);
+        $this->assertSame('aspect-square', $vars['imageAspectRatioClass']);
         $this->assertSame('/fallback', $vars['canonicalViewAllUrl'], 'Manual URL used when collection is unknown');
         $this->assertStringContainsString('md:grid-cols-3', $vars['gridClass']);
+    }
+
+    public function testExplicitAspectRatioIsRespected(): void
+    {
+        $vm = new CollectionGridViewModel([
+            'block_config' => [
+                'collection_key' => 'news',
+                'image_aspect_ratio' => '3/4',
+            ],
+        ], 'es', $this->context([], ['data' => [], 'meta' => []]));
+
+        $vars = $vm->vars();
+
+        $this->assertSame('3/4', $vars['imageAspectRatio']);
+        $this->assertSame('aspect-[3/4]', $vars['imageAspectRatioClass']);
+    }
+
+    public function testCollectionKeyInfersAppropriateFallbackAspectRatio(): void
+    {
+        $vm = new CollectionGridViewModel([
+            'block_config' => [
+                'collection_key' => 'cartelera',
+            ],
+        ], 'es', $this->context([], ['data' => [], 'meta' => []]));
+
+        $vars = $vm->vars();
+
+        $this->assertSame('1/1', $vars['imageAspectRatio']);
+        $this->assertSame('aspect-square', $vars['imageAspectRatioClass']);
+    }
+
+    public function testCoursesInferPortraitAspectRatio(): void
+    {
+        $vm = new CollectionGridViewModel([
+            'block_config' => [
+                'collection_key' => 'cursos',
+            ],
+        ], 'es', $this->context([], ['data' => [], 'meta' => []]));
+
+        $vars = $vm->vars();
+
+        $this->assertSame('3/4', $vars['imageAspectRatio']);
+        $this->assertSame('aspect-[3/4]', $vars['imageAspectRatioClass']);
+    }
+
+    public function testNewsInferSquareAspectRatioWhenNoExplicitRatioIsSet(): void
+    {
+        $vm = new CollectionGridViewModel([
+            'block_config' => [
+                'collection_key' => 'noticias',
+            ],
+        ], 'es', $this->context([], ['data' => [], 'meta' => []]));
+
+        $vars = $vm->vars();
+
+        $this->assertSame('1/1', $vars['imageAspectRatio']);
+        $this->assertSame('aspect-square', $vars['imageAspectRatioClass']);
     }
 
     public function testEmptyCollectionKeySkipsServiceCalls(): void
@@ -133,5 +192,6 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $this->assertSame('news', $vars['collectionKey']);
         $this->assertSame([], $vars['entries']);
         $this->assertSame('', $vars['canonicalViewAllUrl']);
+        $this->assertSame('1/1', $vars['imageAspectRatio']);
     }
 }
