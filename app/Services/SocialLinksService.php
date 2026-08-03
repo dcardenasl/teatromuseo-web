@@ -98,6 +98,12 @@ class SocialLinksService extends BaseSiteService
             return false;
         }
 
+        // Must not be a default base domain URL (e.g., must contain a profile path)
+        $path = parse_url($url, PHP_URL_PATH);
+        if (!is_string($path) || trim($path, '/') === '') {
+            return false;
+        }
+
         return true;
     }
 }

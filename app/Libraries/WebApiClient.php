@@ -20,9 +20,9 @@ class WebApiClient implements WebApiClientInterface
 {
     // Bump when the public API payload shape or seeded content changes in a way
     // that should invalidate every cached web page response.
-    // v4 invalidates responses produced before public entry search correctly
-    // constrained joined translation rows.
-    private const CACHE_SCHEMA_VERSION = 4;
+    // v5 invalidates responses produced before the Contacto social-link tree
+    // was seeded as part of the canonical CMS page block definition.
+    private const CACHE_SCHEMA_VERSION = 5;
 
     private string $baseUrl;
     private string $apiKey;
