@@ -16,7 +16,18 @@ class Slug
             return '';
         }
 
-        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        $ascii = null;
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($value, \Normalizer::FORM_D);
+            if (is_string($normalized)) {
+                $ascii = preg_replace('/\p{Mn}+/u', '', $normalized);
+            }
+        }
+
+        if (! is_string($ascii) || $ascii === '') {
+            $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        }
+
         if (! is_string($ascii) || $ascii === '') {
             $ascii = $value;
         }
