@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\ViewModels\Blocks\Listing\Sources;
 
 use App\Services\SiteEventService;
-use App\Support\PublicPaths;
+use App\Support\Slug;
 use App\ViewModels\Blocks\Listing\ListingQuery;
 use App\ViewModels\Blocks\Listing\ListingResult;
 use App\ViewModels\Blocks\Listing\ListingSourceInterface;
@@ -77,7 +77,7 @@ class EventItemsSource implements ListingSourceInterface
         $entry['title'] = $title;
         $entry['slug'] = trim((string) ($entry['slug'] ?? ''));
         if ($entry['slug'] === '') {
-            $entry['slug'] = $this->slugify($title);
+            $entry['slug'] = Slug::slugify($title);
         }
         if ($entry['slug'] === '') {
             $entry['slug'] = trim((string) ($entry['uuid'] ?? ''));
@@ -115,7 +115,10 @@ class EventItemsSource implements ListingSourceInterface
         return [
             'order_by' => 'start_time',
             'order_direction' => 'asc',
-            'source_path' => PublicPaths::EVENTS,
+            // No 'source_path' here: the public URL segment for this source
+            // type is locale-aware (PublicPaths::eventsSegment()) and is
+            // resolved directly by CollectionListingViewModel, which has
+            // the request locale that this locale-agnostic method lacks.
             'page_title' => lang('Site.event_listing_title'),
             'intro_text' => lang('Site.event_listing_intro'),
             'section_label' => lang('Site.event_listing_section'),
@@ -143,19 +146,5 @@ class EventItemsSource implements ListingSourceInterface
             'workshop' => lang('Site.event_type_workshop'),
             default => lang('Site.event_type_other'),
         };
-    }
-
-    private function slugify(string $value): string
-    {
-        $value = trim(mb_strtolower($value));
-        if ($value === '') {
-            return '';
-        }
-        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
-        if (! is_string($ascii) || $ascii === '') {
-            $ascii = $value;
-        }
-        $slug = preg_replace('/[^a-z0-9]+/i', '-', $ascii);
-        return is_string($slug) ? trim(mb_strtolower($slug), '-') : '';
     }
 }

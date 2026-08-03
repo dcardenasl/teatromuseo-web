@@ -57,13 +57,13 @@ class MuseumController extends BasePublicWebController
 
         // Use the actual localized slug for canonical if available, else fallback
         $canonicalSlug = (string) ($item['slug'] ?? $idOrCode);
-        $canonicalUrl = site_url('/' . $lang . '/' . \App\Support\PublicPaths::CATALOG . '/' . $canonicalSlug);
+        $canonicalUrl = site_url('/' . $lang . '/' . \App\Support\PublicPaths::catalogSegment($lang) . '/' . $canonicalSlug);
 
         $localizedUrls = [];
         $apiSlugs = is_array($item['slugs'] ?? null) ? $item['slugs'] : [];
         foreach (config('App')->supportedLocales as $locale) {
             if (isset($apiSlugs[$locale]) && is_string($apiSlugs[$locale]) && $apiSlugs[$locale] !== '') {
-                $localizedUrls[$locale] = site_url('/' . $locale . '/' . \App\Support\PublicPaths::CATALOG . '/' . ltrim($apiSlugs[$locale], '/'));
+                $localizedUrls[$locale] = site_url('/' . $locale . '/' . \App\Support\PublicPaths::catalogSegment($locale) . '/' . ltrim($apiSlugs[$locale], '/'));
             }
         }
 

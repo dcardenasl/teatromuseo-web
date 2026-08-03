@@ -45,13 +45,13 @@ class EventController extends BasePublicWebController
             $ogImageUrl = $featuredImage;
         }
 
-        $canonicalUrl = site_url('/' . $lang . '/' . \App\Support\PublicPaths::EVENTS . '/' . $slug);
+        $canonicalUrl = site_url('/' . $lang . '/' . \App\Support\PublicPaths::eventsSegment($lang) . '/' . $slug);
 
         $localizedUrls = [];
         $apiSlugs = is_array($event['slugs'] ?? null) ? $event['slugs'] : [];
         foreach (config('App')->supportedLocales as $locale) {
             if (isset($apiSlugs[$locale]) && is_string($apiSlugs[$locale]) && $apiSlugs[$locale] !== '') {
-                $localizedUrls[$locale] = site_url('/' . $locale . '/' . \App\Support\PublicPaths::EVENTS . '/' . ltrim($apiSlugs[$locale], '/'));
+                $localizedUrls[$locale] = site_url('/' . $locale . '/' . \App\Support\PublicPaths::eventsSegment($locale) . '/' . ltrim($apiSlugs[$locale], '/'));
             }
         }
 

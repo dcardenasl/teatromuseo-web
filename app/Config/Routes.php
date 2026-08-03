@@ -31,17 +31,31 @@ $routes->post('{locale}/forms/(:segment)/submit', 'FormController::submit/$1', [
 $routes->get('{locale}', 'PageController::home', ['as' => 'home_localized']);
 $routes->get('{locale}/sitemap.xml', 'SitemapController::index', ['as' => 'sitemap_localized']);
 
-// Museum Catalog routes
-$routes->group('{locale}/' . \App\Support\PublicPaths::CATALOG, static function ($routes): void {
-    $routes->get('', '\App\Controllers\MuseumController::index', ['as' => 'museum_collection']);
-    $routes->get('(:any)', '\App\Controllers\MuseumController::show/$1', ['as' => 'museum_collection_detail']);
-});
+// Museum Catalog and Event / Shows routes — one route group per configured
+// locale, each using that locale's own path segment (e.g. es/cartelera,
+// en/events, fr/programme). CI4's `{locale}` placeholder can't vary the
+// literal segment that follows it within a single route group, so each
+// locale gets its own group instead; BaseController::initController() still
+// derives the actual request locale from URL segment 1 regardless of which
+// group matched, so this doesn't change locale resolution — only which
+// literal segment is accepted per locale. Config\App::$supportedLocales is
+// the same compile-time fallback list already used elsewhere in this file
+// (see the note above) for exactly this reason: Routes.php runs once at
+// boot, before any per-request CMS locale discovery.
+foreach (config('App')->supportedLocales as $publicPathLocale) {
+    // Route names are suffixed per locale: each loop iteration would
+    // otherwise register the same name multiple times, and CI4 keeps only
+    // the last registration for a given name.
+    $routes->group($publicPathLocale . '/' . \App\Support\PublicPaths::catalogSegment($publicPathLocale), static function ($routes) use ($publicPathLocale): void {
+        $routes->get('', '\App\Controllers\MuseumController::index', ['as' => 'museum_collection_' . $publicPathLocale]);
+        $routes->get('(:any)', '\App\Controllers\MuseumController::show/$1', ['as' => 'museum_collection_detail_' . $publicPathLocale]);
+    });
 
-// Event / Shows routes
-$routes->group('{locale}/' . \App\Support\PublicPaths::EVENTS, static function ($routes): void {
-    $routes->get('', '\App\Controllers\EventController::index', ['as' => 'event_listing']);
-    $routes->get('(:any)', '\App\Controllers\EventController::show/$1', ['as' => 'event_show_detail']);
-});
+    $routes->group($publicPathLocale . '/' . \App\Support\PublicPaths::eventsSegment($publicPathLocale), static function ($routes) use ($publicPathLocale): void {
+        $routes->get('', '\App\Controllers\EventController::index', ['as' => 'event_listing_' . $publicPathLocale]);
+        $routes->get('(:any)', '\App\Controllers\EventController::show/$1', ['as' => 'event_show_detail_' . $publicPathLocale]);
+    });
+}
 
 $routes->get('{locale}/(:any)', 'PageController::resolve/$1');
 

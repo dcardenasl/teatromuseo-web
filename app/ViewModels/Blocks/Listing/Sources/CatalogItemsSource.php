@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\ViewModels\Blocks\Listing\Sources;
 
 use App\Services\SiteCatalogService;
-use App\Support\PublicPaths;
+use App\Support\Slug;
 use App\ViewModels\Blocks\Listing\ListingQuery;
 use App\ViewModels\Blocks\Listing\ListingResult;
 use App\ViewModels\Blocks\Listing\ListingSourceInterface;
@@ -100,7 +100,7 @@ class CatalogItemsSource implements ListingSourceInterface
         $entry['title'] = $title;
         $entry['slug'] = trim((string) ($entry['slug'] ?? $entry['inventory_code'] ?? ''));
         if ($entry['slug'] === '') {
-            $entry['slug'] = $this->slugify($title);
+            $entry['slug'] = Slug::slugify($title);
         }
         if ($entry['slug'] === '') {
             $entry['slug'] = (string) ($entry['id'] ?? '');
@@ -135,7 +135,10 @@ class CatalogItemsSource implements ListingSourceInterface
         return [
             'order_by' => 'name',
             'order_direction' => 'asc',
-            'source_path' => PublicPaths::CATALOG,
+            // No 'source_path' here: the public URL segment for this source
+            // type is locale-aware (PublicPaths::catalogSegment()) and is
+            // resolved directly by CollectionListingViewModel, which has
+            // the request locale that this locale-agnostic method lacks.
             'page_title' => lang('Site.museum_collection_title'),
             'intro_text' => lang('Site.museum_collection_intro'),
             'section_label' => lang('Site.museum_collection_section'),
@@ -170,19 +173,5 @@ class CatalogItemsSource implements ListingSourceInterface
             }
         } catch (\Throwable) {
         }
-    }
-
-    private function slugify(string $value): string
-    {
-        $value = trim(mb_strtolower($value));
-        if ($value === '') {
-            return '';
-        }
-        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
-        if (! is_string($ascii) || $ascii === '') {
-            $ascii = $value;
-        }
-        $slug = preg_replace('/[^a-z0-9]+/i', '-', $ascii);
-        return is_string($slug) ? trim(mb_strtolower($slug), '-') : '';
     }
 }

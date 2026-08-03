@@ -34,10 +34,11 @@ final class PublicListingPageBuilder
     private function build(string $lang, string $sourceType): array
     {
         $spec = $this->spec($sourceType);
+        $sourcePath = $this->localizedSourcePath($sourceType, $lang);
         $localizedUrls = [];
 
         foreach (config('App')->supportedLocales as $locale) {
-            $localizedUrls[$locale] = lang_url($spec['source_path'], $locale);
+            $localizedUrls[$locale] = lang_url($this->localizedSourcePath($sourceType, $locale), $locale);
         }
 
         $page = [
@@ -46,7 +47,7 @@ final class PublicListingPageBuilder
             'showPageHeading' => false,
             'pageTitle' => $spec['page_title'],
             'metaDescription' => $spec['intro_text'],
-            'canonicalUrl' => lang_url($spec['source_path'], $lang),
+            'canonicalUrl' => lang_url($sourcePath, $lang),
             'ogImage' => '',
             'metaRobots' => 'index, follow',
             'schemaData' => null,
@@ -60,7 +61,7 @@ final class PublicListingPageBuilder
                     'block_key' => 'collection_listing',
                     'block_config' => [
                         'source_type' => $sourceType,
-                        'source_path' => $spec['source_path'],
+                        'source_path' => $sourcePath,
                         'per_page' => 12,
                         'order_by' => $spec['order_by'],
                         'order_direction' => $spec['order_direction'],
@@ -99,7 +100,6 @@ final class PublicListingPageBuilder
     {
         return match ($sourceType) {
             'catalog_items' => [
-                'source_path' => \App\Support\PublicPaths::CATALOG,
                 'page_title' => lang('Site.museum_collection_title'),
                 'intro_text' => lang('Site.museum_collection_intro'),
                 'section_label' => lang('Site.museum_collection_section'),
@@ -116,7 +116,6 @@ final class PublicListingPageBuilder
                 'fallback_image_url' => 'https://images.unsplash.com/photo-1544928147-79a2dbc1f389?auto=format&fit=crop&w=600&q=80',
             ],
             'event_items' => [
-                'source_path' => \App\Support\PublicPaths::EVENTS,
                 'page_title' => lang('Site.event_listing_title'),
                 'intro_text' => lang('Site.event_listing_intro'),
                 'section_label' => lang('Site.event_listing_section'),
@@ -132,6 +131,15 @@ final class PublicListingPageBuilder
                 'css_class' => 'public-listing public-listing--event',
                 'fallback_image_url' => 'https://images.unsplash.com/photo-1507676184212-d0330a15183e?auto=format&fit=crop&w=600&q=80',
             ],
+            default => throw new InvalidArgumentException('Unsupported public listing source: ' . $sourceType),
+        };
+    }
+
+    private function localizedSourcePath(string $sourceType, string $locale): string
+    {
+        return match ($sourceType) {
+            'catalog_items' => \App\Support\PublicPaths::catalogSegment($locale),
+            'event_items' => \App\Support\PublicPaths::eventsSegment($locale),
             default => throw new InvalidArgumentException('Unsupported public listing source: ' . $sourceType),
         };
     }

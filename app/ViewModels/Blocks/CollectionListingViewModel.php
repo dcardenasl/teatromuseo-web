@@ -69,8 +69,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $currentPage = max(1, (int) ($pagination['current_page'] ?? $currentPage));
 
         $collectionKey = $sourceType;
-        $collectionUrlPath = $defaults['source_path'];
-        $localizedUrls = $this->localizedSourceUrls($collectionUrlPath);
+        $collectionUrlPath = $this->localizedDomainSourcePath($sourceType, $this->lang) ?? $defaults['source_path'];
+        $localizedUrls = $this->localizedSourceUrls($sourceType, $collectionUrlPath);
         $collection = [
             'id' => 0,
             'collection_key' => $sourceType,
@@ -446,12 +446,29 @@ class CollectionListingViewModel extends AbstractBlockViewModel
     /**
      * @return array<string, string>
      */
-    private function localizedSourceUrls(string $sourcePath): array
+    private function localizedSourceUrls(string $sourceType, string $fallbackPath): array
     {
         $urls = [];
         foreach (config('App')->supportedLocales as $locale) {
-            $urls[$locale] = site_url('/' . $locale . '/' . $sourcePath);
+            $urls[$locale] = site_url('/' . $locale . '/' . ($this->localizedDomainSourcePath($sourceType, $locale) ?? $fallbackPath));
         }
         return $urls;
+    }
+
+    /**
+     * The `catalog_items`/`event_items` sources are backed by dedicated
+     * domain apps (not CMS-managed collections), so their public path
+     * segment is locale-aware per `PublicPaths` rather than coming from
+     * `ListingSourceInterface::defaults()`, which has no locale context.
+     * Returns null for any other source type (e.g. `cms_collection`, which
+     * resolves its own URL via `resolvedCollectionUrlPath()` above).
+     */
+    private function localizedDomainSourcePath(string $sourceType, string $locale): ?string
+    {
+        return match ($sourceType) {
+            'catalog_items' => \App\Support\PublicPaths::catalogSegment($locale),
+            'event_items' => \App\Support\PublicPaths::eventsSegment($locale),
+            default => null,
+        };
     }
 }

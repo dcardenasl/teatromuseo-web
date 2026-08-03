@@ -60,7 +60,7 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
             'venue' => $venue,
             'eventTypeLabel' => $eventTypeLabel,
             'homeLabel' => lang('Site.breadcrumb_home') ?: 'Inicio',
-            'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::EVENTS),
+            'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::eventsSegment($this->lang), $this->lang),
             'breadcrumbLabel' => lang('Site.event_listing_title') ?: 'Cartelera',
         ];
     }

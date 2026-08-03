@@ -35,7 +35,7 @@ class CatalogItemHeaderViewModel extends AbstractBlockViewModel
             'categoryName' => $categoryName,
             'imageUrl' => $imageUrl,
             'homeLabel' => lang('Site.breadcrumb_home') ?: 'Inicio',
-            'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::CATALOG),
+            'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::catalogSegment($this->lang), $this->lang),
             'breadcrumbLabel' => 'Colección del Museo',
         ];
     }
