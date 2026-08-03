@@ -254,7 +254,11 @@ class TrackingFilter implements FilterInterface
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $jsonPayload,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'X-App-Key: ' . $appConfig->webApiKey,
+            ],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT_MS     => 200,
             CURLOPT_CONNECTTIMEOUT_MS => 100,
