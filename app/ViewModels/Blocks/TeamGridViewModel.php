@@ -22,13 +22,22 @@ final class TeamGridViewModel extends AbstractBlockViewModel
             }
             $position = trim((string) ($data['position'] ?? ''));
             $profession = trim((string) ($data['profession'] ?? ''));
-            $roles = is_array($data['roles'] ?? null) ? $data['roles'] : array_values(array_filter([$profession, $position]));
+            $roles = [];
+            foreach (is_array($data['roles'] ?? null) ? $data['roles'] : [] as $role) {
+                $label = is_array($role)
+                    ? trim((string) ($role['label'] ?? $role['name'] ?? ''))
+                    : (is_scalar($role) ? trim((string) $role) : '');
+                if ($label !== '' && $label !== $position && $label !== $profession) {
+                    $roles[] = $label;
+                }
+            }
             $photo = is_array($config['photo'] ?? null) ? $config['photo'] : [];
             $hoverPhoto = is_array($config['hover_photo'] ?? null) ? $config['hover_photo'] : $photo;
 
             $members[] = [
                 'title' => $title,
                 'position' => $position,
+                'profession' => $profession,
                 'roles' => $roles,
                 'email' => trim((string) ($data['email'] ?? '')),
                 'image' => $photo,

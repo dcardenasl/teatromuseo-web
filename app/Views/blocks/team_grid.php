@@ -45,7 +45,8 @@ $colClass = $colClasses[$columns] ?? $colClasses['3'];
                 <?php foreach ($members as $member):
                     $name = (string) ($member['title'] ?? '');
                     $position = (string) ($member['position'] ?? '');
-                    $roles = is_array($member['roles'] ?? null) ? $member['roles'] : ($position !== '' ? [$position] : []);
+                    $profession = (string) ($member['profession'] ?? '');
+                    $roles = is_array($member['roles'] ?? null) ? $member['roles'] : [];
                     $email = (string) ($member['email'] ?? '');
                     $url = (string) ($member['url'] ?? '');
                     $image = is_array($member['image'] ?? null) ? $member['image'] : [];
@@ -75,11 +76,26 @@ $colClass = $colClasses[$columns] ?? $colClasses['3'];
                             </div>
                             <div class="mt-12 min-h-[146px] bg-white px-5 py-7 text-center">
                                 <h3 class="text-lg font-bold uppercase tracking-wide text-slate-700 group-hover:text-primary transition-colors"><?= esc($name) ?></h3>
-                                <?php if ($roles !== []): ?>
-                                    <div class="mt-4 space-y-1 font-serif text-base italic text-slate-700">
-                                        <?php foreach ($roles as $role): ?>
-                                            <p><?= esc((string) $role) ?></p>
-                                        <?php endforeach; ?>
+                                <?php if ($position !== '' || $profession !== '' || $roles !== []): ?>
+                                    <div class="mt-4 space-y-3">
+                                        <?php if ($position !== ''): ?>
+                                            <p class="text-sm font-bold uppercase tracking-[0.14em] text-primary">
+                                                <?= esc($position) ?>
+                                            </p>
+                                        <?php endif; ?>
+                                        <?php if ($profession !== ''): ?>
+                                            <p class="font-serif text-base italic text-slate-500">
+                                                <span class="mr-1 font-sans text-[10px] font-semibold not-italic uppercase tracking-[0.16em] text-slate-400">Profesión</span>
+                                                <?= esc($profession) ?>
+                                            </p>
+                                        <?php endif; ?>
+                                        <?php if ($roles !== []): ?>
+                                            <div class="flex flex-wrap justify-center gap-1.5 pt-1">
+                                                <?php foreach ($roles as $role): ?>
+                                                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"><?= esc((string) $role) ?></span>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
                                 <?php if ($email !== ''): ?><a href="mailto:<?= esc($email) ?>" class="mt-3 inline-block font-serif text-base italic text-orange-500 hover:text-orange-600 transition-colors"><?= esc($email) ?></a><?php endif; ?>

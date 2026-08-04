@@ -31,6 +31,8 @@ final class TeamGridViewModelTest extends CIUnitTestCase
 
         $this->assertCount(1, $vars['members']);
         $this->assertSame('Persona editorial', $vars['members'][0]['title']);
+        $this->assertSame('Dirección', $vars['members'][0]['position']);
+        $this->assertSame('Gestión cultural', $vars['members'][0]['profession']);
         $this->assertSame('https://cdn.test/front.jpg', $vars['members'][0]['image']['url']);
         $this->assertSame('https://cdn.test/hover.jpg', $vars['members'][0]['hover_image']['url']);
         $this->assertSame('equipo@example.test', $vars['members'][0]['email']);
