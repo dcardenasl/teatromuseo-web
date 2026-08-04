@@ -412,16 +412,39 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $image = is_array($content['image'] ?? null) ? $content['image'] : null;
             $action = is_array($content['secondary_action'] ?? null) ? $content['secondary_action'] : null;
             $richText = is_string($content['rich_text'] ?? null) ? trim($content['rich_text']) : '';
+            $video = is_array($content['video'] ?? null) ? $content['video'] : null;
 
             $entry['listing_content'] = [
                 'rich_text' => $richText !== '' ? \App\Libraries\HtmlSanitizer::clean($richText) : '',
                 'image' => $this->normalizeListingImage($image),
                 'secondary_action' => $this->normalizeListingAction($action),
+                'video' => $this->normalizeListingVideo($video),
             ];
             $normalized[] = $entry;
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed>|null $video
+     * @return array{provider: string, id: string, url: string}|null
+     */
+    private function normalizeListingVideo(?array $video): ?array
+    {
+        $provider = strtolower(trim((string) ($video['provider'] ?? '')));
+        $id = trim((string) ($video['id'] ?? ''));
+        $url = trim((string) ($video['url'] ?? ''));
+
+        if (! in_array($provider, ['youtube', 'vimeo'], true) || $id === '') {
+            return null;
+        }
+
+        if ($url !== '' && ! preg_match('#^https?://#i', $url)) {
+            $url = '';
+        }
+
+        return ['provider' => $provider, 'id' => $id, 'url' => $url];
     }
 
     /**
