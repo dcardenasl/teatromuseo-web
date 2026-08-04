@@ -7,6 +7,7 @@ namespace App\ViewModels\Blocks;
 use App\Services\SiteCatalogService;
 use App\Services\SiteEntryService;
 use App\Services\SiteEventService;
+use App\ViewModels\Blocks\Listing\ListingDateResolver;
 use App\ViewModels\Blocks\Listing\ListingQuery;
 use App\ViewModels\Blocks\Listing\Sources\CatalogItemsSource;
 use App\ViewModels\Blocks\Listing\Sources\EventItemsSource;
@@ -23,14 +24,22 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         $collectionKey = $this->configString('collection_key');
         $categoryId = max(0, $this->configInt('category_id', 0));
         $sourceType = $this->resolveSourceType($collectionKey);
+        $listingProjection = $this->listingProjection();
         $itemsLimit    = max(1, min(100, $this->configInt('items_limit', 3)));
 
-        $orderBy = $this->configString('order_by');
-        if (! in_array($orderBy, self::ORDER_COLUMNS, true)) {
+        $configuredOrder = is_array($listingProjection['order'] ?? null) ? trim((string) ($listingProjection['order']['field'] ?? '')) : '';
+        $orderBy = $configuredOrder !== '' ? $configuredOrder : $this->configString('order_by');
+        if (! in_array($orderBy, self::ORDER_COLUMNS, true) && ! preg_match('/^(entry|block|taxonomy)\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/', $orderBy) && ! preg_match('/^field:[a-z][a-z0-9_]{0,49}$/', $orderBy)) {
             $orderBy = 'published_at';
         }
 
-        $orderDirection = strtolower($this->configString('order_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $configuredDirection = is_array($listingProjection['order'] ?? null)
+            ? strtolower(trim((string) ($listingProjection['order']['direction'] ?? '')))
+            : '';
+        $legacyDirection = strtolower($this->configString('order_direction', 'desc'));
+        $orderDirection = ($configuredDirection !== '' ? $configuredDirection : $legacyDirection) === 'asc'
+            ? 'asc'
+            : 'desc';
 
         $layoutVariant = $this->configString('layout_variant');
         if (! in_array($layoutVariant, self::LAYOUT_VARIANTS, true)) {
@@ -60,7 +69,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             'canonicalViewAllUrl' => $canonicalViewAllUrl,
             'entries'             => array_map(
                 fn (array $entry): array => $this->withEntryNavigation($entry, $canonicalViewAllUrl),
-                $this->resolvePreviewEntries($collectionKey, $sourceType, $itemsLimit, $orderBy, $orderDirection, $categoryId),
+                $this->resolvePreviewEntries($collectionKey, $sourceType, $itemsLimit, $orderBy, $orderDirection, $categoryId, $listingProjection),
             ),
             'sectionClass'        => $layoutVariant === 'portfolio' ? 'section-lg bg-slate-50/50' : 'section',
             'containerClass'      => $layoutVariant === 'portfolio' ? 'max-w-6xl mx-auto px-4' : 'container-base',
@@ -106,9 +115,10 @@ class CollectionGridViewModel extends AbstractBlockViewModel
     }
 
     /**
+     * @param array<string, mixed> $listingProjection
      * @return list<array<string, mixed>>
      */
-    private function entries(string $collectionKey, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0): array
+    private function entries(string $collectionKey, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0, array $listingProjection = []): array
     {
         $service = $this->contextService('siteEntryService', SiteEntryService::class);
         if ($service === null) {
@@ -120,7 +130,15 @@ class CollectionGridViewModel extends AbstractBlockViewModel
                 'per_page'        => $itemsLimit,
                 'order_by'        => $orderBy,
                 'order_direction' => $orderDirection,
+                'include'         => 'listing_content',
             ];
+            $projectionFields = $this->projectionFields($listingProjection);
+            if ($projectionFields !== []) {
+                $query['fields'] = implode(',', $projectionFields);
+            }
+            if (str_starts_with($orderBy, 'entry.') || str_starts_with($orderBy, 'block.') || str_starts_with($orderBy, 'taxonomy.')) {
+                $query['order_by'] = 'field:' . $orderBy;
+            }
             if ($categoryId > 0) {
                 $query['category_id'] = $categoryId;
             }
@@ -139,6 +157,21 @@ class CollectionGridViewModel extends AbstractBlockViewModel
 
                 $featuredImage = $this->mediaReferenceFromPayload($entry, 'featured_image');
                 $entry['featured_image'] = $featuredImage['url'] !== '' ? $featuredImage : null;
+                $imageSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['image'] ?? '')) : '';
+                $projectedImage = $this->projectionMedia($entry, $imageSource);
+                if ($projectedImage !== null) {
+                    $entry['featured_image'] = $projectedImage;
+                }
+                $dateSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['date'] ?? '')) : '';
+                $entry['display_date'] = $this->projectionValue($entry, $dateSource) ?: ListingDateResolver::resolve($entry, ListingDateResolver::isValidSource($dateSource) ? $dateSource : 'auto');
+                $titleSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['title'] ?? '')) : '';
+                $summarySource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['summary'] ?? '')) : '';
+                if ($titleSource !== '' && $this->projectionValue($entry, $titleSource) !== '') {
+                    $entry['title'] = $this->projectionValue($entry, $titleSource);
+                }
+                if ($summarySource !== '' && $this->projectionValue($entry, $summarySource) !== '') {
+                    $entry['excerpt'] = $this->projectionValue($entry, $summarySource);
+                }
 
                 $normalized[] = $entry;
             }
@@ -152,21 +185,22 @@ class CollectionGridViewModel extends AbstractBlockViewModel
     /**
      * Resolve entries for preview mode, falling back to mock entries if empty.
      *
-     * @return array<int, array<string, mixed>>
+     * @param array<string, mixed> $listingProjection
+     * @return list<array<string, mixed>>
      */
-    private function resolvePreviewEntries(string $collectionKey, string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0): array
+    private function resolvePreviewEntries(string $collectionKey, string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0, array $listingProjection = []): array
     {
         if ($sourceType === 'event_items') {
-            return $this->externalEntries('event_items', $itemsLimit, $orderBy, $orderDirection);
+            return $this->externalEntries('event_items', $itemsLimit, $orderBy, $orderDirection, $listingProjection);
         }
 
         if ($sourceType === 'catalog_items') {
-            return $this->externalEntries('catalog_items', $itemsLimit, $orderBy, $orderDirection);
+            return $this->externalEntries('catalog_items', $itemsLimit, $orderBy, $orderDirection, $listingProjection);
         }
 
         $entries = [];
         if ($collectionKey !== '') {
-            $entries = $this->entries($collectionKey, $itemsLimit, $orderBy, $orderDirection, $categoryId);
+            $entries = $this->entries($collectionKey, $itemsLimit, $orderBy, $orderDirection, $categoryId, $listingProjection);
         }
 
         if ($entries === [] && $this->isPreviewRequest()) {
@@ -212,9 +246,10 @@ class CollectionGridViewModel extends AbstractBlockViewModel
      * Keep the collection_grid presentation while routing this special source
      * through the same event normalizer used by the full cartelera listing.
      *
+     * @param array<string, mixed> $listingProjection
      * @return list<array<string, mixed>>
      */
-    private function externalEntries(string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection): array
+    private function externalEntries(string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection, array $listingProjection = []): array
     {
         $source = match ($sourceType) {
             'event_items' => $this->eventSource(),
@@ -227,17 +262,71 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         }
 
         try {
-            $sort = $sourceType === 'event_items' ? 'start_time' : ($orderBy !== '' ? $orderBy : 'name');
-            $direction = $sourceType === 'event_items' ? 'asc' : $orderDirection;
+            $sort = $sourceType === 'event_items'
+                ? $this->eventSortField($orderBy)
+                : $this->catalogSortField($orderBy);
+            $direction = $orderDirection;
             $result = $source->fetch(new ListingQuery(1, $itemsLimit, '', 0, '', '', $sort, $direction), $this->lang);
 
-            return array_map(
+            $entries = array_map(
                 fn (array $entry): array => $source->normalizeEntry($entry),
                 $result->data,
             );
+
+            return array_map(function (array $entry) use ($listingProjection): array {
+                $slots = is_array($listingProjection['slots'] ?? null) ? $listingProjection['slots'] : [];
+                $title = $this->projectionValue($entry, trim((string) ($slots['title'] ?? '')));
+                $summary = $this->projectionValue($entry, trim((string) ($slots['summary'] ?? '')));
+                $image = $this->projectionMedia($entry, trim((string) ($slots['image'] ?? '')));
+                $date = $this->projectionValue($entry, trim((string) ($slots['date'] ?? '')));
+                if ($title !== '') {
+                    $entry['title'] = $title;
+                }
+                if ($summary !== '') {
+                    $entry['excerpt'] = $summary;
+                }
+                if ($image !== null) {
+                    $entry['featured_image'] = $image;
+                }
+                if ($date !== '') {
+                    $entry['display_date'] = $date;
+                }
+                return $entry;
+            }, $entries);
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    private function eventSortField(string $field): string
+    {
+        return match (trim($field)) {
+            'entry.title', 'title' => 'title',
+            'entry.event_type', 'event_type' => 'event_type',
+            'entry.end_time', 'end_time' => 'end_time',
+            'entry.venue', 'venue' => 'venue',
+            'entry.slug', 'slug' => 'slug',
+            'entry.start_time', 'start_time', '' => 'start_time',
+            default => 'start_time',
+        };
+    }
+
+    private function catalogSortField(string $field): string
+    {
+        return match (trim($field)) {
+            'entry.title', 'title', 'name' => 'name',
+            'entry.slug', 'slug' => 'slug',
+            'entry.inventory_code', 'inventory_code' => 'inventory_code',
+            'entry.origin', 'origin' => 'origin',
+            'entry.period', 'period' => 'period',
+            'entry.creator', 'creator' => 'creator',
+            'entry.ubicacion', 'ubicacion' => 'ubicacion',
+            'entry.collection_number', 'collection_number' => 'collection_number',
+            'entry.collection_group', 'collection_group' => 'collection_group',
+            'entry.created_at', 'created_at' => 'created_at',
+            'entry.updated_at', 'updated_at' => 'updated_at',
+            default => 'name',
+        };
     }
 
     private function eventSource(): ?EventItemsSource
@@ -266,6 +355,71 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             static fn (ListingQuery $query): string => '',
             fn (array $media): array => $this->normalizeMediaReference($media),
         );
+    }
+
+    /** @return array<string, mixed> */
+    private function listingProjection(): array
+    {
+        $projection = $this->config()['listing_projection'] ?? [];
+        if (is_string($projection)) {
+            $projection = json_decode($projection, true);
+        }
+
+        return is_array($projection) ? $projection : [];
+    }
+
+    /**
+     * @param array<string, mixed> $projection
+     * @return list<string>
+     */
+    private function projectionFields(array $projection): array
+    {
+        $fields = [];
+        foreach (['title', 'subtitle', 'summary', 'date', 'image'] as $slot) {
+            $source = is_array($projection['slots'] ?? null) ? trim((string) ($projection['slots'][$slot] ?? '')) : '';
+            if ($source !== '') {
+                $fields[] = $source;
+            }
+        }
+        $order = is_array($projection['order'] ?? null) ? trim((string) ($projection['order']['field'] ?? '')) : '';
+        if ($order !== '') {
+            $fields[] = $order;
+        }
+
+        return array_values(array_unique($fields));
+    }
+
+    /** @param array<string, mixed> $entry */
+    private function projectionValue(array $entry, string $source): string
+    {
+        if (str_starts_with($source, 'entry.')) {
+            $value = $entry[substr($source, 6)] ?? null;
+            return is_scalar($value) ? trim((string) $value) : '';
+        }
+        $fields = is_array($entry['listing_content']['fields'] ?? null) ? $entry['listing_content']['fields'] : [];
+        $value = $fields[$source] ?? null;
+
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>|null
+     */
+    private function projectionMedia(array $entry, string $source): ?array
+    {
+        if ($source === '') {
+            return null;
+        }
+        $value = str_starts_with($source, 'entry.')
+            ? ($entry[substr($source, 6)] ?? null)
+            : (($entry['listing_content']['fields'] ?? [])[$source] ?? null);
+
+        if (! is_array($value) || trim((string) ($value['url'] ?? '')) === '') {
+            return null;
+        }
+
+        return $this->normalizeMediaReference($value);
     }
 
     private function resolveSourceType(string $collectionKey): string

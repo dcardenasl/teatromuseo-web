@@ -25,7 +25,7 @@ class EventItemsSource implements ListingSourceInterface
         $apiQuery = [
             'page' => $query->page,
             'per_page' => $query->perPage,
-            'sort' => $query->orderBy ?: 'start_time',
+            'sort' => ($query->orderDirection === 'desc' ? '-' : '') . $this->apiSortField($query->orderBy),
             'filter' => ['status' => 'published'],
         ];
 
@@ -148,5 +148,18 @@ class EventItemsSource implements ListingSourceInterface
         }
 
         return ucwords(str_replace(['-', '_'], ' ', $eventType));
+    }
+
+    private function apiSortField(string $field): string
+    {
+        return match (trim($field)) {
+            'entry.title', 'title' => 'title',
+            'entry.event_type', 'event_type' => 'event_type',
+            'entry.end_time', 'end_time' => 'end_time',
+            'entry.venue', 'venue' => 'venue',
+            'entry.slug', 'slug' => 'slug',
+            'entry.start_time', 'start_time', '' => 'start_time',
+            default => 'start_time',
+        };
     }
 }

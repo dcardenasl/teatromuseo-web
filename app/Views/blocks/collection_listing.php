@@ -15,6 +15,10 @@
  * @var string $currentCategory
  * @var string $currentTag
  * @var string $currentQuery
+ * @var string $currentFilterBy
+ * @var string $currentFilterValue
+ * @var string $currentFilterOperator
+ * @var array<string, mixed> $listingProjection
  * @var string $orderBy
  * @var string $orderDirection
  * @var string $layoutVariant
@@ -39,6 +43,7 @@
  * @var string $countLabel
  * @var list<array<string, mixed>> $categories
  * @var list<array<string, mixed>> $tags
+ * @var string $tagsLabel
  * @var string $pageTitle
  * @var string $metaDescription
  */
@@ -68,7 +73,7 @@ $filterLabel = lang('Site.collection_filter');
 $resetLabel = lang('Site.collection_reset');
 $allLabel = lang('Site.collection_all');
 $categoriesLabel = lang('Site.collection_categories');
-$tagsLabel = lang('Site.collection_tags');
+$tagsLabel = (string) ($tagsLabel ?? lang('Site.collection_tags'));
 $previousLabel = lang('Site.collection_previous');
 $nextLabel = lang('Site.collection_next');
 $noResultsLabel = lang('Site.collection_empty');
@@ -168,9 +173,79 @@ $sectionClass = trim($cssClass . ' section');
                     </div>
                 </div>
 
-                <input type="hidden" name="order_by" value="<?= esc($orderBy, 'attr') ?>">
-                <input type="hidden" name="order_direction" value="<?= esc($orderDirection, 'attr') ?>">
+                <?php
+                $sortOptions = [];
+                $projectionSlots = is_array($listingProjection['slots'] ?? null) ? $listingProjection['slots'] : [];
+                $slotLabels = ['title' => 'Título', 'subtitle' => 'Subtítulo', 'summary' => 'Resumen', 'date' => 'Fecha', 'image' => 'Imagen'];
+                foreach ($projectionSlots as $slot => $source) {
+                    $source = trim((string) $source);
+                    if ($source !== '' && $slot !== 'image') {
+                        $sortOptions[$source] = $slotLabels[$slot] ?? $source;
+                    }
+                }
+                foreach (is_array($listingProjection['extras'] ?? null) ? $listingProjection['extras'] : [] as $extra) {
+                    if (! is_array($extra)) {
+                        continue;
+                    }
+                    $source = trim((string) ($extra['source'] ?? ''));
+                    if ($source !== '') {
+                        $sortOptions[$source] = trim((string) ($extra['label'] ?? '')) ?: $source;
+                    }
+                }
+                ?>
+                <?php $publicOrderingEnabled = ($listingProjection['order']['public'] ?? false) === true || in_array((string) ($listingProjection['order']['public'] ?? ''), ['1', 'true'], true); ?>
+                <?php if ($publicOrderingEnabled && $sortOptions !== []): ?>
+                    <div class="mt-4 grid gap-3 border-t border-slate-200/60 pt-4 sm:grid-cols-2">
+                        <label class="block">
+                            <span class="mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Ordenar por</span>
+                            <select name="order_by" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15">
+                                <?php foreach ($sortOptions as $source => $label): ?>
+                                    <option value="<?= esc($source, 'attr') ?>" <?= $orderBy === $source ? 'selected' : '' ?>><?= esc($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label class="block">
+                            <span class="mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Dirección</span>
+                            <select name="order_direction" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15">
+                                <option value="asc" <?= $orderDirection === 'asc' ? 'selected' : '' ?>>Ascendente</option>
+                                <option value="desc" <?= $orderDirection === 'desc' ? 'selected' : '' ?>>Descendente</option>
+                            </select>
+                        </label>
+                    </div>
+                <?php else: ?>
+                    <input type="hidden" name="order_by" value="<?= esc($orderBy, 'attr') ?>">
+                    <input type="hidden" name="order_direction" value="<?= esc($orderDirection, 'attr') ?>">
+                <?php endif; ?>
                 <input type="hidden" name="per_page" value="<?= esc((string) ((int) ($pagination['per_page'] ?? 12)), 'attr') ?>">
+
+                <?php
+                $configuredFilters = is_array($listingProjection['filters'] ?? null) ? $listingProjection['filters'] : [];
+                $configuredFilters = array_values(array_filter($configuredFilters, static fn (mixed $filter): bool => is_array($filter) && trim((string) ($filter['source'] ?? '')) !== ''));
+                if ($configuredFilters !== []):
+                ?>
+                    <div class="mt-4 grid gap-3 border-t border-slate-200/60 pt-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                        <label class="block">
+                            <span class="mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Filtrar por</span>
+                            <select name="filter_by" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15">
+                                <option value="">— Seleccionar dato —</option>
+                                <?php foreach ($configuredFilters as $filter): $source = (string) $filter['source']; ?>
+                                    <option value="<?= esc($source, 'attr') ?>" <?= $currentFilterBy === $source ? 'selected' : '' ?>><?= esc((string) ($filter['label'] ?: $source)) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label class="block">
+                            <span class="mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Valor</span>
+                            <input type="search" name="filter_value" value="<?= esc($currentFilterValue, 'attr') ?>" placeholder="Escribe un valor…" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15">
+                        </label>
+                        <label class="block">
+                            <span class="mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Coincidencia</span>
+                            <select name="filter_operator" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15">
+                                <option value="equals" <?= $currentFilterOperator === 'equals' ? 'selected' : '' ?>>Exacta</option>
+                                <option value="contains" <?= $currentFilterOperator === 'contains' ? 'selected' : '' ?>>Contiene</option>
+                            </select>
+                        </label>
+                    </div>
+                <?php endif; ?>
 
                 <!-- Horizontal Category Filter Tab-like Pills -->
                 <?php if ($showCategories && !empty($categories)): ?>
@@ -320,6 +395,17 @@ $sectionClass = trim($cssClass . ' section');
                                 <time datetime="<?= esc($entryDate) ?>" class="text-[10px] uppercase tracking-[0.2em] font-semibold text-slate-500 block mb-2">
                                     <?= esc(format_localized_date($entryDate, $lang)) ?>
                                 </time>
+                            <?php endif; ?>
+
+                            <?php if (!empty($entry['listing_extras'])): ?>
+                                <dl class="mb-2 space-y-1 text-xs text-slate-500">
+                                    <?php foreach ($entry['listing_extras'] as $extra): ?>
+                                        <div class="flex gap-2">
+                                            <?php if ((string) ($extra['label'] ?? '') !== ''): ?><dt class="font-semibold text-slate-600"><?= esc((string) $extra['label']) ?>:</dt><?php endif; ?>
+                                            <dd><?= esc((string) ($extra['value'] ?? '')) ?></dd>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </dl>
                             <?php endif; ?>
 
                             <!-- Entry Title -->

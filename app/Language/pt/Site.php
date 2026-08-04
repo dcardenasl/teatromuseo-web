@@ -8,6 +8,7 @@ return [
     'collection_item_not_found' => 'Elemento da coleção não encontrado',
     'museum_collection_title' => 'Coleção do museu',
     'event_listing_title' => 'Programação',
+    'event_types' => 'Tipos de evento',
     'event_starts_label' => 'Início',
     'event_ends_label' => 'Fim',
     'published_label' => 'Publicado',

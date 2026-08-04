@@ -122,6 +122,7 @@ return [
     'pagination_page_of'      => 'Página {0} de {1}',
     'collection_categories'   => 'Categorías',
     'collection_tags'         => 'Etiquetas',
+    'event_types'             => 'Tipos de evento',
     'collection_empty'        => 'No hay elementos disponibles aún.',
     'collection_filters'      => 'Búsqueda y filtros',
     'collection_filters_hint' => 'Refina el listado sin perder el contexto.',

@@ -287,7 +287,12 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
     public function testGetParamsDriveCurrentPageCategoryTagAndQuery(): void
     {
         $vm = new CollectionListingViewModel(
-            ['block_config' => ['collection_id' => 1]],
+            ['block_config' => [
+                'collection_id' => 1,
+                'listing_projection' => [
+                    'order' => ['public' => true],
+                ],
+            ]],
             'es',
             $this->context(
                 [self::COLLECTION],

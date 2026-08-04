@@ -28,7 +28,7 @@ class CatalogItemsSource implements ListingSourceInterface
         $apiQuery = [
             'page' => $query->page,
             'per_page' => $query->perPage,
-            'sort' => $query->orderBy ?: 'name',
+            'sort' => ($query->orderDirection === 'desc' ? '-' : '') . $this->apiSortField($query->orderBy),
         ];
 
         if ($query->query !== '') {
@@ -170,5 +170,24 @@ class CatalogItemsSource implements ListingSourceInterface
             }
         } catch (\Throwable) {
         }
+    }
+
+    private function apiSortField(string $field): string
+    {
+        return match (trim($field)) {
+            'entry.title', 'title', 'name' => 'name',
+            'entry.slug', 'slug' => 'slug',
+            'entry.inventory_code', 'inventory_code' => 'inventory_code',
+            'entry.origin', 'origin' => 'origin',
+            'entry.period', 'period' => 'period',
+            'entry.creator', 'creator' => 'creator',
+            'entry.ubicacion', 'ubicacion' => 'ubicacion',
+            'entry.collection_number', 'collection_number' => 'collection_number',
+            'entry.collection_group', 'collection_group' => 'collection_group',
+            'entry.created_at', 'created_at' => 'created_at',
+            'entry.updated_at', 'updated_at' => 'updated_at',
+            'entry.excerpt', 'summary' => 'summary',
+            default => 'name',
+        };
     }
 }

@@ -33,13 +33,20 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         array $collections,
         array $entriesResult,
         string $path = '/',
-        ?array $eventsResult = null
+        ?array $eventsResult = null,
+        ?array &$capturedQuery = null,
     ): array {
         $collectionService = $this->createMock(SiteCollectionService::class);
         $collectionService->method('getAll')->willReturn($collections);
 
         $entryService = $this->createMock(SiteEntryService::class);
-        $entryService->method('list')->willReturn($entriesResult);
+        $entryService->method('list')->willReturnCallback(
+            static function (string $lang, string $collectionKey, array $query) use (&$capturedQuery, $entriesResult): array {
+                $capturedQuery = $query;
+
+                return $entriesResult;
+            }
+        );
 
         $request = new IncomingRequest(config(App::class), new URI('http://localhost/' . ltrim($path, '/')), null, new UserAgent());
         $request->setLocale('es');
@@ -122,6 +129,35 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $this->assertSame('aspect-square', $vars['imageAspectRatioClass']);
         $this->assertSame('', $vars['canonicalViewAllUrl']);
         $this->assertStringContainsString('md:grid-cols-3', $vars['gridClass']);
+    }
+
+    public function testProjectionOrderDirectionIsUsedForCmsCollectionQueries(): void
+    {
+        $capturedQuery = null;
+        $vm = new CollectionGridViewModel([
+            'block_config' => [
+                'collection_key' => 'news',
+                'order_direction' => 'asc',
+                'listing_projection' => [
+                    'order' => [
+                        'field' => 'entry.published_at',
+                        'direction' => 'desc',
+                    ],
+                ],
+            ],
+        ], 'es', $this->context(
+            [['collection_key' => 'news', 'slug' => 'noticias']],
+            ['data' => [], 'meta' => []],
+            '/',
+            null,
+            $capturedQuery,
+        ));
+
+        $vm->vars();
+
+        $this->assertIsArray($capturedQuery);
+        $this->assertSame('field:entry.published_at', $capturedQuery['order_by']);
+        $this->assertSame('desc', $capturedQuery['order_direction']);
     }
 
     public function testEventCardsUseLocalizedSlugAndResolvedListingNavigation(): void

@@ -122,6 +122,7 @@ return [
     'pagination_page_of'      => 'Page {0} of {1}',
     'collection_categories'   => 'Categories',
     'collection_tags'         => 'Tags',
+    'event_types'             => 'Event types',
     'collection_empty'        => 'No items available yet.',
     'collection_filters'      => 'Search and filters',
     'collection_filters_hint' => 'Refine the list without losing your place.',

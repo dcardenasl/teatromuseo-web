@@ -15,6 +15,9 @@ class ListingQuery
         public string $query = '',
         public string $orderBy = '',
         public string $orderDirection = 'asc',
+        public string $filterBy = '',
+        public string $filterValue = '',
+        public string $filterOperator = 'equals',
     ) {
     }
 }

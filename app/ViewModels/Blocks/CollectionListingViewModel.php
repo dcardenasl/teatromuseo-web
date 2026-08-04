@@ -10,6 +10,7 @@ use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
 use App\Services\SiteEventService;
 use App\Services\SiteTagService;
+use App\ViewModels\Blocks\Listing\ListingDateResolver;
 use App\ViewModels\Blocks\Listing\ListingQuery;
 use App\ViewModels\Blocks\Listing\ListingSourceInterface;
 use App\ViewModels\Blocks\Listing\Sources\CatalogItemsSource;
@@ -23,8 +24,9 @@ class CollectionListingViewModel extends AbstractBlockViewModel
     public function vars(): array
     {
         $sourceType = $this->resolveSourceType();
+        $listingProjection = $this->listingProjection();
         $layoutVariant = $this->resolveLayoutVariant($this->configString('layout_variant', 'cards'));
-        $source = $this->resolveSource($sourceType);
+        $source = $this->resolveSource($sourceType, $listingProjection);
 
         if ($source === null) {
             return $this->emptyVars($this->fallbackDefaults(), $layoutVariant);
@@ -36,10 +38,19 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $currentCategory = trim($this->requestGet('category'));
         $currentTag = trim($this->requestGet('tag'));
         $currentQuery = trim($this->requestGet('q'));
+        $currentFilterBy = trim($this->requestGet('filter_by'));
+        $currentFilterValue = trim($this->requestGet('filter_value'));
+        $currentFilterOperator = $this->requestGet('filter_operator') === 'contains' ? 'contains' : 'equals';
         $configuredCategoryId = max(0, $this->configInt('category_id', 0));
 
-        $orderBy = $this->resolveOrderBy($this->requestGet('order_by'), $defaults['order_by']);
-        $orderDirection = $this->resolveOrderDirection($this->requestGet('order_direction'), $defaults['order_direction']);
+        $configuredOrder = is_array($listingProjection['order'] ?? null) ? trim((string) ($listingProjection['order']['field'] ?? '')) : '';
+        $orderDefault = $configuredOrder !== '' ? $configuredOrder : $defaults['order_by'];
+        $publicOrderingEnabled = $this->isPublicOrderingEnabled($listingProjection);
+        $requestedOrderBy = $publicOrderingEnabled ? $this->requestGet('order_by') : '';
+        $orderBy = $this->resolveOrderBy($requestedOrderBy, $orderDefault);
+        $configuredDirection = is_array($listingProjection['order'] ?? null) ? trim((string) ($listingProjection['order']['direction'] ?? '')) : '';
+        $requestedDirection = $publicOrderingEnabled ? $this->requestGet('order_direction') : '';
+        $orderDirection = $this->resolveOrderDirection($requestedDirection, $configuredDirection !== '' ? $configuredDirection : $defaults['order_direction']);
         $perPage = max(1, min(100, $this->configInt('per_page', 12)));
 
         $query = new ListingQuery(
@@ -50,7 +61,10 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             tag: $currentTag,
             query: $currentQuery,
             orderBy: $orderBy,
-            orderDirection: $orderDirection
+            orderDirection: $orderDirection,
+            filterBy: $currentFilterBy,
+            filterValue: $currentFilterValue,
+            filterOperator: $currentFilterOperator,
         );
 
         $result = $source->fetch($query, $this->lang);
@@ -67,6 +81,50 @@ class CollectionListingViewModel extends AbstractBlockViewModel
 
         $normalizedEntries = $this->prepareEntries(
             array_map(fn ($entry) => $source->normalizeEntry($entry), $result->data)
+        );
+        $dateSource = is_array($listingProjection['slots'] ?? null)
+            ? trim((string) ($listingProjection['slots']['date'] ?? ''))
+            : '';
+        if ($dateSource === '') {
+            $dateSource = $this->configString('date_field', 'auto');
+        }
+        if (! ListingDateResolver::isValidSource($dateSource) && ! preg_match('/^(entry|block|taxonomy)\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/', $dateSource)) {
+            $dateSource = 'auto';
+        }
+        $normalizedEntries = array_map(
+            function (array $entry) use ($dateSource, $listingProjection): array {
+                $entry['display_date'] = $this->projectionValue($entry, $dateSource) ?: ListingDateResolver::resolve($entry, $dateSource);
+                $titleSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['title'] ?? '')) : '';
+                $summarySource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['summary'] ?? '')) : '';
+                if ($titleSource !== '' && $this->projectionValue($entry, $titleSource) !== '') {
+                    $entry['title'] = $this->projectionValue($entry, $titleSource);
+                }
+                if ($summarySource !== '' && $this->projectionValue($entry, $summarySource) !== '') {
+                    $entry['excerpt'] = $this->projectionValue($entry, $summarySource);
+                }
+                $imageSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['image'] ?? '')) : '';
+                $projectedImage = $this->projectionMedia($entry, $imageSource);
+                if ($projectedImage !== null) {
+                    $entry['featured_image'] = $projectedImage;
+                }
+                $entry['listing_extras'] = [];
+                foreach (is_array($listingProjection['extras'] ?? null) ? $listingProjection['extras'] : [] as $extra) {
+                    if (! is_array($extra)) {
+                        continue;
+                    }
+                    $source = trim((string) ($extra['source'] ?? ''));
+                    $value = $this->projectionValue($entry, $source);
+                    if ($source !== '' && $value !== '') {
+                        $entry['listing_extras'][] = [
+                            'source' => $source,
+                            'label' => trim((string) ($extra['label'] ?? '')),
+                            'value' => $value,
+                        ];
+                    }
+                }
+                return $entry;
+            },
+            $normalizedEntries,
         );
 
         $pagination = $result->pagination;
@@ -136,6 +194,10 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'currentCategory' => $currentCategory,
             'currentTag' => $currentTag,
             'currentQuery' => $currentQuery,
+            'currentFilterBy' => $currentFilterBy,
+            'currentFilterValue' => $currentFilterValue,
+            'currentFilterOperator' => $currentFilterOperator,
+            'listingProjection' => $listingProjection,
             'orderBy' => $orderBy,
             'orderDirection' => $orderDirection,
             'layoutVariant' => $layoutVariant,
@@ -146,6 +208,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'showTags' => $showTags,
             'showExcerpt' => $this->configBool('show_excerpt', true),
             'showDate' => $this->configBool('show_date', $defaults['show_date']),
+            'dateSource' => $dateSource,
             'showButton' => $this->configBool('show_button', true),
             'showItemCategories' => $this->configBool('show_item_categories', true),
             'showExtraRichtext' => $this->configBool('show_extra_richtext', false),
@@ -160,6 +223,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'countLabel' => $collection['count_label'] ?? $this->textString('count_label', $defaults['count_label']),
             'categories' => $categories,
             'tags' => $tags,
+            'tagsLabel' => $sourceType === 'event_items' ? lang('Site.event_types') : lang('Site.collection_tags'),
             'pageTitle' => $displayTitle !== ''
                 ? $displayTitle
                 : $defaults['page_title'],
@@ -188,7 +252,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         return $displayIntro !== '' ? $displayIntro : $fallback;
     }
 
-    private function resolveSource(string $sourceType): ?ListingSourceInterface
+    /** @param array<string, mixed> $listingProjection */
+    private function resolveSource(string $sourceType, array $listingProjection = []): ?ListingSourceInterface
     {
         $urlBuilder = fn (ListingQuery $query) => $this->buildUrl([
             'category' => $query->category ?: null,
@@ -196,6 +261,9 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'q' => $query->query ?: null,
             'order_by' => $query->orderBy ?: null,
             'order_direction' => $query->orderDirection ?: null,
+            'filter_by' => $query->filterBy ?: null,
+            'filter_value' => $query->filterValue ?: null,
+            'filter_operator' => $query->filterOperator !== 'equals' ? $query->filterOperator : null,
             'page' => $query->page > 1 ? $query->page : null,
         ]);
 
@@ -204,7 +272,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         return match ($sourceType) {
             'catalog_items' => $this->resolveCatalogItemsSource($urlBuilder, $mediaNormalizer),
             'event_items' => $this->resolveEventItemsSource($urlBuilder, $mediaNormalizer),
-            default => $this->resolveCmsCollectionSource($urlBuilder, $mediaNormalizer),
+            default => $this->resolveCmsCollectionSource($urlBuilder, $mediaNormalizer, $listingProjection),
         };
     }
 
@@ -226,7 +294,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             : null;
     }
 
-    private function resolveCmsCollectionSource(\Closure $urlBuilder, \Closure $mediaNormalizer): ?CmsCollectionSource
+    /** @param array<string, mixed> $listingProjection */
+    private function resolveCmsCollectionSource(\Closure $urlBuilder, \Closure $mediaNormalizer, array $listingProjection = []): ?CmsCollectionSource
     {
         $collectionService = $this->contextService('siteCollectionService', SiteCollectionService::class);
         $entryService = $this->contextService('siteEntryService', SiteEntryService::class);
@@ -244,7 +313,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $tagService,
             $this->configInt('collection_id', 0),
             $urlBuilder,
-            $mediaNormalizer
+            $mediaNormalizer,
+            $listingProjection,
         );
     }
 
@@ -347,14 +417,80 @@ class CollectionListingViewModel extends AbstractBlockViewModel
     {
         $value = strtolower(trim($requestValue));
         return in_array($value, ['published_at', 'sort_order', 'created_at', 'title', 'name', 'start_time'], true)
+            || preg_match('/^(entry|block|taxonomy)\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/', $value) === 1
+            || preg_match('/^field:(entry|block|taxonomy)\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/', $value) === 1
             ? $value
             : $default;
+    }
+
+    /** @return array<string, mixed> */
+    private function listingProjection(): array
+    {
+        $projection = $this->config()['listing_projection'] ?? [];
+        if (is_string($projection)) {
+            $projection = json_decode($projection, true);
+        }
+        if (! is_array($projection)) {
+            return [];
+        }
+        $projection['slots'] = is_array($projection['slots'] ?? null) ? $projection['slots'] : [];
+        $projection['extras'] = is_array($projection['extras'] ?? null) ? $projection['extras'] : [];
+        $projection['filters'] = is_array($projection['filters'] ?? null) ? $projection['filters'] : [];
+        $projection['order'] = is_array($projection['order'] ?? null) ? $projection['order'] : [];
+
+        return $projection;
+    }
+
+    /** @param array<string, mixed> $entry */
+    private function projectionValue(array $entry, string $source): string
+    {
+        if ($source === '') {
+            return '';
+        }
+        if (str_starts_with($source, 'entry.')) {
+            return is_scalar($entry[substr($source, 6)] ?? null) ? trim((string) $entry[substr($source, 6)]) : '';
+        }
+        if (str_starts_with($source, 'taxonomy.')) {
+            $key = $source === 'taxonomy.categories' ? 'categories' : ($source === 'taxonomy.tags' ? 'tags' : '');
+            $values = is_array($entry[$key] ?? null) ? $entry[$key] : [];
+            return implode(', ', array_values(array_filter(array_map(static fn (mixed $item): string => is_array($item) ? trim((string) ($item['name'] ?? $item['label'] ?? $item['slug'] ?? '')) : trim((string) $item), $values))));
+        }
+        $fields = is_array($entry['listing_content']['fields'] ?? null) ? $entry['listing_content']['fields'] : [];
+        return is_scalar($fields[$source] ?? null) ? trim((string) $fields[$source]) : '';
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>|null
+     */
+    private function projectionMedia(array $entry, string $source): ?array
+    {
+        if ($source === '') {
+            return null;
+        }
+        $value = str_starts_with($source, 'entry.')
+            ? ($entry[substr($source, 6)] ?? null)
+            : (($entry['listing_content']['fields'] ?? [])[$source] ?? null);
+
+        if (! is_array($value) || trim((string) ($value['url'] ?? '')) === '') {
+            return null;
+        }
+
+        return $this->normalizeMediaReference($value);
     }
 
     private function resolveOrderDirection(string $requestValue, string $default): string
     {
         $value = strtolower(trim($requestValue));
         return in_array($value, ['asc', 'desc'], true) ? $value : $default;
+    }
+
+    /** @param array<string, mixed> $projection */
+    private function isPublicOrderingEnabled(array $projection): bool
+    {
+        $value = is_array($projection['order'] ?? null) ? ($projection['order']['public'] ?? false) : false;
+
+        return $value === true || in_array((string) $value, ['1', 'true'], true);
     }
 
     private function resolveLayoutVariant(string $variant): string
@@ -413,11 +549,18 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $action = is_array($content['secondary_action'] ?? null) ? $content['secondary_action'] : null;
             $richText = is_string($content['rich_text'] ?? null) ? trim($content['rich_text']) : '';
             $video = is_array($content['video'] ?? null) ? $content['video'] : null;
+            $documents = is_array($content['documents'] ?? null) ? $content['documents'] : [];
+            $dateFields = is_array($content['date_fields'] ?? null) ? $content['date_fields'] : [];
+            $projectionFields = is_array($content['fields'] ?? null) ? $content['fields'] : [];
 
             $entry['listing_content'] = [
                 'rich_text' => $richText !== '' ? \App\Libraries\HtmlSanitizer::clean($richText) : '',
                 'image' => $this->normalizeListingImage($image),
                 'secondary_action' => $this->normalizeListingAction($action),
+                'documents' => $documents,
+                'publication_date' => (string) ($content['publication_date'] ?? ''),
+                'date_fields' => $dateFields,
+                'fields' => $projectionFields,
                 'video' => $this->normalizeListingVideo($video),
             ];
             $normalized[] = $entry;

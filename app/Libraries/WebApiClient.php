@@ -26,7 +26,9 @@ class WebApiClient implements WebApiClientInterface
     // keys were serialized for localized collection CTAs and entry cards.
     // v8 invalidates payloads cached before the canonical public slugs and
     // TeatroEscuela nomenclature were applied to CMS bootstrap data.
-    private const CACHE_SCHEMA_VERSION = 8;
+    // v9 invalidates entry payloads cached before schema-declared listing
+    // fields (including TeatroEscuela start_date) were exposed.
+    private const CACHE_SCHEMA_VERSION = 10;
 
     private string $baseUrl;
     private string $apiKey;
