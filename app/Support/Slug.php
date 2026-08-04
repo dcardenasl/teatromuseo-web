@@ -25,11 +25,7 @@ class Slug
         }
 
         if (! is_string($ascii) || $ascii === '') {
-            $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
-        }
-
-        if (! is_string($ascii) || $ascii === '') {
-            $ascii = $value;
+            $ascii = self::fallbackTransliterate($value);
         }
 
         $slug = preg_replace('/[^a-z0-9]+/i', '-', $ascii);
@@ -38,5 +34,19 @@ class Slug
         }
 
         return trim(mb_strtolower($slug), '-');
+    }
+
+    private static function fallbackTransliterate(string $value): string
+    {
+        return strtr($value, [
+            'á' => 'a', 'à' => 'a', 'ä' => 'a', 'â' => 'a', 'ã' => 'a', 'å' => 'a',
+            'Á' => 'A', 'À' => 'A', 'Ä' => 'A', 'Â' => 'A', 'Ã' => 'A', 'Å' => 'A',
+            'é' => 'e', 'è' => 'e', 'ë' => 'e', 'ê' => 'e', 'É' => 'E', 'È' => 'E', 'Ë' => 'E', 'Ê' => 'E',
+            'í' => 'i', 'ì' => 'i', 'ï' => 'i', 'î' => 'i', 'Í' => 'I', 'Ì' => 'I', 'Ï' => 'I', 'Î' => 'I',
+            'ó' => 'o', 'ò' => 'o', 'ö' => 'o', 'ô' => 'o', 'õ' => 'o', 'Ó' => 'O', 'Ò' => 'O', 'Ö' => 'O', 'Ô' => 'O', 'Õ' => 'O',
+            'ú' => 'u', 'ù' => 'u', 'ü' => 'u', 'û' => 'u', 'Ú' => 'U', 'Ù' => 'U', 'Ü' => 'U', 'Û' => 'U',
+            'ñ' => 'n', 'Ñ' => 'N', 'ç' => 'c', 'Ç' => 'C', 'ý' => 'y', 'ÿ' => 'y', 'Ý' => 'Y',
+            'ß' => 'ss', 'œ' => 'oe', 'Œ' => 'OE', 'æ' => 'ae', 'Æ' => 'AE', 'ø' => 'o', 'Ø' => 'O',
+        ]);
     }
 }
