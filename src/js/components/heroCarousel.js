@@ -177,8 +177,21 @@ const initHeroCarousel = (root) => {
       }
     }
     if (link) {
-      link.href = slide.cta_url || '#';
-      link.setAttribute('aria-label', slide.heading || '');
+      const destination = typeof slide.cta_url === 'string' ? slide.cta_url.trim() : '';
+      const hasDestination = destination !== '' && destination !== '#';
+      if (hasDestination) {
+        link.href = destination;
+        link.removeAttribute('aria-hidden');
+        link.removeAttribute('tabindex');
+        link.classList.remove('pointer-events-none');
+        link.setAttribute('aria-label', slide.heading || '');
+      } else {
+        link.removeAttribute('href');
+        link.setAttribute('aria-hidden', 'true');
+        link.setAttribute('tabindex', '-1');
+        link.classList.add('pointer-events-none');
+        link.removeAttribute('aria-label');
+      }
     }
     captionTitles.forEach((node) => {
       node.textContent = slide.heading || '';

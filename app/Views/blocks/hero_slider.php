@@ -154,10 +154,10 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
             <?php endif; ?>
 
             <a
-                href="<?= esc(lang_url($slides[0]['cta_url'] ?? '#')) ?>"
+                href="<?= esc($slides[0]['cta_url'] ?? '') ?>"
                 data-hero-link
-                class="absolute inset-0 z-10 block"
-                aria-label="<?= esc($slides[0]['heading'] ?? '') ?>"
+                class="absolute inset-0 z-10 block <?= !empty($slides[0]['cta_url']) ? '' : 'pointer-events-none' ?>"
+                <?= !empty($slides[0]['cta_url']) ? 'aria-label="' . esc($slides[0]['heading'] ?? '') . '"' : 'aria-hidden="true" tabindex="-1"' ?>
             ></a>
 
             <?php if ($controlsIsOverlay): ?>

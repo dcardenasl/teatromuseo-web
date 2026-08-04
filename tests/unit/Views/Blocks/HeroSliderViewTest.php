@@ -32,6 +32,8 @@ final class HeroSliderViewTest extends CIUnitTestCase
                     [
                         'block_key'  => 'slide_banner',
                         'block_config' => [
+                            'navigation_mode' => 'internal',
+                            'navigation_target_type' => 'page',
                             'image' => [
                                 'source_kind' => 'external_url',
                                 'file_id'     => null,
@@ -42,12 +44,13 @@ final class HeroSliderViewTest extends CIUnitTestCase
                             'heading' => 'Hero title',
                             'subtitle' => 'Hero subtitle',
                             'cta_label' => 'Read more',
-                            'cta_url' => '/contacto',
                         ],
+                        'navigation' => ['status' => 'resolved', 'route_key' => null, 'url' => '/es/contacto'],
                     ],
                     [
                         'block_key'  => 'slide_banner',
                         'block_config' => [
+                            'navigation_mode' => 'none',
                             'image' => [
                                 'source_kind' => 'external_url',
                                 'file_id'     => null,
@@ -58,7 +61,6 @@ final class HeroSliderViewTest extends CIUnitTestCase
                             'heading' => 'Second slide',
                             'subtitle' => 'Second subtitle',
                             'cta_label' => 'Learn more',
-                            'cta_url' => '/servicios',
                         ],
                     ],
                 ],
