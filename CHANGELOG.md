@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Public cache status endpoint** — added a protected endpoint that reports cache backend,
+  configuration, last invalidation source, scopes, and deleted-entry counts.
+
 - **Localized public section routes and navigation** — added locale-aware section paths and
   semantic public navigation for events, catalog listings, contact, history, and TeatroEscuela.
 - **Domain-backed collection grids and event filters** — collection grids can consume domain
@@ -19,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   status, instructors, requirements, and video presentation support.
 - **Collection listing video playback** — public listing cards can expose YouTube/Vimeo videos
   with poster images, accessible play buttons, and a modal player.
+
+- **Configurable listing presentation** — collection listings support configurable cover aspect
+  ratios, numbered pagination, locale-aware dates, and real activity start dates.
 
 - **Localized catalog and event item rendering** — public listing labels now include catalog and event metadata terms, public listing sources normalize external featured images, and catalog/event detail blocks render headers, details, content, and galleries with locale-aware fallbacks.
 - **Base web controller & service architecture** — introduced `BasePublicWebController` and `BaseSiteService` to unify page resolution, i18n locale handling, SEO metadata, and API domain consumption across the web frontend.
@@ -40,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cache invalidation observability** — invalidation requests now retain their source and
+  operational status so automatic and manual cleanups can be distinguished.
+
 - **Nested block and media rendering** — nested layouts, gallery images, and hero media now
   resolve consistently without placeholder substitution or broken hero links.
 - **Localized public details and slugs** — detail dates, routes, accented slugs, and public
@@ -60,3 +69,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hardcoded in Spanish; they now use `lang()` keys and render correctly in every active locale.
 - **`CollectionListingViewModel`** — a collection's curated `default_meta_description` now takes
   priority over its on-page intro text for the listing page's SEO description.
+
+- **Placeholder media and hero links** — real entries without media no longer receive stock
+  placeholders, and empty hero destinations are not rendered as broken links.
+
+### Changed
+
+- **Institutional team rendering** — the public About page now reads editable team-member
+  children and persisted CMS content instead of legacy hardcoded staff and page overrides.
