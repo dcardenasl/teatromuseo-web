@@ -98,7 +98,16 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
     public function testResolvedCollectionListsEntriesWithDefaultOrdering(): void
     {
         $vm = new CollectionListingViewModel(
-            ['block_config' => ['collection_id' => 1]],
+            [
+                'block_config' => ['collection_id' => 1],
+                'navigation' => [
+                    'status' => 'resolved',
+                    'target_type' => 'collection_index',
+                    'target_id' => 10,
+                    'url' => '/es/noticias',
+                    'label' => 'Ver más',
+                ],
+            ],
             'es',
             $this->context(
                 [self::COLLECTION],
@@ -124,6 +133,8 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame(1, $vars['currentPage']);
         $this->assertSame('Noticias', $vars['pageTitle']);
         $this->assertSame('Últimas noticias.', $vars['metaDescription']);
+        $this->assertSame('/es/noticias/post-1', $vars['entries'][0]['navigation']['url']);
+        $this->assertSame('Ver más', $vars['viewAllLabel']);
     }
 
     public function testFallbackImageUrlIsNeverUsedEvenWhenConfigured(): void
@@ -166,18 +177,13 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame('Festivales', $vars['pageTitle']);
     }
 
-    public function testCollectionPathFallsBackToCollectionKeyWhenIndexPageIsMissing(): void
+    public function testCollectionPathFallsBackToCurrentListingPageWhenNavigationIsMissing(): void
     {
         $collection = self::COLLECTION;
         unset($collection['index_page']);
 
-        // The listing block is embedded on an unrelated page (path below) —
-        // the resolved URL must still be derived from the collection itself
-        // (`collection_key`), not from whatever page happens to host the
-        // block. Otherwise the same entry would resolve to a different URL
-        // depending on which page rendered it, and entries embedded on the
-        // homepage (empty path beyond the locale) would get no working link
-        // at all.
+        // A full listing page is still navigable when an older or partially
+        // migrated block payload does not include its navigation metadata.
         $vm = new CollectionListingViewModel(
             ['block_config' => ['collection_id' => 1]],
             'es',
@@ -193,7 +199,8 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
 
         $vars = $vm->vars();
 
-        $this->assertSame('/news', $vars['collectionUrlPath']);
+        $this->assertSame('festivales', $vars['collectionUrlPath']);
+        $this->assertSame('http://localhost:8184/es/festivales/post-1', $vars['entries'][0]['navigation']['url']);
     }
 
     public function testCollectionPathFallsBackToCollectionKeyWhenEmbeddedOnHomepage(): void
@@ -221,7 +228,7 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
 
         $vars = $vm->vars();
 
-        $this->assertSame('/news', $vars['collectionUrlPath']);
+        $this->assertSame('', $vars['collectionUrlPath']);
     }
 
     public function testListVariantNormalizesListingContentAndVisibilityFlags(): void

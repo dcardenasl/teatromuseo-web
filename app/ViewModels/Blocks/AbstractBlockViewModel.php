@@ -124,6 +124,53 @@ abstract class AbstractBlockViewModel
     }
 
     /**
+     * Attach the localized detail URL contract to a listing entry.
+     *
+     * The listing navigation is already resolved for the active locale by
+     * the CMS block serializer. The entry slug follows the same rule: use the
+     * locale-specific API projection when available, otherwise the canonical
+     * slug returned by the source.
+     *
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    protected function withEntryNavigation(array $entry, string $listingUrl): array
+    {
+        $localized = is_array($entry['localized'] ?? null) ? $entry['localized'] : [];
+        $localizedSlugs = is_array($entry['localized_slugs'] ?? null) ? $entry['localized_slugs'] : [];
+        $slug = trim((string) ($localized['slug'] ?? $localizedSlugs[$this->lang] ?? $entry['slug'] ?? ''));
+        $listingUrl = rtrim(trim($listingUrl), '/');
+        $url = $listingUrl !== '' && $slug !== ''
+            ? $listingUrl . '/' . ltrim($slug, '/')
+            : '';
+
+        $entry['navigation'] = [
+            'status' => $url !== '' ? 'resolved' : 'slug_not_available',
+            'target_type' => 'entry_detail',
+            'target_id' => is_numeric($entry['id'] ?? null) ? (int) $entry['id'] : null,
+            'slug' => $slug !== '' ? $slug : null,
+            'url' => $url !== '' ? $url : null,
+        ];
+
+        return $entry;
+    }
+
+    /** @param array<string, mixed> $navigation */
+    protected function navigationUrl(array $navigation, string $fallback = ''): string
+    {
+        $routePath = \App\Support\PublicPaths::routePath(
+            (string) ($navigation['route_key'] ?? ''),
+            $this->lang,
+        );
+        if ($routePath !== null) {
+            return lang_url($routePath, $this->lang);
+        }
+
+        $url = trim((string) ($navigation['url'] ?? ''));
+        return $url !== '' ? $url : $fallback;
+    }
+
+    /**
      * @return array{source_kind: string, file_id: int|null, url: string}
      */
     protected function configMediaReference(string $key): array

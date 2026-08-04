@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\ViewModels\Blocks;
 
 use App\Services\SiteCatalogService;
-use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
 use App\Services\SiteEventService;
 use App\ViewModels\Blocks\Listing\ListingQuery;
@@ -22,6 +21,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
     public function vars(): array
     {
         $collectionKey = $this->configString('collection_key');
+        $categoryId = max(0, $this->configInt('category_id', 0));
         $sourceType = $this->resolveSourceType($collectionKey);
         $itemsLimit    = max(1, min(100, $this->configInt('items_limit', 3)));
 
@@ -42,14 +42,15 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             $collectionKey,
         );
 
-        $canonicalViewAllUrl = $collectionKey !== ''
-            ? $this->canonicalViewAllUrl($collectionKey, $this->dataString('view_all_url'))
-            : '';
+        $navigation = is_array($this->block['navigation'] ?? null)
+            ? $this->block['navigation']
+            : [];
+        $canonicalViewAllUrl = $this->navigationUrl($navigation);
 
         return [
             'sectionTitle'        => $this->dataString('section_title'),
             'sectionSubtitle'     => $this->dataString('section_subtitle'),
-            'viewAllLabel'        => $this->dataString('view_all_label'),
+            'viewAllLabel'        => (string) ($navigation['label'] ?? $this->dataString('view_all_label')),
             'emptyMessage'        => $this->dataString('empty_message'),
             'collectionKey'       => $collectionKey,
             'layoutVariant'       => $layoutVariant,
@@ -57,7 +58,10 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             'imageAspectRatioClass' => self::aspectRatioClass($imageAspectRatio),
             'cssClass'            => $this->configString('css_class'),
             'canonicalViewAllUrl' => $canonicalViewAllUrl,
-            'entries'             => $this->resolvePreviewEntries($collectionKey, $sourceType, $itemsLimit, $orderBy, $orderDirection),
+            'entries'             => array_map(
+                fn (array $entry): array => $this->withEntryNavigation($entry, $canonicalViewAllUrl),
+                $this->resolvePreviewEntries($collectionKey, $sourceType, $itemsLimit, $orderBy, $orderDirection, $categoryId),
+            ),
             'sectionClass'        => $layoutVariant === 'portfolio' ? 'section-lg bg-slate-50/50' : 'section',
             'containerClass'      => $layoutVariant === 'portfolio' ? 'max-w-6xl mx-auto px-4' : 'container-base',
             'gridClass'           => match ($layoutVariant) {
@@ -80,41 +84,6 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         };
     }
 
-    /**
-     * Canonical URL of the collection index, falling back to the manually
-     * configured view_all_url when the collection isn't resolvable at all
-     * (service unavailable, unknown key, or a transport error). Delegates
-     * lookup + URL resolution to AbstractBlockViewModel::findCollection() and
-     * the global localized_collection_url_path() — the same single source of
-     * truth CollectionListingViewModel uses, so the two block types can't
-     * drift out of sync on how a collection's URL is built (see the
-     * 2026-07-15 dead-link fix for what that drift cost in practice).
-     */
-    private function canonicalViewAllUrl(string $collectionKey, string $fallback): string
-    {
-        $service = $this->contextService('siteCollectionService', SiteCollectionService::class);
-        if ($service === null) {
-            return $fallback;
-        }
-
-        try {
-            $collection = $this->findCollection(
-                $service->getAll($this->lang),
-                static fn (array $c): bool => ($c['collection_key'] ?? '') === $collectionKey
-            );
-        } catch (\Throwable) {
-            return $fallback;
-        }
-
-        if ($collection === null) {
-            return $fallback;
-        }
-
-        $urlPath = localized_collection_url_path($collection, $this->lang);
-
-        return $urlPath !== '' ? $urlPath : $fallback;
-    }
-
     private function resolveImageAspectRatio(string $ratio, string $collectionKey): string
     {
         $ratio = trim($ratio);
@@ -124,10 +93,10 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         }
 
         $defaultRatio = match (strtolower(trim($collectionKey))) {
-            'cartelera', 'events', 'eventos', 'obras', 'works', 'noticias', 'news', 'publicaciones', 'publications', 'festivales', 'festivals', 'companias', 'companies' => '1/1',
+            'cartelera', 'events', 'eventos', 'obras', 'works', 'noticias', 'news', 'editoriales', 'publicaciones', 'publications', 'prensa', 'press', 'transparencia', 'transparency', 'festivales', 'festivals', 'companias', 'companies' => '1/1',
             'personas', 'people' => '3/4',
             'exposiciones', 'exhibitions' => '2/3',
-            'cursos', 'courses' => '3/4',
+            'cursos' => '3/4',
             'videos', 'video', 'multimedia' => '16/9',
             default => '4/3',
         };
@@ -138,7 +107,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
     /**
      * @return list<array<string, mixed>>
      */
-    private function entries(string $collectionKey, int $itemsLimit, string $orderBy, string $orderDirection): array
+    private function entries(string $collectionKey, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0): array
     {
         $service = $this->contextService('siteEntryService', SiteEntryService::class);
         if ($service === null) {
@@ -146,11 +115,15 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         }
 
         try {
-            $result = $service->list($this->lang, $collectionKey, [
+            $query = [
                 'per_page'        => $itemsLimit,
                 'order_by'        => $orderBy,
                 'order_direction' => $orderDirection,
-            ]);
+            ];
+            if ($categoryId > 0) {
+                $query['category_id'] = $categoryId;
+            }
+            $result = $service->list($this->lang, $collectionKey, $query);
 
             $entries = $result['data'] ?? [];
             if (! is_array($entries)) {
@@ -180,7 +153,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
      *
      * @return array<int, array<string, mixed>>
      */
-    private function resolvePreviewEntries(string $collectionKey, string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection): array
+    private function resolvePreviewEntries(string $collectionKey, string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0): array
     {
         if ($sourceType === 'event_items') {
             return $this->externalEntries('event_items', $itemsLimit, $orderBy, $orderDirection);
@@ -192,7 +165,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
 
         $entries = [];
         if ($collectionKey !== '') {
-            $entries = $this->entries($collectionKey, $itemsLimit, $orderBy, $orderDirection);
+            $entries = $this->entries($collectionKey, $itemsLimit, $orderBy, $orderDirection, $categoryId);
         }
 
         if ($entries === [] && $this->isPreviewRequest()) {
@@ -224,7 +197,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
                     'summary' => 'Una guía completa de las tendencias actuales y recomendaciones clave para optimizar procesos y flujos de trabajo.',
                     'published_at' => date('Y-m-d H:i:s', strtotime('-2 days')),
                     'featured_image' => $this->normalizeMediaReference(['source_kind' => 'external_url', 'file_id' => null, 'url' => 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=600&q=80']),
-                    'categories' => [['title' => 'Educación', 'slug' => 'educacion']],
+                    'categories' => [['title' => 'TeatroEscuela', 'slug' => 'teatroescuela']],
                     'tags' => [['title' => 'Guías', 'slug' => 'guias']],
                 ]
             ];
@@ -255,7 +228,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         try {
             $sort = $sourceType === 'event_items' ? 'start_time' : ($orderBy !== '' ? $orderBy : 'name');
             $direction = $sourceType === 'event_items' ? 'asc' : $orderDirection;
-            $result = $source->fetch(new ListingQuery(1, $itemsLimit, '', '', '', $sort, $direction), $this->lang);
+            $result = $source->fetch(new ListingQuery(1, $itemsLimit, '', 0, '', '', $sort, $direction), $this->lang);
 
             return array_map(
                 fn (array $entry): array => $source->normalizeEntry($entry),

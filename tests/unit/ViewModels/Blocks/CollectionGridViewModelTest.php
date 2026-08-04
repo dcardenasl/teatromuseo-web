@@ -6,6 +6,7 @@ namespace Tests\Unit\ViewModels\Blocks;
 
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
+use App\Services\SiteEventService;
 use App\ViewModels\Blocks\CollectionGridViewModel;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\URI;
@@ -28,8 +29,12 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
      * @param array<string, mixed>        $entriesResult
      * @return array<string, mixed>
      */
-    private function context(array $collections, array $entriesResult, string $path = '/'): array
-    {
+    private function context(
+        array $collections,
+        array $entriesResult,
+        string $path = '/',
+        ?array $eventsResult = null
+    ): array {
         $collectionService = $this->createMock(SiteCollectionService::class);
         $collectionService->method('getAll')->willReturn($collections);
 
@@ -39,11 +44,19 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $request = new IncomingRequest(config(App::class), new URI('http://localhost/' . ltrim($path, '/')), null, new UserAgent());
         $request->setLocale('es');
 
-        return [
+        $context = [
             'request' => $request,
             'siteCollectionService' => $collectionService,
             'siteEntryService' => $entryService,
         ];
+
+        if ($eventsResult !== null) {
+            $eventService = $this->createMock(SiteEventService::class);
+            $eventService->method('listEvents')->willReturn($eventsResult);
+            $context['siteEventService'] = $eventService;
+        }
+
+        return $context;
     }
 
     public function testResolvesCanonicalUrlAndEntries(): void
@@ -51,6 +64,13 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $vm = new CollectionGridViewModel([
             'block_config' => ['collection_key' => 'news'],
             'block_data'   => ['section_title' => 'Noticias'],
+            'navigation'   => [
+                'status' => 'resolved',
+                'target_type' => 'collection_index',
+                'target_id' => 1,
+                'url' => '/es/news',
+                'label' => 'Ver todas las noticias',
+            ],
         ], 'es', $this->context(
             [[
                 'collection_key' => 'news',
@@ -61,8 +81,10 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
                 ],
             ]],
             ['data' => [[
+                'id' => 9,
                 'title' => 'Post 1',
                 'slug' => 'post-1',
+                'localized' => ['slug' => 'noticia-localizada'],
                 'featured_image' => [
                     'source_kind' => 'external_url',
                     'url' => 'https://cdn.example.com/post-1.jpg',
@@ -75,6 +97,8 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $this->assertSame('news', $vars['collectionKey']);
         $this->assertCount(1, $vars['entries']);
         $this->assertSame('https://cdn.example.com/post-1.jpg', $vars['entries'][0]['featured_image']['url']);
+        $this->assertSame('Ver todas las noticias', $vars['viewAllLabel']);
+        $this->assertSame('/es/news/noticia-localizada', $vars['entries'][0]['navigation']['url']);
         $this->assertNotSame('', $vars['canonicalViewAllUrl']);
     }
 
@@ -88,7 +112,7 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
                 'layout_variant'  => 'bogus',
                 'items_limit'     => 5000,
             ],
-            'block_data' => ['view_all_url' => '/fallback'],
+            'block_data' => [],
         ], 'es', $this->context([], ['data' => [], 'meta' => []]));
 
         $vars = $vm->vars();
@@ -96,8 +120,48 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $this->assertSame('cards', $vars['layoutVariant']);
         $this->assertSame('1/1', $vars['imageAspectRatio']);
         $this->assertSame('aspect-square', $vars['imageAspectRatioClass']);
-        $this->assertSame('/fallback', $vars['canonicalViewAllUrl'], 'Manual URL used when collection is unknown');
+        $this->assertSame('', $vars['canonicalViewAllUrl']);
         $this->assertStringContainsString('md:grid-cols-3', $vars['gridClass']);
+    }
+
+    public function testEventCardsUseLocalizedSlugAndResolvedListingNavigation(): void
+    {
+        $vm = new CollectionGridViewModel([
+            'block_config' => [
+                'collection_key' => 'cartelera',
+                'source_type' => 'auto',
+            ],
+            'block_data' => [
+                'section_title' => 'Cartelera',
+                'view_all_label' => 'Ver toda la cartelera',
+            ],
+            'navigation' => [
+                'status' => 'resolved',
+                'target_type' => 'events',
+                'target_id' => 26,
+                'url' => '/es/cartelera',
+                'label' => 'Ver toda la cartelera',
+            ],
+        ], 'es', $this->context(
+            [],
+            ['data' => [], 'meta' => []],
+            '/',
+            ['data' => [[
+                'id' => 388,
+                'localized' => [
+                    'locale' => 'es',
+                    'title' => 'Tupuna, rostros vivos',
+                    'slug' => 'tupuna-rostros-vivos',
+                ],
+                'start_time' => '2026-07-26 16:30:00',
+            ]], 'meta' => ['pagination' => ['total' => 1]]]
+        ));
+
+        $vars = $vm->vars();
+
+        $this->assertSame('Ver toda la cartelera', $vars['viewAllLabel']);
+        $this->assertSame('/es/cartelera', $vars['canonicalViewAllUrl']);
+        $this->assertSame('/es/cartelera/tupuna-rostros-vivos', $vars['entries'][0]['navigation']['url']);
     }
 
     public function testExplicitAspectRatioIsRespected(): void

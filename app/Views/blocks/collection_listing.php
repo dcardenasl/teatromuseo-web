@@ -7,6 +7,8 @@
  * @var string $collectionKey
  * @var string $collectionUrlPath
  * @var array<string, string> $localizedUrls
+ * @var array<string, mixed> $navigation
+ * @var string $viewAllLabel
  * @var list<array<string, mixed>> $entries
  * @var array<string, mixed> $pagination
  * @var int $currentPage
@@ -224,19 +226,8 @@ $sectionClass = trim($cssClass . ' section');
                     $entryTitle = (string) ($entry['title'] ?? '');
                     $entryExcerpt = (string) ($entry['excerpt'] ?? '');
                     $entryDate = (string) ($entry['display_date'] ?? $entry['published_at'] ?? $entry['created_at'] ?? '');
-                    $entrySlug = (string) ($entry['slug'] ?? '');
-                    if ($entrySlug === '' && is_array($entry['localized_slugs'] ?? null)) {
-                        $entrySlug = (string) ($entry['localized_slugs'][$lang] ?? '');
-                        if ($entrySlug === '') {
-                            foreach ($entry['localized_slugs'] as $candidateSlug) {
-                                $candidateSlug = trim((string) $candidateSlug);
-                                if ($candidateSlug !== '') {
-                                    $entrySlug = $candidateSlug;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    $entryNavigation = is_array($entry['navigation'] ?? null) ? $entry['navigation'] : [];
+                    $entryUrl = (string) ($entryNavigation['url'] ?? '');
                     $imageArr = is_array($entry['featured_image'] ?? null) ? $entry['featured_image'] : (is_array($entry['cover_image'] ?? null) ? $entry['cover_image'] : (is_array($entry['main_image'] ?? null) ? $entry['main_image'] : []));
                     $entryImage = is_string($imageArr['url'] ?? null) ? (string) $imageArr['url'] : '';
                     if ($entryImage === '') {
@@ -246,14 +237,11 @@ $sectionClass = trim($cssClass . ' section');
                     $extraImage = is_array($listingContent['image'] ?? null) ? $listingContent['image'] : null;
                     $extraAction = is_array($listingContent['secondary_action'] ?? null) ? $listingContent['secondary_action'] : null;
                     $extraRichtext = (string) ($listingContent['rich_text'] ?? '');
-                    $entryUrl = $basePath !== '' && $entrySlug !== ''
-                        ? lang_url(rtrim($basePath, '/') . '/' . ltrim($entrySlug, '/'))
-                        : '#';
                 ?>
                     <article class="<?= esc($cardClass) ?> animate-fade-in-up" style="animation-delay: <?= $index * 60 ?>ms; animation-fill-mode: both;">
                         <!-- Image Container with Zoom effect on hover -->
                         <?php if ($entryImage !== ''): ?>
-                            <a href="<?= esc($entryUrl) ?>" class="block overflow-hidden <?= esc($imageClass) ?>" tabindex="-1" aria-hidden="true">
+                            <a href="<?= esc($entryUrl !== '' ? $entryUrl : '#') ?>" class="block overflow-hidden <?= esc($imageClass) ?>" tabindex="-1" aria-hidden="true">
                                 <?php if (str_starts_with($entryImage, 'http')): ?>
                                     <img src="<?= esc($entryImage) ?>" alt="<?= esc($entryTitle) ?>" class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105" loading="lazy">
                                 <?php else: ?>
@@ -299,7 +287,7 @@ $sectionClass = trim($cssClass . ' section');
 
                             <!-- Entry Title -->
                             <h3 class="text-lg font-bold leading-tight text-slate-900 group-hover:text-primary transition-colors duration-200">
-                                <a href="<?= esc($entryUrl) ?>" class="!text-slate-900 group-hover:!text-primary !no-underline hover:!no-underline">
+                                <a href="<?= esc($entryUrl !== '' ? $entryUrl : '#') ?>" class="!text-slate-900 group-hover:!text-primary !no-underline hover:!no-underline">
                                     <?= esc($entryTitle) ?>
                                 </a>
                             </h3>
@@ -332,7 +320,7 @@ $sectionClass = trim($cssClass . ' section');
                             <?php if ($showButton || ($showExtraLink && $extraAction !== null)): ?>
                                 <div class="mt-auto pt-5 border-t border-slate-100 flex flex-wrap items-center gap-x-5 gap-y-3">
                                     <?php if ($showButton): ?>
-                                        <a href="<?= esc($entryUrl) ?>" class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider !text-primary group-hover:!text-primary-dark !no-underline">
+                                        <a href="<?= esc($entryUrl !== '' ? $entryUrl : '#') ?>" class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider !text-primary group-hover:!text-primary-dark !no-underline">
                                             <?= esc($entryCtaLabel) ?>
                                             <svg class="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>

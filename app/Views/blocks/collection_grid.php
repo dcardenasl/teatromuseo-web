@@ -50,11 +50,9 @@ if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
                     $entryTitle   = $entry['title'] ?? '';
                     $entryExcerpt = $entry['excerpt'] ?? '';
                     $entryDate    = $entry['display_date'] ?? $entry['published_at'] ?? $entry['created_at'] ?? '';
-                    $entrySlug    = $entry['slug'] ?? '';
                     $entryImage   = is_array($entry['featured_image'] ?? null) ? ($entry['featured_image']['url'] ?? '') : '';
-                    $entryUrl     = $canonicalViewAllUrl !== '' && $entrySlug !== ''
-                        ? lang_url(rtrim($canonicalViewAllUrl, '/') . '/' . $entrySlug)
-                        : '#';
+                    $entryNavigation = is_array($entry['navigation'] ?? null) ? $entry['navigation'] : [];
+                    $entryUrl = (string) ($entryNavigation['url'] ?? '');
                     $articleClass = $layoutVariant === 'portfolio'
                         ? 'bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col group hover:shadow-lg transition-all duration-300'
                         : 'surface-card overflow-hidden transition-colors hover:border-slate-300 group';
@@ -66,14 +64,18 @@ if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
                 ?>
                     <article class="<?= esc($articleClass) ?>">
                         <?php if ($entryImage): ?>
+                            <?php if ($entryUrl !== ''): ?>
                             <a href="<?= esc($entryUrl) ?>" class="block overflow-hidden <?= esc($imageClass) ?>" tabindex="-1">
+                            <?php else: ?>
+                            <div class="block overflow-hidden <?= esc($imageClass) ?>" aria-hidden="true">
+                            <?php endif; ?>
                                 <?= view('components/responsive-image', [
                                     'src'      => $entryImage,
                                     'alt'      => $entryTitle,
                                     'class'    => 'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105',
                                     'variants' => $entry['featured_image']['variants'] ?? null,
                                 ], ['saveData' => false]) ?>
-                            </a>
+                            <?= $entryUrl !== '' ? '</a>' : '</div>' ?>
                         <?php endif; ?>
                         <div class="<?= esc($bodyClass) ?>">
                             <?php if ($entryDate): ?>
@@ -82,9 +84,13 @@ if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
                                 </p>
                             <?php endif; ?>
                             <h3 class="mt-2 text-lg font-semibold leading-tight text-slate-900">
+                                <?php if ($entryUrl !== ''): ?>
                                 <a href="<?= esc($entryUrl) ?>" class="transition-colors hover:text-primary">
+                                <?php else: ?>
+                                <span>
+                                <?php endif; ?>
                                     <?= esc($entryTitle) ?>
-                                </a>
+                                <?= $entryUrl !== '' ? '</a>' : '</span>' ?>
                             </h3>
                             <?php if ($entryExcerpt): ?>
                                 <p class="section-copy mt-2 text-sm <?= $layoutVariant === 'compact' ? 'line-clamp-1' : 'line-clamp-3' ?>">

@@ -83,6 +83,12 @@ $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $fe
                     </time>
                 <?php endif; ?>
             </div>
+
+            <?php if (trim((string) ($excerpt ?? '')) !== ''): ?>
+                <p class="mt-5 max-w-3xl text-lg leading-relaxed text-text-secondary">
+                    <?= nl2br(esc((string) $excerpt)) ?>
+                </p>
+            <?php endif; ?>
         </header>
 
         <!-- Featured image -->

@@ -19,6 +19,7 @@ class BlockRenderer
         'video_player'       => \App\ViewModels\Blocks\VideoPlayerViewModel::class,
         'collection_grid'    => \App\ViewModels\Blocks\CollectionGridViewModel::class,
         'collection_listing' => \App\ViewModels\Blocks\CollectionListingViewModel::class,
+        'collection_timeline' => \App\ViewModels\Blocks\CollectionTimelineViewModel::class,
         'metrics_grid'       => \App\ViewModels\Blocks\MetricsGridViewModel::class,
         'cta'                => \App\ViewModels\Blocks\CtaViewModel::class,
         'hero_banner'        => \App\ViewModels\Blocks\HeroBannerViewModel::class,
@@ -30,6 +31,7 @@ class BlockRenderer
         'document_gallery'   => \App\ViewModels\Blocks\DocumentGalleryViewModel::class,
         'pdf_viewer'         => \App\ViewModels\Blocks\PdfViewerViewModel::class,
         'accordion'          => \App\ViewModels\Blocks\AccordionViewModel::class,
+        'team_grid'          => \App\ViewModels\Blocks\TeamGridViewModel::class,
         'team_member'        => \App\ViewModels\Blocks\TeamMemberViewModel::class,
         'event_item_header'    => \App\ViewModels\Blocks\EventItemHeaderViewModel::class,
         'event_item_details'   => \App\ViewModels\Blocks\EventItemDetailsViewModel::class,
@@ -149,7 +151,7 @@ class BlockRenderer
         if (is_string($blockKey) && isset(self::VIEW_MODELS[$blockKey])) {
             $viewModelClass = self::VIEW_MODELS[$blockKey];
             $viewModelContext = ['formDefinition' => $formDefinition];
-            if ($blockKey === 'collection_grid' || $blockKey === 'collection_listing') {
+            if (in_array($blockKey, ['collection_grid', 'collection_listing', 'collection_timeline', 'team_grid'], true)) {
                 // These two view models need the current request (GET filters,
                 // preview-mode detection) and the Site*Service adapters. Resolving
                 // them here — the composition boundary — keeps the view models
