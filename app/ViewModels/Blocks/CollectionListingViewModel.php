@@ -36,6 +36,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $currentCategory = trim($this->requestGet('category'));
         $currentTag = trim($this->requestGet('tag'));
         $currentQuery = trim($this->requestGet('q'));
+        $configuredCategoryId = max(0, $this->configInt('category_id', 0));
 
         $orderBy = $this->resolveOrderBy($this->requestGet('order_by'), $defaults['order_by']);
         $orderDirection = $this->resolveOrderDirection($this->requestGet('order_direction'), $defaults['order_direction']);
@@ -45,6 +46,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             page: $currentPage,
             perPage: $perPage,
             category: $currentCategory,
+            categoryId: $configuredCategoryId,
             tag: $currentTag,
             query: $currentQuery,
             orderBy: $orderBy,
@@ -57,9 +59,11 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $result = $source->previewResult();
         }
 
-        $facets = $source->facets($query, $this->lang);
-        $categories = $this->configBool('show_categories', $defaults['show_categories']) ? ($facets['categories'] ?? []) : [];
-        $tags = $this->configBool('show_tags', $defaults['show_tags']) ? ($facets['tags'] ?? []) : [];
+        $showCategories = $this->configBool('show_categories', $defaults['show_categories']);
+        $showTags = $this->configBool('show_tags', $defaults['show_tags']);
+        $facets = ($showCategories || $showTags) ? $source->facets($query, $this->lang) : [];
+        $categories = $showCategories ? ($facets['categories'] ?? []) : [];
+        $tags = $showTags ? ($facets['tags'] ?? []) : [];
 
         $normalizedEntries = $this->prepareEntries(
             array_map(fn ($entry) => $source->normalizeEntry($entry), $result->data)
@@ -69,7 +73,13 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $currentPage = max(1, (int) ($pagination['current_page'] ?? $currentPage));
 
         $collectionKey = $sourceType;
-        $collectionUrlPath = $this->localizedDomainSourcePath($sourceType, $this->lang) ?? $defaults['source_path'];
+        $navigation = is_array($this->block['navigation'] ?? null)
+            ? $this->block['navigation']
+            : [];
+        $navigationUrl = $this->navigationUrl($navigation);
+        $collectionUrlPath = $this->navigationPath($navigationUrl)
+            ?: ($this->localizedDomainSourcePath($sourceType, $this->lang) ?? '')
+            ?: ($sourceType === 'cms_collection' ? $this->currentRequestPath() : '');
         $localizedUrls = $this->localizedSourceUrls($sourceType, $collectionUrlPath);
         $collection = [
             'id' => 0,
@@ -92,12 +102,22 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             if ($cmsCollection !== null) {
                 $collection = $cmsCollection;
                 $collectionKey = (string) ($collection['collection_key'] ?? '');
-                $collectionUrlPath = $this->resolvedCollectionUrlPath($collection);
-                $localizedUrls = localized_collection_urls($collection);
+                $collectionUrlPath = $this->navigationPath($navigationUrl)
+                    ?: $this->currentRequestPath();
+                $localizedUrls = [];
             } else {
                 return $this->emptyVars($defaults, $layoutVariant);
             }
         }
+
+        $entryListingUrl = $navigationUrl;
+        if ($entryListingUrl === '' && $collectionUrlPath !== '') {
+            $entryListingUrl = lang_url($collectionUrlPath, $this->lang);
+        }
+        $normalizedEntries = array_map(
+            fn (array $entry): array => $this->withEntryNavigation($entry, $entryListingUrl),
+            $normalizedEntries,
+        );
 
         $displayTitle = collection_display_title($collection);
         $displayIntro = collection_display_intro($collection);
@@ -109,6 +129,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'localizedUrls' => $localizedUrls,
             'collectionKey' => $collectionKey,
             'entries' => $normalizedEntries,
+            'navigation' => $navigation,
+            'viewAllLabel' => (string) ($navigation['label'] ?? ''),
             'pagination' => $pagination,
             'currentPage' => $currentPage,
             'currentCategory' => $currentCategory,
@@ -120,8 +142,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'imageAspectRatio' => $this->configString('image_aspect_ratio', '16/9'),
             'cssClass' => $this->configString('css_class'),
             'showSearch' => $this->configBool('show_search', true),
-            'showCategories' => $this->configBool('show_categories', $defaults['show_categories']),
-            'showTags' => $this->configBool('show_tags', $defaults['show_tags']),
+            'showCategories' => $showCategories,
+            'showTags' => $showTags,
             'showExcerpt' => $this->configBool('show_excerpt', true),
             'showDate' => $this->configBool('show_date', $defaults['show_date']),
             'showButton' => $this->configBool('show_button', true),
@@ -293,6 +315,8 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'collectionUrlPath' => '',
             'localizedUrls' => [],
             'collectionKey' => '',
+            'navigation' => [],
+            'viewAllLabel' => '',
             'pageTitle' => $defaults['page_title'],
             'metaDescription' => $defaults['intro_text'],
         ];
@@ -436,14 +460,6 @@ class CollectionListingViewModel extends AbstractBlockViewModel
     }
 
     /**
-     * @param array<string, mixed> $collection
-     */
-    private function resolvedCollectionUrlPath(array $collection): string
-    {
-        return localized_collection_url_path($collection, $this->lang);
-    }
-
-    /**
      * @return array<string, string>
      */
     private function localizedSourceUrls(string $sourceType, string $fallbackPath): array
@@ -470,5 +486,45 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'event_items' => \App\Support\PublicPaths::eventsSegment($locale),
             default => null,
         };
+    }
+
+    private function navigationPath(string $url): string
+    {
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+        if ($path === '') {
+            return '';
+        }
+
+        $segments = explode('/', $path);
+        if (($segments[0] ?? '') === trim($this->lang, '/')) {
+            array_shift($segments);
+        }
+
+        return trim(implode('/', $segments), '/');
+    }
+
+    /**
+     * Resolve the current localized page path without its locale prefix or
+     * query string. A CMS listing page remains navigable when older or
+     * partially migrated block payloads do not include `navigation.url`.
+     */
+    private function currentRequestPath(): string
+    {
+        $request = $this->contextRequest();
+        if ($request === null) {
+            return '';
+        }
+
+        $path = trim((string) $request->getUri()->getPath(), '/');
+        if ($path === '') {
+            return '';
+        }
+
+        $segments = explode('/', $path);
+        if (($segments[0] ?? '') === trim($this->lang, '/')) {
+            array_shift($segments);
+        }
+
+        return trim(implode('/', $segments), '/');
     }
 }

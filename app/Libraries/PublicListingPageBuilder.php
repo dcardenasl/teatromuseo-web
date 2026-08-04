@@ -61,7 +61,6 @@ final class PublicListingPageBuilder
                     'block_key' => 'collection_listing',
                     'block_config' => [
                         'source_type' => $sourceType,
-                        'source_path' => $sourcePath,
                         'per_page' => 12,
                         'order_by' => $spec['order_by'],
                         'order_direction' => $spec['order_direction'],
@@ -87,6 +86,12 @@ final class PublicListingPageBuilder
                         'fallback_image_url' => $spec['fallback_image_url'],
                     ],
                     'block_data' => [],
+                    'navigation' => [
+                        'status' => 'resolved',
+                        'target_type' => 'listing_page',
+                        'target_id' => null,
+                        'url' => lang_url($sourcePath, $lang),
+                    ],
                     'children' => [],
                 ],
             ],

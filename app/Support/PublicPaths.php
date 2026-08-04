@@ -48,6 +48,15 @@ class PublicPaths
         return self::CATALOG_SEGMENTS[$locale] ?? self::CATALOG;
     }
 
+    public static function routePath(string $routeKey, string $locale): ?string
+    {
+        return match ($routeKey) {
+            'events' => self::eventsSegment($locale),
+            'catalog' => self::catalogSegment($locale),
+            default => null,
+        };
+    }
+
     /** @return array<string, string> */
     public static function eventsSegments(): array
     {
@@ -59,4 +68,5 @@ class PublicPaths
     {
         return self::CATALOG_SEGMENTS;
     }
+
 }
