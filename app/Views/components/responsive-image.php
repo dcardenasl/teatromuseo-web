@@ -21,6 +21,7 @@ $decoding = $decoding ?? 'async';
 $attributes = $attributes ?? '';
 $variants = $variants ?? null;
 $responsive = $responsive ?? true;
+$hideOnError = (bool) ($hideOnError ?? false);
 
 if ($src === '') {
     return;
@@ -100,5 +101,5 @@ if (($fetchPriority ?? null) === 'high') {
         fetchpriority="<?= esc($fetchPriority) ?>"
     <?php endif; ?>
     <?= $attributes ?>
-    onerror="this.classList.add('opacity-50'); this.style.objectFit='contain'; this.alt='<?= esc(lang('Site.image_failed_to_load')) ?>';"
+    onerror="<?= $hideOnError ? 'this.style.display=\'none\';' : "this.classList.add('opacity-50'); this.style.objectFit='contain'; this.alt='" . esc(lang('Site.image_failed_to_load')) . "';" ?>"
 >

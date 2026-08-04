@@ -5,11 +5,11 @@
  */
 
 if (!($hasItem ?? false)):
-    $fallbackTitle = $fallbackTitle ?? 'Detalles de Obra';
+    $fallbackTitle = $fallbackTitle ?? lang('Site.catalog_details_preview_title');
 ?>
 <div class="p-8 bg-amber-50 text-center border border-dashed border-amber-300">
-    <h2 class="text-2xl font-bold text-amber-500"><?= esc($fallbackTitle) ?> (Previsualización)</h2>
-    <p class="text-amber-600">Este bloque mostrará los metadatos de la pieza (técnicas, periodo, dimensiones).</p>
+    <h2 class="text-2xl font-bold text-amber-500"><?= esc($fallbackTitle) ?> (<?= esc(lang('Site.preview_label')) ?>)</h2>
+    <p class="text-amber-600"><?= esc(lang('Site.catalog_details_preview_description')) ?></p>
 </div>
 <?php else: ?>
 <section class="section pt-0">

@@ -16,12 +16,13 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
         if (!is_array($event)) {
             return [
                 'hasEvent' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Cabecera de Evento'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.event_header_preview_title')),
             ];
         }
 
-        $title = $event['title'] ?? $event['name'] ?? 'Evento sin título';
-        $summary = $event['localized']['description'] ?? $event['description'] ?? '';
+        $localized = is_array($event['localized'] ?? null) ? $event['localized'] : [];
+        $title = $localized['title'] ?? $localized['name'] ?? $event['title'] ?? $event['name'] ?? lang('Site.event_untitled');
+        $summary = $localized['description'] ?? $event['description'] ?? '';
 
         // No fallback to configString('fallback_image_url', '') here on purpose: that config
         // key holds an admin-authored placeholder meant only for the block-editor preview (the
@@ -59,9 +60,9 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
             'endTimeIso' => $endTimeIso,
             'venue' => $venue,
             'eventTypeLabel' => $eventTypeLabel,
-            'homeLabel' => lang('Site.breadcrumb_home') ?: 'Inicio',
+            'homeLabel' => lang('Site.breadcrumb_home'),
             'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::eventsSegment($this->lang), $this->lang),
-            'breadcrumbLabel' => lang('Site.event_listing_title') ?: 'Cartelera',
+            'breadcrumbLabel' => lang('Site.event_listing_title'),
         ];
     }
 }

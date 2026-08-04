@@ -12,7 +12,7 @@ class EventItemContentViewModel extends AbstractBlockViewModel
         if (!is_array($event)) {
             return [
                 'hasEvent' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Contenido de Evento'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.event_content_preview_title')),
             ];
         }
 

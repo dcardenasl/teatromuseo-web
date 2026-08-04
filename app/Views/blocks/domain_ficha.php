@@ -34,8 +34,8 @@ foreach ($data as $key => $value) {
         <dl class="mt-5 grid gap-3 sm:grid-cols-2">
             <?php foreach ($scalarFields as $key => $value): ?>
                 <div class="rounded-lg bg-slate-50 px-3 py-2">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500"><?= esc(ucwords(str_replace('_', ' ', $key))) ?></dt>
-                    <dd class="mt-1 text-sm text-slate-800"><?= esc($value) ?></dd>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500"><?= esc(\App\Support\PublicDetailLabels::field($key)) ?></dt>
+                    <dd class="mt-1 text-sm text-slate-800"><?= esc(\App\Support\PublicDetailLabels::value($key, $value)) ?></dd>
                 </div>
             <?php endforeach; ?>
         </dl>
@@ -47,7 +47,7 @@ foreach ($data as $key => $value) {
                 if ($references === []) continue;
                 ?>
                 <div>
-                    <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500"><?= esc(ucwords(str_replace('_', ' ', $key))) ?></h3>
+                    <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500"><?= esc(\App\Support\PublicDetailLabels::field($key)) ?></h3>
                     <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                         <?php foreach ($references as $reference): ?>
                             <?= view('blocks/_entry_reference', ['reference' => $reference], ['saveData' => false]) ?>

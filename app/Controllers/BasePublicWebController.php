@@ -117,7 +117,15 @@ abstract class BasePublicWebController extends BaseController
     protected function renderCmsPage(array $page, string $lang, array $context = []): ResponseInterface
     {
         $translation = $this->resolvePageTranslation($page, $lang);
-        $blocks = is_array($page['blocks'] ?? null) ? $page['blocks'] : [];
+        $blocks = is_array($page['blocks'] ?? null)
+            ? array_values(array_filter(
+                $page['blocks'],
+                static fn (mixed $block): bool => is_array($block)
+            ))
+            : [];
+        $blocks = $this->prepareAboutPageBlocks($blocks, $translation, $lang);
+        $isAboutPage = in_array(trim((string) ($translation['slug'] ?? ''), '/'), ['nosotros', 'quienes-somos'], true);
+        $renderContext = array_merge($context, ['is_about_page' => $isAboutPage]);
         $showPageHeading = array_key_exists('showPageHeading', $page)
             ? (bool) $page['showPageHeading']
             : ! $this->pageHasHeroHeading($blocks);
@@ -130,6 +138,11 @@ abstract class BasePublicWebController extends BaseController
             } else {
                 $canonicalUrl = site_url('/' . $lang . '/' . $slug);
             }
+        }
+
+        $routeKey = $this->domainRouteKey($page);
+        if ($routeKey !== null) {
+            $canonicalUrl = lang_url(\App\Support\PublicPaths::routePath($routeKey, $lang), $lang);
         }
 
         $ogImage = $translation['og_image'] ?? null;
@@ -158,11 +171,150 @@ abstract class BasePublicWebController extends BaseController
                 ? (string) $translation['robots']
                 : 'index, follow',
             'schemaData' => $schemaData,
-            'renderedBlocks' => \Config\Services::blockRenderer()->render($blocks, $lang, $context),
+            'renderedBlocks' => \Config\Services::blockRenderer()->render($blocks, $lang, $renderContext),
             'localized_urls' => $this->resolveLocalizedPageUrls($page, $lang),
         ];
 
         return $this->render('page', $data);
+    }
+
+    /**
+     * Keep the public "Quiénes Somos" page readable when old CMS imports have
+     * left repeated block instances behind. The carousel is intentionally kept
+     * as-is: it is the page's strongest visual entry point.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @param array<string, mixed>       $translation
+     * @return list<array<string, mixed>>
+     */
+    private function prepareAboutPageBlocks(array $blocks, array $translation, string $lang): array
+    {
+        $slug = trim((string) ($translation['slug'] ?? ''), '/');
+        if (! in_array($slug, ['nosotros', 'quienes-somos'], true)) {
+            return $blocks;
+        }
+
+        $hasCarousel = in_array('hero_slider', array_map(
+            static fn (array $block): string => (string) ($block['block_key'] ?? ''),
+            $blocks
+        ), true);
+        $seen = [];
+        $prepared = [];
+        $hasTeamGrid = false;
+
+        foreach ($blocks as $block) {
+            $blockKey = (string) ($block['block_key'] ?? '');
+            $hasTeamGrid = $hasTeamGrid || $blockKey === 'team_grid';
+
+            // Compare content rather than database IDs: duplicated imports often
+            // have different instance IDs while carrying the same payload.
+            $fingerprint = $this->blockContentFingerprint($block);
+            $fingerprint = json_encode($fingerprint, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (is_string($fingerprint) && isset($seen[$fingerprint])) {
+                continue;
+            }
+            if (is_string($fingerprint)) {
+                $seen[$fingerprint] = true;
+            }
+
+            // The legacy page is a compact institutional introduction. Keep the
+            // editorial story, mission/vision cards and contact CTA, while the
+            // carousel remains the visual lead. Testimonials, logo marquees and
+            // FAQs belong on dedicated pages and made this page feel repetitive.
+            if ($hasCarousel && in_array($blockKey, ['hero_banner', 'cards_slider', 'asset_showcase', 'accordion'], true)) {
+                continue;
+            }
+
+            if ($blockKey === 'rich_text' && $lang === 'es') {
+                $block['block_data']['content'] = '<p>Desde el año 2007, la Fundación Teatromuseo del títere y el payaso se ha dedicado a promover, difundir y profesionalizar estas artes de la representación en nuestro país. A través de una escuela de formación nacional e internacional, un museo especializado y una sala de teatro con cartelera familiar permanente.</p><p>Somos un equipo de artistas y profesionales de la gestión cultural que creemos en la vida y la risa como herramientas de desarrollo humano.</p>';
+            }
+
+            if ($blockKey === 'team_grid') {
+                $block['block_config']['columns'] = '3';
+            }
+
+            if ($blockKey === 'cards_grid' && is_array($block['children'] ?? null) && $lang === 'es') {
+                $block['block_config']['variant'] = 'institutional';
+                $mission = $block['children'][0] ?? null;
+                $vision = $block['children'][1] ?? null;
+                if (is_array($mission)) {
+                    $mission['block_data']['title'] = 'Nuestra Misión';
+                    $mission['block_data']['description'] = 'Fortalecer, difundir y desarrollar el arte del títere y el payaso, enriqueciendo el patrimonio cultural de nuestro país y formando nuevos exponentes mediante redes, escuelas, encuentros, publicaciones y salas de teatro.';
+                }
+                if (is_array($vision)) {
+                    $vision['block_data']['title'] = 'Nuestra Visión';
+                    $vision['block_data']['description'] = 'Consolidar a la Fundación Teatromuseo como un espacio de investigación y desarrollo de estas artes, logrando que Valparaíso sea reconocido nacional e internacionalmente como la capital cultural del títere y el payaso.';
+                }
+                $block['children'] = array_values(array_filter([$mission, $vision], 'is_array'));
+            }
+
+            $prepared[] = $block;
+        }
+
+        if (! $hasTeamGrid) {
+            $teamBlock = [
+                'id' => 0,
+                'block_key' => 'team_grid',
+                'sort_order' => 8,
+                'parent_instance_id' => null,
+                'block_config' => [
+                    'source_collection' => 'personas',
+                    'items_limit' => 15,
+                    'filter_names' => 'Víctor Quiroga,Paulina Beltrán,Constanza Valenzuela,Diego Zúñiga,Claudio Palacios,Felipe Lira,Tomás Arce,Barbara Quiroga,Kevin Zamora,Javiera Silva',
+                    'columns' => '3',
+                    'css_class' => '',
+                ],
+                'block_data' => [
+                    'title' => 'Nuestro gran equipo',
+                    'description' => '',
+                ],
+                'children' => [],
+            ];
+            $inserted = false;
+            foreach ($prepared as $index => $existingBlock) {
+                if (($existingBlock['block_key'] ?? '') !== 'cta') {
+                    continue;
+                }
+                array_splice($prepared, $index, 0, [$teamBlock]);
+                $inserted = true;
+                break;
+            }
+            if (! $inserted) {
+                $prepared[] = $teamBlock;
+            }
+        }
+
+        usort($prepared, static function (array $left, array $right): int {
+            $priority = static fn (array $block): int => match ((string) ($block['block_key'] ?? '')) {
+                'team_grid' => 8,
+                'cta' => 9,
+                default => (int) ($block['sort_order'] ?? 0),
+            };
+
+            return $priority($left) <=> $priority($right);
+        });
+
+        return $prepared;
+    }
+
+    /**
+     * Remove instance-only fields recursively before comparing imported blocks.
+     *
+     * @param array<string, mixed> $block
+     * @return array<string, mixed>
+     */
+    private function blockContentFingerprint(array $block): array
+    {
+        unset($block['id'], $block['sort_order'], $block['parent_instance_id']);
+
+        if (is_array($block['children'] ?? null)) {
+            $block['children'] = array_map(
+                fn (mixed $child): mixed => is_array($child) ? $this->blockContentFingerprint($child) : $child,
+                $block['children']
+            );
+        }
+
+        return $block;
     }
 
     /**
@@ -269,6 +421,19 @@ abstract class BasePublicWebController extends BaseController
      */
     private function resolveLocalizedPageUrls(array $page, string $lang): array
     {
+        $routeKey = $this->domainRouteKey($page);
+        if ($routeKey !== null) {
+            $localizedUrls = [];
+            foreach (config('App')->supportedLocales as $locale) {
+                $path = \App\Support\PublicPaths::routePath($routeKey, $locale);
+                if ($path !== null) {
+                    $localizedUrls[$locale] = lang_url($path, $locale);
+                }
+            }
+
+            return $localizedUrls;
+        }
+
         $localizedUrls = [];
         $localizedSlugs = is_array($page['localized_slugs'] ?? null) ? $page['localized_slugs'] : [];
         $translations = is_array($page['translations'] ?? null) ? $page['translations'] : [];
@@ -300,6 +465,16 @@ abstract class BasePublicWebController extends BaseController
         }
 
         return $localizedUrls;
+    }
+
+    /** @param array<string, mixed> $page */
+    private function domainRouteKey(array $page): ?string
+    {
+        return match ((string) ($page['page_type'] ?? '')) {
+            'events' => 'events',
+            'catalog_listing' => 'catalog',
+            default => null,
+        };
     }
 
     /**

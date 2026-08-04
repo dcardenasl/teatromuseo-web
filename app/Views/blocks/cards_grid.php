@@ -40,11 +40,13 @@ $variant = (string) ($config['variant'] ?? 'bordered');
 $cssClass = trim((string) ($config['css_class'] ?? ''));
 
 // Map variants to CSS classes
-$cardBaseClass = 'flex flex-col h-full rounded-2xl p-6 transition-all duration-300 ';
+$cardBaseClass = 'flex flex-col h-full p-1 transition-colors duration-300 ';
 if ($variant === 'bordered') {
     $cardVariantClass = 'bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-violet-300 hover:-translate-y-1';
 } elseif ($variant === 'flat') {
     $cardVariantClass = 'bg-slate-50 border border-transparent hover:bg-slate-100/80 hover:-translate-y-1';
+} elseif ($variant === 'institutional') {
+    $cardVariantClass = 'border-t-2 border-primary/70 pt-5';
 } else { // minimal
     $cardVariantClass = 'bg-transparent border border-transparent hover:border-slate-100 hover:bg-slate-50/50';
 }
@@ -65,7 +67,7 @@ if ($variant === 'bordered') {
                     </div>
                 <?php endif; ?>
                 
-                <h3 class="text-lg md:text-xl font-bold text-slate-900 mb-2 leading-tight">
+                <h3 class="text-lg md:text-xl font-bold text-slate-900 mb-2 leading-tight <?= $variant === 'institutional' ? 'uppercase tracking-wide' : '' ?>">
                     <?= esc($card['title']) ?>
                 </h3>
                 

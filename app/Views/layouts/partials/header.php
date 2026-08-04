@@ -24,7 +24,7 @@
         </a>
 
         <!-- Desktop Navigation & Language Switcher Wrapper -->
-        <div class="hidden md:flex items-center gap-4">
+        <div class="hidden xl:flex items-center gap-4">
             <!-- Desktop Navigation Links -->
             <ul class="flex gap-1.5 items-center">
                 <?php foreach (($menu['items'] ?? []) as $item): ?>
@@ -81,7 +81,7 @@
         <button
             id="mobile-menu-toggle"
             data-mobile-menu-toggle
-            class="md:hidden rounded-lg p-2 text-slate-600 transition-all hover:bg-slate-50 hover:text-primary focus:outline-none"
+            class="xl:hidden rounded-lg p-2 text-slate-600 transition-all hover:bg-slate-50 hover:text-primary focus:outline-none"
             aria-label="<?= esc(lang('Site.menu_toggle')) ?>"
             aria-expanded="false"
         >
@@ -92,7 +92,7 @@
     </nav>
 
     <!-- Mobile Navigation Drawer (Hidden on Desktop) -->
-    <div id="mobile-drawer" data-mobile-drawer class="site-drawer fixed left-0 top-[48px] z-40 flex h-[calc(100dvh-48px)] w-full flex-col overflow-hidden bg-white opacity-0 pointer-events-none translate-y-4 transition duration-200 ease-in-out md:hidden" style="max-height:calc(100dvh - 48px);">
+    <div id="mobile-drawer" data-mobile-drawer class="site-drawer fixed left-0 top-[48px] z-40 flex h-[calc(100dvh-48px)] w-full flex-col overflow-hidden bg-white opacity-0 pointer-events-none translate-y-4 transition duration-200 ease-in-out xl:hidden" style="max-height:calc(100dvh - 48px);">
         <div class="flex-1 min-h-0 space-y-6 overflow-y-auto overscroll-contain px-6 py-6 touch-pan-y" style="-webkit-overflow-scrolling: touch; touch-action: pan-y;">
             <ul class="space-y-4">
                 <?php foreach (($menu['items'] ?? []) as $item): ?>

@@ -5,10 +5,10 @@
  */
 
 if (!($hasEvent ?? false)):
-    $fallbackTitle = $fallbackTitle ?? 'Cabecera de Evento';
+    $fallbackTitle = $fallbackTitle ?? lang('Site.event_header_preview_title');
 ?>
 <div class="p-8 bg-slate-50 text-center border border-dashed border-slate-300">
-    <h2 class="text-xl font-bold text-slate-500"><?= esc($fallbackTitle) ?> (Previsualización)</h2>
+    <h2 class="text-xl font-bold text-slate-500"><?= esc($fallbackTitle) ?> (<?= esc(lang('Site.preview_label')) ?>)</h2>
 </div>
 <?php else: ?>
 <!-- ── Breadcrumb ─────────────────────────────────────────────────── -->
@@ -16,7 +16,7 @@ if (!($hasEvent ?? false)):
     <div class="container-narrow py-3">
         <nav class="flex items-center gap-2 text-sm text-text-muted" aria-label="Breadcrumb">
             <a href="<?= lang_url('/') ?>" class="hover:text-primary transition-colors">
-                <?= esc($homeLabel ?? 'Inicio') ?>
+                <?= esc($homeLabel ?? '') ?>
             </a>
             <span aria-hidden="true">/</span>
             <a href="<?= esc($breadcrumbUrl ?? '') ?>" class="hover:text-primary transition-colors">

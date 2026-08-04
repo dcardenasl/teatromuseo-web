@@ -5,10 +5,10 @@
  */
 
 if (!($hasEvent ?? false)):
-    $fallbackTitle = $fallbackTitle ?? 'Galería de Evento';
+    $fallbackTitle = $fallbackTitle ?? lang('Site.event_gallery_preview_title');
 ?>
 <div class="p-8 my-8 bg-slate-50 text-center border border-dashed border-slate-300">
-    <h3 class="text-xl font-bold text-slate-500"><?= esc($fallbackTitle) ?> (Previsualización)</h3>
+    <h3 class="text-xl font-bold text-slate-500"><?= esc($fallbackTitle) ?> (<?= esc(lang('Site.preview_label')) ?>)</h3>
     <p class="text-slate-500">Este bloque mostrará las imágenes secundarias del evento.</p>
 </div>
 <?php else:

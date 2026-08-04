@@ -12,7 +12,7 @@ class CatalogItemGalleryViewModel extends AbstractBlockViewModel
         if (!is_array($item)) {
             return [
                 'hasItem' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Galería de Obra'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.catalog_gallery_preview_title')),
                 'gallery' => [],
             ];
         }

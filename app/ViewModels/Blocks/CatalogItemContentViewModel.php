@@ -12,7 +12,7 @@ class CatalogItemContentViewModel extends AbstractBlockViewModel
         if (!is_array($item)) {
             return [
                 'hasItem' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Contenido de Obra'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.catalog_content_preview_title')),
             ];
         }
 

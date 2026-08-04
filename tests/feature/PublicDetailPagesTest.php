@@ -29,8 +29,12 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
         $result->assertStatus(200);
 
         $body = $result->response()->getBody();
-        $this->assertStringContainsString('Pieza de prueba', $body);
-        $this->assertStringContainsString('Resumen temporal', $body);
+        $this->assertStringContainsString('Pieza localizada', $body);
+        $this->assertStringContainsString('Resumen localizado', $body);
+        $this->assertStringContainsString('Categoría localizada', $body);
+        $this->assertStringContainsString('Técnica localizada', $body);
+        $this->assertStringNotContainsString('English category', $body);
+        $this->assertStringNotContainsString('English technique', $body);
         $this->assertStringContainsString('Vista previa integrada', $body);
         $this->assertStringContainsString('Imágenes de colección', $body);
     }
@@ -66,10 +70,16 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
                 'block_data' => [],
                 'children' => [],
             ],
+            [
+                'block_key' => 'catalog_item_details',
+                'block_config' => [],
+                'block_data' => [],
+                'children' => [],
+            ],
         ];
 
         $this->domainAdapter->fakeGet('public/catalog/categories', [
-            ['id' => 1, 'slug' => 'categorias', 'name' => 'Categoría de prueba'],
+            ['id' => 1, 'slug' => 'categorias', 'name' => 'English category', 'localized' => ['name' => 'Categoría localizada']],
         ]);
 
         $this->domainAdapter->fakeGet('public/catalog/collection-items/TMP-001', [
@@ -77,7 +87,16 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
             'name' => 'Pieza de prueba',
             'inventory_code' => 'TMP-001',
             'summary' => 'Resumen temporal',
+            'localized' => [
+                'name' => 'Pieza localizada',
+                'summary' => 'Resumen localizado',
+                'ubicacion' => 'Ubicación localizada',
+                'curiosidad' => 'Curiosidad localizada',
+            ],
             'category_id' => 1,
+            'techniques' => [
+                ['id' => 3, 'name' => 'English technique', 'localized' => ['name' => 'Técnica localizada']],
+            ],
             'cover_image' => [
                 'url' => 'https://example.com/obra-prueba.jpg',
                 'variants' => [],

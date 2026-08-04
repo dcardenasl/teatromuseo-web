@@ -12,12 +12,13 @@ class CatalogItemHeaderViewModel extends AbstractBlockViewModel
         if (!is_array($item)) {
             return [
                 'hasItem' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Cabecera de Obra'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.catalog_header_preview_title')),
             ];
         }
 
-        $title = $item['name'] ?? 'Obra sin título';
-        $summary = $item['summary'] ?? '';
+        $localized = is_array($item['localized'] ?? null) ? $item['localized'] : [];
+        $title = $localized['name'] ?? $item['name'] ?? lang('Site.catalog_untitled_item');
+        $summary = $localized['summary'] ?? $item['summary'] ?? '';
         $categoryName = trim((string) ($this->context['category_name'] ?? ''));
 
         // No fallback to configString('fallback_image_url', '') here on purpose: that config
@@ -34,9 +35,9 @@ class CatalogItemHeaderViewModel extends AbstractBlockViewModel
             'summary' => $summary,
             'categoryName' => $categoryName,
             'imageUrl' => $imageUrl,
-            'homeLabel' => lang('Site.breadcrumb_home') ?: 'Inicio',
+            'homeLabel' => lang('Site.breadcrumb_home'),
             'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::catalogSegment($this->lang), $this->lang),
-            'breadcrumbLabel' => 'Colección del Museo',
+            'breadcrumbLabel' => lang('Site.museum_collection_title'),
         ];
     }
 }

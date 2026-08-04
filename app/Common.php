@@ -438,7 +438,6 @@ if (! function_exists('cms_block_preview_samples')) {
                 'section_title' => 'Contenido destacado',
                 'section_subtitle' => 'Últimas publicaciones de la colección seleccionada.',
                 'view_all_label' => 'Ver todo',
-                'view_all_url' => '/coleccion',
                 'empty_message' => 'No hay contenido publicado por el momento.',
             ],
             'collection_listing' => [
@@ -506,7 +505,6 @@ if (! function_exists('cms_block_preview_samples')) {
                 'heading' => 'Contact Us',
                 'subheading' => 'We\'d love to hear from you',
                 'breadcrumb_label' => 'Home',
-                'breadcrumb_url' => '/',
             ],
             'contact_info' => [
                 'section_title' => 'Contacto',

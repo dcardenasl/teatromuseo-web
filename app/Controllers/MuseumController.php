@@ -33,7 +33,7 @@ class MuseumController extends BasePublicWebController
         $item = $catalogService->getItem($lang, $idOrCode);
 
         if (!$item) {
-            return $this->notFound(lang('Site.collection_item_not_found') ?: 'Pieza de colección no encontrada');
+            return $this->notFound(lang('Site.collection_item_not_found'));
         }
 
         // Fetch all categories to match the category name
@@ -41,7 +41,8 @@ class MuseumController extends BasePublicWebController
         $categoryName = '';
         foreach ($categories as $cat) {
             if ((int) ($cat['id'] ?? 0) === (int) ($item['category_id'] ?? 0)) {
-                $categoryName = (string) ($cat['name'] ?? '');
+                $localizedCategory = is_array($cat['localized'] ?? null) ? $cat['localized'] : [];
+                $categoryName = (string) ($localizedCategory['name'] ?? $cat['name'] ?? '');
                 break;
             }
         }

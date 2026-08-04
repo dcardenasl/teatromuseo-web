@@ -5,11 +5,11 @@
  */
 
 if (!($hasEvent ?? false)):
-    $fallbackTitle = $fallbackTitle ?? 'Detalles de Evento';
+    $fallbackTitle = $fallbackTitle ?? lang('Site.event_details_preview_title');
 ?>
 <div class="p-8 bg-blue-50 text-center border border-dashed border-blue-300">
-    <h2 class="text-2xl font-bold text-blue-400"><?= esc($fallbackTitle) ?> (Previsualización)</h2>
-    <p class="text-blue-500">Este bloque mostrará la fecha, el lugar, la capacidad y el estado del evento.</p>
+    <h2 class="text-2xl font-bold text-blue-400"><?= esc($fallbackTitle) ?> (<?= esc(lang('Site.preview_label')) ?>)</h2>
+    <p class="text-blue-500"><?= esc(lang('Site.event_details_preview_description')) ?></p>
 </div>
 <?php else: ?>
 <section class="section pt-0">

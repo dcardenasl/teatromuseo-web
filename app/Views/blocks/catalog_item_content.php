@@ -5,11 +5,11 @@
  */
 
 if (!($hasItem ?? false)):
-    $fallbackTitle = $fallbackTitle ?? 'Contenido de Obra';
+    $fallbackTitle = $fallbackTitle ?? lang('Site.catalog_content_preview_title');
 ?>
 <div class="p-8 bg-amber-50 text-center border border-dashed border-amber-300">
-    <h2 class="text-2xl font-bold text-amber-500"><?= esc($fallbackTitle) ?> (Previsualización)</h2>
-    <p class="text-amber-600">Este bloque mostrará la descripción completa de la pieza.</p>
+    <h2 class="text-2xl font-bold text-amber-500"><?= esc($fallbackTitle) ?> (<?= esc(lang('Site.preview_label')) ?>)</h2>
+    <p class="text-amber-600"><?= esc(lang('Site.catalog_content_preview_description')) ?></p>
 </div>
 <?php else: ?>
     <?php if (($content ?? '') !== ''): ?>

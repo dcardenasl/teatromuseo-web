@@ -5,10 +5,10 @@
  */
 
 if (!($hasEvent ?? false)):
-    $fallbackTitle = $fallbackTitle ?? 'Contenido de Evento';
+    $fallbackTitle = $fallbackTitle ?? lang('Site.event_content_preview_title');
 ?>
 <div class="p-8 bg-blue-50 text-center border border-dashed border-blue-300">
-    <h2 class="text-2xl font-bold text-blue-400"><?= esc($fallbackTitle) ?> (Previsualización)</h2>
+    <h2 class="text-2xl font-bold text-blue-400"><?= esc($fallbackTitle) ?> (<?= esc(lang('Site.preview_label')) ?>)</h2>
     <p class="text-blue-500">Este bloque mostrará la descripción completa o sinopsis del evento.</p>
 </div>
 <?php else: ?>

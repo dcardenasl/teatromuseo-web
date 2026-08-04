@@ -12,15 +12,16 @@ class CatalogItemDetailsViewModel extends AbstractBlockViewModel
         if (!is_array($item)) {
             return [
                 'hasItem' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Detalles de Obra'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.catalog_details_preview_title')),
             ];
         }
 
+        $localized = is_array($item['localized'] ?? null) ? $item['localized'] : [];
         $techniques = $this->normalizeTechniques($item);
         $dimensions = (string) ($item['dimensions'] ?? '');
         $period = (string) ($item['period'] ?? '');
-        $location = (string) ($item['ubicacion'] ?? '');
-        $curiosity = (string) ($item['curiosidad'] ?? '');
+        $location = (string) ($localized['ubicacion'] ?? $item['ubicacion'] ?? '');
+        $curiosity = (string) ($localized['curiosidad'] ?? $item['curiosidad'] ?? '');
 
         return [
             'hasItem' => true,
@@ -57,11 +58,11 @@ class CatalogItemDetailsViewModel extends AbstractBlockViewModel
             $appendName($candidates);
         } elseif (is_array($candidates)) {
             if ($candidates !== [] && ! array_is_list($candidates)) {
-                $appendName($candidates['name'] ?? $candidates['title'] ?? $candidates['localized']['name'] ?? null);
+                $appendName($candidates['localized']['name'] ?? $candidates['name'] ?? $candidates['title'] ?? null);
             } else {
                 foreach ($candidates as $candidate) {
                     if (is_array($candidate)) {
-                        $appendName($candidate['name'] ?? $candidate['title'] ?? $candidate['localized']['name'] ?? null);
+                        $appendName($candidate['localized']['name'] ?? $candidate['name'] ?? $candidate['title'] ?? null);
                         continue;
                     }
 

@@ -16,7 +16,7 @@ class EventItemDetailsViewModel extends AbstractBlockViewModel
         if (!is_array($event)) {
             return [
                 'hasEvent' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Detalles de Evento'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.event_details_preview_title')),
             ];
         }
 
@@ -67,10 +67,14 @@ class EventItemDetailsViewModel extends AbstractBlockViewModel
             return '';
         }
 
-        if ($status === 'published') {
-            return (string) (lang('Site.published_label') ?: 'Published');
-        }
+        $statusKey = match ($status) {
+            'published' => 'published_label',
+            'draft' => 'event_status_draft',
+            'cancelled' => 'event_status_cancelled',
+            'sold_out' => 'event_status_sold_out',
+            default => null,
+        };
 
-        return ucwords(str_replace('_', ' ', $status));
+        return $statusKey !== null ? (string) lang('Site.' . $statusKey) : $status;
     }
 }

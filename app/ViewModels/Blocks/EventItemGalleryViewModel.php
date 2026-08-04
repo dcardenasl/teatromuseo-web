@@ -12,7 +12,7 @@ class EventItemGalleryViewModel extends AbstractBlockViewModel
         if (!is_array($event)) {
             return [
                 'hasEvent' => false,
-                'fallbackTitle' => $this->dataString('fallback_title', 'Galería de Evento'),
+                'fallbackTitle' => $this->dataString('fallback_title', lang('Site.event_gallery_preview_title')),
                 'gallery' => [],
             ];
         }
