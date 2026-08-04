@@ -306,7 +306,10 @@ class PageController extends BasePublicWebController
             'articleModifiedTime'  => $articleModifiedTime,
             'metaRobots'          => (isset($translation['robots']) && trim((string) $translation['robots']) !== '') ? $translation['robots'] : 'index, follow',
             'schemaData'          => !empty($translation['schema_data']) ? json_decode($translation['schema_data'], true) : null,
-            'renderedBlocks'      => $blockRenderer->render($entry['blocks'] ?? [], $lang),
+            'renderedBlocks'      => $blockRenderer->render($entry['blocks'] ?? [], $lang, [
+                'featured_image_url' => $featuredImageUrl,
+                'collection_key' => (string) ($collection['collection_key'] ?? ''),
+            ]),
             'localized_urls'      => $this->resolveEntryLocalizedUrls($collection, $entry, $lang, $resolvedSlug),
         ];
 

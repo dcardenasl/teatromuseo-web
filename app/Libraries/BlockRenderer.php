@@ -41,6 +41,8 @@ class BlockRenderer
         'catalog_item_details' => \App\ViewModels\Blocks\CatalogItemDetailsViewModel::class,
         'catalog_item_content' => \App\ViewModels\Blocks\CatalogItemContentViewModel::class,
         'catalog_item_gallery' => \App\ViewModels\Blocks\CatalogItemGalleryViewModel::class,
+        'teatroescuela_ficha' => \App\ViewModels\Blocks\TeatroEscuelaViewModel::class,
+        'curso_ficha' => \App\ViewModels\Blocks\TeatroEscuelaViewModel::class,
     ];
 
     /** @var array<string, array<string, mixed>|null> form definitions pre-loaded per render pass */
@@ -121,6 +123,14 @@ class BlockRenderer
         $config   = $block['block_config'] ?? [];
         $data     = $block['block_data'] ?? [];
         $children = $block['children'] ?? [];
+
+        if ($blockKey === 'gallery_item' && ($context['collection_key'] ?? '') === 'teatroescuela') {
+            $image = is_array($config['image'] ?? null) ? $config['image'] : [];
+            $imageUrl = trim((string) ($image['url'] ?? ''));
+            if ($imageUrl !== '' && $imageUrl === trim((string) ($context['featured_image_url'] ?? ''))) {
+                return '';
+            }
+        }
 
         $renderedChildren = '';
         foreach ($children as $child) {

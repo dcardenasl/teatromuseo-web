@@ -96,7 +96,8 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             'cartelera', 'events', 'eventos', 'obras', 'works', 'noticias', 'news', 'editoriales', 'publicaciones', 'publications', 'prensa', 'press', 'transparencia', 'transparency', 'festivales', 'festivals', 'companias', 'companies' => '1/1',
             'personas', 'people' => '3/4',
             'exposiciones', 'exhibitions' => '2/3',
-            'cursos' => '3/4',
+            'teatroescuela' => '3/4',
+            'cursos' => '3/4', // Compatibility for pre-migration payloads.
             'videos', 'video', 'multimedia' => '16/9',
             default => '4/3',
         };
