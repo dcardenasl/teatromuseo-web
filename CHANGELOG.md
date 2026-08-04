@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Localized public section routes and navigation** — added locale-aware section paths and
+  semantic public navigation for events, catalog listings, contact, history, and TeatroEscuela.
+- **Domain-backed collection grids and event filters** — collection grids can consume domain
+  metadata and public event listings can filter by localized event type.
+- **Collection timeline, team, and press media** — added timeline/team content rendering and
+  press gallery asset support for public editorial pages.
+- **TeatroEscuela activity pages** — added localized activity detail rendering with registration,
+  status, instructors, requirements, and video presentation support.
+- **Collection listing video playback** — public listing cards can expose YouTube/Vimeo videos
+  with poster images, accessible play buttons, and a modal player.
+
 - **Localized catalog and event item rendering** — public listing labels now include catalog and event metadata terms, public listing sources normalize external featured images, and catalog/event detail blocks render headers, details, content, and galleries with locale-aware fallbacks.
 - **Base web controller & service architecture** — introduced `BasePublicWebController` and `BaseSiteService` to unify page resolution, i18n locale handling, SEO metadata, and API domain consumption across the web frontend.
 - **Dynamic public listing page builder** — added `PublicListingPageBuilder` to resolve and render CMS pages of type `events` and `catalog_listing` with dynamic listing blocks and filters.
@@ -28,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   horizontal layout flattens grouped items back to a single row of leaf links.
 
 ### Fixed
+
+- **Nested block and media rendering** — nested layouts, gallery images, and hero media now
+  resolve consistently without placeholder substitution or broken hero links.
+- **Localized public details and slugs** — detail dates, routes, accented slugs, and public
+  content localization now use the correct locale and deterministic normalization.
+- **Footer, social links, and tracking requests** — public footer/social configuration is now
+  respected and tracking requests authenticate correctly.
 
 - **Default public base URL port** — corrected the default/example `app.baseURL` and every
   reference in docs, `init.sh`, and tests from `8186` (the totem app's port) to `8184`.
