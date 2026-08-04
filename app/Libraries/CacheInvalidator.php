@@ -6,6 +6,16 @@ namespace App\Libraries;
 
 class CacheInvalidator
 {
+    private const STATUS_CACHE_KEY = 'public_site_cache_invalidation_status_v1';
+
+    /** @var list<string> */
+    private const VALID_SOURCES = [
+        'cms_automatic',
+        'admin_content_write',
+        'admin_manual',
+        'remote',
+    ];
+
     /** @var list<string> */
     private const VALID_SCOPES = [
         'settings',
@@ -32,7 +42,7 @@ class CacheInvalidator
      * @param list<string> $scopes
      * @return array{invalidated: list<string>, deleted: int}
      */
-    public function invalidate(array $scopes): array
+    public function invalidate(array $scopes, string $source = 'remote'): array
     {
         $cache        = \Config\Services::cache();
         $invalidated  = [];
@@ -55,7 +65,89 @@ class CacheInvalidator
             }
         }
 
+        if ($invalidated !== []) {
+            $this->recordStatus($invalidated, $totalDeleted, $source);
+        }
+
         return ['invalidated' => $invalidated, 'deleted' => $totalDeleted];
+    }
+
+    /**
+     * Return operational metadata for the public-site cache invalidation flow.
+     *
+     * The status item intentionally uses TTL 0 so it survives normal cache
+     * expiry. A full cache clean removes it, in which case the UI reports that
+     * no successful invalidation has been observed since the clean.
+     *
+     * @return array{
+     *     configured: bool,
+     *     handler: string,
+     *     last_invalidation_at: string|null,
+     *     last_invalidation_source: string|null,
+     *     last_invalidation_scopes: list<string>,
+     *     last_deleted: int,
+     *     last_automatic_invalidation_at: string|null,
+     *     last_manual_invalidation_at: string|null
+     * }
+     */
+    public function status(): array
+    {
+        $stored = \Config\Services::cache()->get(self::STATUS_CACHE_KEY);
+        $stored = is_array($stored) ? $stored : [];
+
+        return [
+            'configured' => trim((string) env('CACHE_INVALIDATE_KEY', '')) !== '',
+            'handler' => (string) config('Cache')->handler,
+            'last_invalidation_at' => $this->nullableString($stored['last_invalidation_at'] ?? null),
+            'last_invalidation_source' => $this->nullableString($stored['last_invalidation_source'] ?? null),
+            'last_invalidation_scopes' => $this->stringList($stored['last_invalidation_scopes'] ?? []),
+            'last_deleted' => max(0, (int) ($stored['last_deleted'] ?? 0)),
+            'last_automatic_invalidation_at' => $this->nullableString($stored['last_automatic_invalidation_at'] ?? null),
+            'last_manual_invalidation_at' => $this->nullableString($stored['last_manual_invalidation_at'] ?? null),
+        ];
+    }
+
+    /**
+     * @param list<string> $scopes
+     */
+    private function recordStatus(array $scopes, int $deleted, string $source): void
+    {
+        $now = gmdate('c');
+        $source = trim($source);
+        $source = in_array($source, self::VALID_SOURCES, true) ? $source : 'remote';
+        $status = $this->status();
+        $status['last_invalidation_at'] = $now;
+        $status['last_invalidation_source'] = $source;
+        $status['last_invalidation_scopes'] = array_values($scopes);
+        $status['last_deleted'] = max(0, $deleted);
+
+        if ($source === 'admin_manual') {
+            $status['last_manual_invalidation_at'] = $now;
+        } else {
+            $status['last_automatic_invalidation_at'] = $now;
+        }
+
+        \Config\Services::cache()->save(self::STATUS_CACHE_KEY, $status, 0);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        return is_string($value) && trim($value) !== '' ? $value : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (mixed $item): string => trim((string) $item), $value),
+            static fn (string $item): bool => $item !== '',
+        ));
     }
 
     /** @return list<string> */

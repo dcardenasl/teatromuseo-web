@@ -13,6 +13,7 @@ $routes->get('sitemap.xml', 'SitemapController::index', ['as' => 'sitemap']);
 // Internal cache invalidation — no locale prefix, secured by X-Invalidate-Key header.
 // Throttled: POST endpoints only, so crawlers on GET pages are never rate-limited.
 $routes->post('cache/invalidate', 'CacheController::invalidate', ['as' => 'cache_invalidate', 'filter' => 'throttle:10,60']);
+$routes->get('cache/status', 'CacheController::status', ['as' => 'cache_status', 'filter' => 'throttle:30,60']);
 
 // Dynamic form submissions
 $routes->post('forms/(:segment)/submit', 'FormController::submit/$1', ['as' => 'form_submit', 'filter' => 'throttle:10,60']);

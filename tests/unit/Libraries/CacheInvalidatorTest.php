@@ -100,4 +100,27 @@ final class CacheInvalidatorTest extends CIUnitTestCase
         $this->assertContains('collection_items', $scopes);
         $this->assertCount(13, $scopes);
     }
+
+    public function testStatusTracksAutomaticAndManualInvalidations(): void
+    {
+        putenv('CACHE_INVALIDATE_KEY=test-secret');
+        $_ENV['CACHE_INVALIDATE_KEY'] = 'test-secret';
+
+        $this->invalidator->invalidate(['pages'], 'cms_automatic');
+        $automatic = $this->invalidator->status();
+
+        $this->assertNotNull($automatic['last_automatic_invalidation_at']);
+        $this->assertSame('cms_automatic', $automatic['last_invalidation_source']);
+        $this->assertSame(['pages'], $automatic['last_invalidation_scopes']);
+
+        $this->invalidator->invalidate(['menus'], 'admin_manual');
+        $manual = $this->invalidator->status();
+
+        $this->assertSame($automatic['last_automatic_invalidation_at'], $manual['last_automatic_invalidation_at']);
+        $this->assertNotNull($manual['last_manual_invalidation_at']);
+        $this->assertSame('admin_manual', $manual['last_invalidation_source']);
+
+        putenv('CACHE_INVALIDATE_KEY');
+        unset($_ENV['CACHE_INVALIDATE_KEY']);
+    }
 }

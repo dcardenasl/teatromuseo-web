@@ -49,12 +49,40 @@ class CacheController extends BaseController
                 ->setJSON(['ok' => false, 'message' => 'scopes must be a non-empty array of strings.']);
         }
 
-        $result = service('cacheInvalidator')->invalidate($scopes);
+        $source = $this->request->getHeaderLine('X-Cache-Invalidation-Source');
+        $result = service('cacheInvalidator')->invalidate($scopes, $source !== '' ? $source : 'remote');
 
         return $this->response->setJSON([
             'ok'          => true,
             'invalidated' => $result['invalidated'],
             'deleted'     => $result['deleted'],
         ]);
+    }
+
+    /**
+     * GET /cache/status
+     *
+     * Auth: X-Invalidate-Key header (shared secret, never logged)
+     */
+    public function status(): ResponseInterface
+    {
+        if (! $this->hasValidKey()) {
+            return $this->response
+                ->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)
+                ->setJSON(['ok' => false, 'message' => 'Unauthorized.']);
+        }
+
+        return $this->response->setJSON([
+            'ok' => true,
+            'data' => service('cacheInvalidator')->status(),
+        ]);
+    }
+
+    private function hasValidKey(): bool
+    {
+        $expectedKey = (string) env('CACHE_INVALIDATE_KEY', '');
+        $receivedKey = $this->request->getHeaderLine('X-Invalidate-Key');
+
+        return $expectedKey !== '' && hash_equals($expectedKey, $receivedKey);
     }
 }
