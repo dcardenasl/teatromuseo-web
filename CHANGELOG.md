@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable listing projections** — public collection grids and listings now consume CMS
+  field projections for titles, summaries, dates, images, extra metadata, ordering, and filters.
+- **Structured institutional team details** — About-page team cards now render profession,
+  primary position, and additional roles from persisted CMS content.
 - **Public cache status endpoint** — added a protected endpoint that reports cache backend,
   configuration, last invalidation source, scopes, and deleted-entry counts.
 
@@ -74,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   placeholders, and empty hero destinations are not rendered as broken links.
 
 ### Changed
+
+- **Public listing and download presentation** — listing controls and card metadata follow the
+  configured projection, while shared buttons and document-download actions use the refined site
+  component styling.
 
 - **Institutional team rendering** — the public About page now reads editable team-member
   children and persisted CMS content instead of legacy hardcoded staff and page overrides.
