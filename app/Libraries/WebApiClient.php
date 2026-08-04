@@ -22,7 +22,11 @@ class WebApiClient implements WebApiClientInterface
     // that should invalidate every cached web page response.
     // v5 invalidates responses produced before the Contacto social-link tree
     // was seeded as part of the canonical CMS page block definition.
-    private const CACHE_SCHEMA_VERSION = 5;
+    // v7 invalidates page payloads cached before semantic domain navigation
+    // keys were serialized for localized collection CTAs and entry cards.
+    // v8 invalidates payloads cached before the canonical public slugs and
+    // TeatroEscuela nomenclature were applied to CMS bootstrap data.
+    private const CACHE_SCHEMA_VERSION = 8;
 
     private string $baseUrl;
     private string $apiKey;

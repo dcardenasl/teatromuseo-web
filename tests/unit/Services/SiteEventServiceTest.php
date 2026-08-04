@@ -127,4 +127,28 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $this->assertSame([], $result['data']);
         $this->assertSame([], $result['meta']);
     }
+
+    public function testListEventTypesDiscoversDistinctPublishedTypes(): void
+    {
+        $apiClient = $this->createMock(WebApiClient::class);
+        $apiClient
+            ->expects($this->once())
+            ->method('get')
+            ->with('public/events/types', [], 600, 'event_types')
+            ->willReturn([
+                'ok' => true,
+                'data' => [
+                    ['slug' => 'function', 'name' => 'Función', 'sort_order' => 10],
+                    ['slug' => 'workshop', 'localized' => ['name' => 'Taller'], 'sort_order' => 40],
+                ],
+                'meta' => [],
+            ]);
+
+        $service = new SiteEventService($apiClient);
+
+        $this->assertSame([
+            ['slug' => 'function', 'name' => 'Función', 'sort_order' => 10],
+            ['slug' => 'workshop', 'name' => 'Taller', 'sort_order' => 40],
+        ], $service->listEventTypes('es'));
+    }
 }

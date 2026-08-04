@@ -58,7 +58,6 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
                 'block_key' => 'collection_listing',
                 'block_config' => [
                     'source_type' => 'catalog_items',
-                    'source_path' => 'museo/coleccion',
                     'per_page' => 12,
                     'order_by' => 'name',
                     'order_direction' => 'asc',
@@ -84,6 +83,12 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
                     'empty_message' => 'No hay obras disponibles todavía.',
                 ],
                 'block_data' => [],
+                'navigation' => [
+                    'status' => 'resolved',
+                    'target_type' => 'listing_page',
+                    'target_id' => 1,
+                    'url' => '/es/museo/coleccion',
+                ],
                 'children' => [],
             ]],
         ]));
@@ -138,7 +143,6 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
                 'block_key' => 'collection_listing',
                 'block_config' => [
                     'source_type' => 'event_items',
-                    'source_path' => 'cartelera',
                     'per_page' => 12,
                     'order_by' => 'start_time',
                     'order_direction' => 'asc',
@@ -164,6 +168,12 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
                     'empty_message' => 'No hay eventos disponibles todavía.',
                 ],
                 'block_data' => [],
+                'navigation' => [
+                    'status' => 'resolved',
+                    'target_type' => 'listing_page',
+                    'target_id' => 1,
+                    'url' => '/es/cartelera',
+                ],
                 'children' => [],
             ]],
         ]));
@@ -260,6 +270,21 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
                 ],
             ],
         ], ['total' => 13, 'page' => 1, 'per_page' => 12]);
+
+        $this->domainAdapter->fakeGet('public/events/types', [
+            [
+                'slug' => 'festival',
+                'name' => 'Festival',
+                'sort_order' => 20,
+                'localized' => ['name' => 'Festival'],
+            ],
+            [
+                'slug' => 'function',
+                'name' => 'Función',
+                'sort_order' => 10,
+                'localized' => ['name' => 'Función'],
+            ],
+        ]);
     }
 
     /**

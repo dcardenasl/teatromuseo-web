@@ -49,7 +49,12 @@ class EventItemsSource implements ListingSourceInterface
     {
         $tags = [];
 
-        foreach (['function', 'festival', 'course', 'workshop', 'other'] as $eventType) {
+        foreach ($this->eventService->listEventTypes($lang) as $eventTypeData) {
+            $eventType = (string) ($eventTypeData['slug'] ?? '');
+            if ($eventType === '') {
+                continue;
+            }
+
             $tagQuery = clone $query;
             $tagQuery->tag = $eventType;
             $tagQuery->category = '';
@@ -57,7 +62,7 @@ class EventItemsSource implements ListingSourceInterface
 
             $tags[] = [
                 'slug' => $eventType,
-                'name' => $this->eventTypeLabel($eventType),
+                'name' => (string) ($eventTypeData['name'] ?? $this->eventTypeLabel($eventType)),
                 'url' => ($this->urlBuilder)($tagQuery),
             ];
         }
@@ -75,7 +80,7 @@ class EventItemsSource implements ListingSourceInterface
         }
 
         $entry['title'] = $title;
-        $entry['slug'] = trim((string) ($entry['slug'] ?? ''));
+        $entry['slug'] = trim((string) ($localized['slug'] ?? $entry['slug'] ?? ''));
         if ($entry['slug'] === '') {
             $entry['slug'] = Slug::slugify($title);
         }
@@ -115,10 +120,6 @@ class EventItemsSource implements ListingSourceInterface
         return [
             'order_by' => 'start_time',
             'order_direction' => 'asc',
-            // No 'source_path' here: the public URL segment for this source
-            // type is locale-aware (PublicPaths::eventsSegment()) and is
-            // resolved directly by CollectionListingViewModel, which has
-            // the request locale that this locale-agnostic method lacks.
             'page_title' => lang('Site.event_listing_title'),
             'intro_text' => lang('Site.event_listing_intro'),
             'section_label' => lang('Site.event_listing_section'),
@@ -139,12 +140,13 @@ class EventItemsSource implements ListingSourceInterface
 
     private function eventTypeLabel(string $eventType): string
     {
-        return match ($eventType) {
-            'function' => lang('Site.event_type_function'),
-            'festival' => lang('Site.event_type_festival'),
-            'course' => lang('Site.event_type_course'),
-            'workshop' => lang('Site.event_type_workshop'),
-            default => lang('Site.event_type_other'),
-        };
+        $translationKey = 'Site.event_type_' . $eventType;
+        $translated = lang($translationKey);
+
+        if ($translated !== $translationKey) {
+            return $translated;
+        }
+
+        return ucwords(str_replace(['-', '_'], ' ', $eventType));
     }
 }

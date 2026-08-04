@@ -15,6 +15,7 @@ class CacheInvalidator
         'entries',
         'taxonomies',
         'events',
+        'event_types',
         'categories',
         'techniques',
         'collection_items',

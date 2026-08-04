@@ -96,16 +96,17 @@ class CatalogItemsSource implements ListingSourceInterface
             }
         }
 
-        $title = (string) ($entry['localized']['name'] ?? $entry['name'] ?? $entry['title'] ?? '');
+        $localized = is_array($entry['localized'] ?? null) ? $entry['localized'] : [];
+        $title = (string) ($localized['name'] ?? $entry['name'] ?? $entry['title'] ?? '');
         $entry['title'] = $title;
-        $entry['slug'] = trim((string) ($entry['slug'] ?? $entry['inventory_code'] ?? ''));
+        $entry['slug'] = trim((string) ($localized['slug'] ?? $entry['slug'] ?? $entry['inventory_code'] ?? ''));
         if ($entry['slug'] === '') {
             $entry['slug'] = Slug::slugify($title);
         }
         if ($entry['slug'] === '') {
             $entry['slug'] = (string) ($entry['id'] ?? '');
         }
-        $entry['excerpt'] = (string) ($entry['localized']['summary'] ?? $entry['summary'] ?? '');
+        $entry['excerpt'] = (string) ($localized['summary'] ?? $entry['summary'] ?? '');
         $entry['published_at'] = (string) ($entry['created_at'] ?? $entry['updated_at'] ?? '');
 
         $featuredImage = $entry['cover_image'] ?? $entry['featured_image'] ?? $entry['main_image'] ?? null;
@@ -123,7 +124,7 @@ class CatalogItemsSource implements ListingSourceInterface
 
         $entry['categories'] = $category !== null ? [[
             'slug' => (string) ($category['slug'] ?? ''),
-            'name' => (string) ($category['name'] ?? ''),
+            'name' => (string) ((is_array($category['localized'] ?? null) ? $category['localized']['name'] ?? null : null) ?? $category['name'] ?? ''),
         ]] : [];
         $entry['tags'] = [];
 
@@ -135,10 +136,6 @@ class CatalogItemsSource implements ListingSourceInterface
         return [
             'order_by' => 'name',
             'order_direction' => 'asc',
-            // No 'source_path' here: the public URL segment for this source
-            // type is locale-aware (PublicPaths::catalogSegment()) and is
-            // resolved directly by CollectionListingViewModel, which has
-            // the request locale that this locale-agnostic method lacks.
             'page_title' => lang('Site.museum_collection_title'),
             'intro_text' => lang('Site.museum_collection_intro'),
             'section_label' => lang('Site.museum_collection_section'),

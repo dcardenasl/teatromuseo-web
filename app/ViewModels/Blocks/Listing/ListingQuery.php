@@ -10,6 +10,7 @@ class ListingQuery
         public int $page = 1,
         public int $perPage = 12,
         public string $category = '',
+        public int $categoryId = 0,
         public string $tag = '',
         public string $query = '',
         public string $orderBy = '',
