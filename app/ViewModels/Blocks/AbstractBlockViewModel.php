@@ -170,6 +170,30 @@ abstract class AbstractBlockViewModel
         return $url !== '' ? $url : $fallback;
     }
 
+    protected function publicUrl(string $url, string $fallback = ''): string
+    {
+        $url = trim($url);
+        if ($url === '' || $url === '#') {
+            return $fallback;
+        }
+
+        if (preg_match('/^(https?:)?\/\//', $url)) {
+            return $url;
+        }
+
+        $canonicalPath = \App\Support\PublicPaths::canonicalPath($url, $this->lang);
+        if ($canonicalPath !== null) {
+            $query = parse_url($url, PHP_URL_QUERY);
+            $fragment = parse_url($url, PHP_URL_FRAGMENT);
+            $suffix = $query !== null ? '?' . $query : '';
+            $suffix .= $fragment !== null ? '#' . $fragment : '';
+
+            return lang_url($canonicalPath . $suffix, $this->lang);
+        }
+
+        return lang_url($url, $this->lang);
+    }
+
     /**
      * @return array{source_kind: string, file_id: int|null, url: string}
      */

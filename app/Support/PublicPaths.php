@@ -25,9 +25,9 @@ class PublicPaths
     /** @var array<string, string> */
     private const EVENTS_SEGMENTS = [
         'es' => self::EVENTS,
-        'en' => 'events',
-        'fr' => 'programme',
-        'pt' => 'eventos',
+        'en' => 'programming',
+        'fr' => 'programmation',
+        'pt' => 'programacao',
     ];
 
     /** @var array<string, string> */
@@ -36,6 +36,30 @@ class PublicPaths
         'en' => 'museum/collection',
         'fr' => 'musee/collection',
         'pt' => 'museu/colecao',
+    ];
+
+    /** @var array<string, string> */
+    private const CONTACT_SEGMENTS = [
+        'es' => 'contacto',
+        'en' => 'contact',
+        'fr' => 'contact',
+        'pt' => 'contato',
+    ];
+
+    /** @var array<string, string> */
+    private const HISTORY_SEGMENTS = [
+        'es' => 'historia',
+        'en' => 'history',
+        'fr' => 'histoire',
+        'pt' => 'nossa-historia',
+    ];
+
+    /** @var array<string, string> */
+    private const THEATRE_SCHOOL_SEGMENTS = [
+        'es' => 'teatroescuela',
+        'en' => 'theaterschool',
+        'fr' => 'theatreecole',
+        'pt' => 'escola-de-teatro',
     ];
 
     public static function eventsSegment(string $locale): string
@@ -53,8 +77,57 @@ class PublicPaths
         return match ($routeKey) {
             'events' => self::eventsSegment($locale),
             'catalog' => self::catalogSegment($locale),
+            'contact' => self::CONTACT_SEGMENTS[$locale] ?? self::CONTACT_SEGMENTS['es'],
+            'history' => self::HISTORY_SEGMENTS[$locale] ?? self::HISTORY_SEGMENTS['es'],
+            'theatre_school' => self::THEATRE_SCHOOL_SEGMENTS[$locale] ?? self::THEATRE_SCHOOL_SEGMENTS['es'],
             default => null,
         };
+    }
+
+    /**
+     * Resolve known legacy/editorial aliases to the canonical public path.
+     *
+     * CMS URLs are authored without a locale prefix. This keeps old content
+     * valid after localized public slugs change, while unknown custom URLs
+     * continue through the normal URL handling path.
+     */
+    public static function canonicalPath(string $path, string $locale): ?string
+    {
+        $normalized = trim((string) (parse_url(trim($path), PHP_URL_PATH) ?? ''), '/');
+
+        if ($normalized === '') {
+            return '/';
+        }
+
+        $aliases = [
+            'cartelera' => 'events',
+            'events' => 'events',
+            'programme' => 'events',
+            'eventos' => 'events',
+            'programming' => 'events',
+            'programmation' => 'events',
+            'programacao' => 'events',
+            'museo/coleccion' => 'catalog',
+            'museum/collection' => 'catalog',
+            'musee/collection' => 'catalog',
+            'museu/colecao' => 'catalog',
+            'contacto' => 'contact',
+            'contact' => 'contact',
+            'contato' => 'contact',
+            'historia' => 'history',
+            'history' => 'history',
+            'histoire' => 'history',
+            'nossa-historia' => 'history',
+            'cursos' => 'theatre_school',
+            'teatroescuela' => 'theatre_school',
+            'theaterschool' => 'theatre_school',
+            'theatreecole' => 'theatre_school',
+            'escola-de-teatro' => 'theatre_school',
+        ];
+
+        $routeKey = $aliases[$normalized] ?? null;
+
+        return $routeKey !== null ? '/' . self::routePath($routeKey, $locale) : null;
     }
 
     /** @return array<string, string> */

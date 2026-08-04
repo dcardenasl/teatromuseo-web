@@ -33,7 +33,7 @@ $routes->get('{locale}/sitemap.xml', 'SitemapController::index', ['as' => 'sitem
 
 // Museum Catalog and Event / Shows routes — one route group per configured
 // locale, each using that locale's own path segment (e.g. es/cartelera,
-// en/events, fr/programme). CI4's `{locale}` placeholder can't vary the
+// en/programming, fr/programmation). CI4's `{locale}` placeholder can't vary the
 // literal segment that follows it within a single route group, so each
 // locale gets its own group instead; BaseController::initController() still
 // derives the actual request locale from URL segment 1 regardless of which
