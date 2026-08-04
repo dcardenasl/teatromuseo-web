@@ -34,16 +34,28 @@ $shellClass = $presentationMode === 'inline_preview'
 
 $showInlinePreview = $presentationMode === 'inline_preview';
 $showModalPreview = $presentationMode === 'modal_preview';
+$title = trim((string) ($data['title'] ?? ''));
+$description = trim((string) ($data['description'] ?? ''));
 $openImageLabel = lang('Site.gallery_open_image');
 $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
 ?>
 
-<div
+<section
     data-gallery-root
     data-gallery-id="<?= esc($galleryId) ?>"
     data-gallery-mode="<?= esc($presentationMode) ?>"
     class="<?= esc($shellClass) ?> <?= esc($cssClass) ?>"
 >
+    <?php if ($title !== '' || $description !== ''): ?>
+        <header class="mb-6 max-w-3xl">
+            <?php if ($title !== ''): ?>
+                <h2 class="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl"><?= esc($title) ?></h2>
+            <?php endif; ?>
+            <?php if ($description !== ''): ?>
+                <p class="mt-2 text-base leading-7 text-slate-600"><?= esc($description) ?></p>
+            <?php endif; ?>
+        </header>
+    <?php endif; ?>
     <?php if ($showInlinePreview): ?>
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
             <div class="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
@@ -165,7 +177,7 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
             </div>
         </div>
     <?php endif; ?>
-</div>
+</section>
 
 <script>
 (function () {
