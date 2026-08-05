@@ -8,16 +8,11 @@ Social media links are managed through the **SocialLinksService** with automatic
 
 ## Supported Networks
 
-The system supports 8 social networks (displayed in this order):
+The system supports 3 social networks (displayed in this order):
 
 1. **Facebook** (`social_facebook`)
 2. **Instagram** (`social_instagram`)
-3. **Twitter / X** (`social_twitter`)
-4. **LinkedIn** (`social_linkedin`)
-5. **YouTube** (`social_youtube`)
-6. **TikTok** (`social_tiktok`)
-7. **Pinterest** (`social_pinterest`)
-8. **GitHub** (`social_github`)
+3. **YouTube** (`social_youtube`)
 
 ## Configuration Methods
 
@@ -41,12 +36,7 @@ Update `.env` in the web application:
 
 SOCIAL_FACEBOOK=https://facebook.com/yourpage
 SOCIAL_INSTAGRAM=https://instagram.com/yourprofile
-SOCIAL_TWITTER=https://twitter.com/yourhandle
-SOCIAL_LINKEDIN=https://linkedin.com/company/yourcompany
 SOCIAL_YOUTUBE=https://youtube.com/@yourchannel
-SOCIAL_TIKTOK=https://tiktok.com/@yourprofile
-SOCIAL_PINTEREST=https://pinterest.com/yourprofile
-SOCIAL_GITHUB=https://github.com/yourprofile
 ```
 
 Then sync to the API:
@@ -131,12 +121,7 @@ Example output:
 
 ✅ SOCIAL_FACEBOOK         https://facebook.com/yourpage
 ✅ SOCIAL_INSTAGRAM        https://instagram.com/yourprofile
-⚫ SOCIAL_TWITTER          (not set)
-✅ SOCIAL_LINKEDIN         https://linkedin.com/company/xyz
-⚫ SOCIAL_YOUTUBE          (not set)
-⚫ SOCIAL_TIKTOK           (not set)
-⚫ SOCIAL_PINTEREST        (not set)
-⚫ SOCIAL_GITHUB           (not set)
+✅ SOCIAL_YOUTUBE          https://youtube.com/@yourchannel
 ```
 
 ### Sync from .env
@@ -240,12 +225,7 @@ php -r "apcu_clear_cache();"
 ```bash
 SOCIAL_FACEBOOK=https://facebook.com/mycompany
 SOCIAL_INSTAGRAM=https://instagram.com/mycompany
-SOCIAL_TWITTER=https://twitter.com/mycompany
-SOCIAL_LINKEDIN=https://linkedin.com/company/mycompany
 SOCIAL_YOUTUBE=https://youtube.com/@mycompany
-SOCIAL_TIKTOK=https://tiktok.com/@mycompany
-SOCIAL_PINTEREST=https://pinterest.com/mycompany
-SOCIAL_GITHUB=https://github.com/mycompany
 ```
 
 ### Partial Configuration
@@ -267,5 +247,5 @@ Result: Only Facebook and Instagram links show in footer.
 
 ---
 
-**Last Updated**: 2026-07-14  
+**Last Updated**: 2026-08-05
 **System**: CI4 Website Builder Web

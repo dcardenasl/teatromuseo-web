@@ -23,12 +23,7 @@ class SyncSocialLinks extends BaseCommand
         $socialNetworks = [
             'SOCIAL_FACEBOOK' => 'social_facebook',
             'SOCIAL_INSTAGRAM' => 'social_instagram',
-            'SOCIAL_TWITTER' => 'social_twitter',
-            'SOCIAL_LINKEDIN' => 'social_linkedin',
             'SOCIAL_YOUTUBE' => 'social_youtube',
-            'SOCIAL_TIKTOK' => 'social_tiktok',
-            'SOCIAL_PINTEREST' => 'social_pinterest',
-            'SOCIAL_GITHUB' => 'social_github',
         ];
 
         $config = [];

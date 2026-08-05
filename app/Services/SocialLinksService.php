@@ -17,12 +17,7 @@ class SocialLinksService extends BaseSiteService
     private const SOCIAL_NETWORKS = [
         ['key' => 'social_facebook', 'label' => 'Facebook', 'domain' => 'facebook.com'],
         ['key' => 'social_instagram', 'label' => 'Instagram', 'domain' => 'instagram.com'],
-        ['key' => 'social_twitter', 'label' => 'Twitter / X', 'domain' => 'twitter.com|x.com'],
-        ['key' => 'social_linkedin', 'label' => 'LinkedIn', 'domain' => 'linkedin.com'],
         ['key' => 'social_youtube', 'label' => 'YouTube', 'domain' => 'youtube.com|youtu.be'],
-        ['key' => 'social_tiktok', 'label' => 'TikTok', 'domain' => 'tiktok.com'],
-        ['key' => 'social_pinterest', 'label' => 'Pinterest', 'domain' => 'pinterest.com'],
-        ['key' => 'social_github', 'label' => 'GitHub', 'domain' => 'github.com'],
     ];
 
     /**
