@@ -5,7 +5,7 @@ $defaultLocale = $siteConfig->defaultLocale ?? ($supportedLocales[0] ?? service(
 
 $resolvedTitle = (isset($pageTitle) && trim((string) $pageTitle) !== '')
     ? $pageTitle
-    : ($settings['site_name'] ?? $settings['site_title'] ?? lang('Site.site_default_name'));
+    : ($settings['site_name'] ?? lang('Site.site_default_name'));
 $resolvedDescription = (isset($metaDescription) && trim((string) $metaDescription) !== '')
     ? $metaDescription
     : ($settings['site_description'] ?? trim($resolvedTitle));
@@ -29,7 +29,7 @@ $resolvedCanonicalUrl = $canonicalUrl ?? site_url(service('request')->getPath())
 $resolvedSchemaData = $schemaData ?? null;
 if (! is_array($resolvedSchemaData) || $resolvedSchemaData === []) {
     if ($resolvedOgType === 'article') {
-        $siteName = (string) ($settings['site_name'] ?? $settings['site_title'] ?? '');
+        $siteName = (string) ($settings['site_name'] ?? '');
         $publisher = $siteName !== '' || $siteLogoUrl !== ''
             ? array_filter([
                 '@type' => 'Organization',

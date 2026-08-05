@@ -1,12 +1,12 @@
 <footer class="custom-footer border-t py-16 mt-20">
     <style>
         .custom-footer {
-            background-color: <?= esc($settings['footer_bg_color'] ?? '#f8fafc') ?>;
-            color: <?= esc($settings['footer_text_color'] ?? '#475569') ?>;
-            border-color: <?= esc($settings['footer_border_color'] ?? '#e2e8f0') ?>;
+            background-color: #f8fafc;
+            color: #475569;
+            border-color: #e2e8f0;
         }
         .custom-footer a {
-            color: <?= esc($settings['footer_text_color'] ?? '#475569') ?>;
+            color: #475569;
             opacity: 0.85;
             transition: all 0.15s ease-in-out;
         }
@@ -17,28 +17,20 @@
         .custom-footer .section-eyebrow,
         .custom-footer .section-copy,
         .custom-footer p {
-            color: <?= esc($settings['footer_text_color'] ?? '#475569') ?>;
+            color: #475569;
         }
         .custom-footer .section-eyebrow {
             opacity: 0.6;
         }
         .custom-footer .border-t,
         .custom-footer .border-b {
-            border-color: <?= esc($settings['footer_border_color'] ?? '#e2e8f0') ?>;
+            border-color: #e2e8f0;
         }
     </style>
     <?php
-    $siteFooterLogoUrl = is_array($settings['site_footer_logo'] ?? null)
-        ? (string) ($settings['site_footer_logo']['url'] ?? '')
-        : '';
-    if ($siteFooterLogoUrl === '') {
-        $siteFooterLogoUrl = is_array($settings['site_logo'] ?? null)
-            ? (string) ($settings['site_logo']['url'] ?? '')
-            : '';
-    }
-    if ($siteFooterLogoUrl === '') {
-        $siteFooterLogoUrl = (string) ($settings['site_footer_logo_url'] ?? ($settings['site_logo_url'] ?? ''));
-    }
+    $siteFooterLogoUrl = is_array($settings['site_logo'] ?? null)
+        ? (string) ($settings['site_logo']['url'] ?? '')
+        : (string) ($settings['site_logo_url'] ?? '');
     ?>
     <?php
     $footerLayout = in_array(($settings['footer_menu_layout'] ?? null), ['horizontal', 'vertical'], true)
@@ -108,7 +100,7 @@
                             'src'      => $siteFooterLogoUrl,
                             'alt'      => $settings['site_name'] ?? lang('Site.site_logo_alt'),
                             'class'    => 'h-10 w-auto',
-                            'variants' => ($settings['site_footer_logo']['variants'] ?? ($settings['site_logo']['variants'] ?? null)),
+                            'variants' => ($settings['site_logo']['variants'] ?? null),
                         ], ['saveData' => false]) ?>
                     <?php else: ?>
                         <span class="text-lg font-bold text-primary"><?= esc($settings['site_name'] ?? lang('Site.site_default_name')) ?></span>
@@ -206,7 +198,7 @@
                 <!-- Horizontal Layout for Legal Menu -->
                 <div class="flex flex-col md:flex-row items-center justify-between gap-6">
                     <div class="text-xs opacity-75 order-2 md:order-1 text-center md:text-left">
-                        <p><?= esc($settings['site_copyright'] ?? lang('Site.footer_default_copyright', [date('Y'), $settings['site_title'] ?? lang('Site.site_default_name')])) ?></p>
+                        <p><?= esc($settings['site_copyright'] ?? lang('Site.footer_default_copyright', [date('Y'), $settings['site_name'] ?? lang('Site.site_default_name')])) ?></p>
                     </div>
                     <div class="flex flex-wrap justify-center items-center text-xs order-1 md:order-2">
                         <?php foreach ($legalMenu['items'] as $idx => $item): ?>
@@ -221,7 +213,7 @@
                 </div>
             <?php else: ?>
                 <div class="text-center text-xs opacity-75">
-                    <p><?= esc($settings['site_copyright'] ?? lang('Site.footer_default_copyright', [date('Y'), $settings['site_title'] ?? lang('Site.site_default_name')])) ?></p>
+                    <p><?= esc($settings['site_copyright'] ?? lang('Site.footer_default_copyright', [date('Y'), $settings['site_name'] ?? lang('Site.site_default_name')])) ?></p>
                 </div>
             <?php endif; ?>
         </div>

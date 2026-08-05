@@ -21,35 +21,26 @@ final class SiteSettingsServiceTest extends CIUnitTestCase
         return new SiteSettingsService($apiClient);
     }
 
-    public function testGetContactDefaultsReturnsSeededValues(): void
+    public function testGetAllReturnsPublicSettings(): void
     {
         $service = $this->makeService([
             'ok' => true,
             'data' => [
-                'contact_admin_email' => 'contacto@example.com',
-                'contact_from_email' => 'no-reply@example.com',
-                'contact_site_name' => 'Mi Sitio',
-                'contact_autoreply_message' => 'Gracias por escribirnos.',
+                'site_name' => 'Teatro Museo',
+                'site_description' => 'Sitio público.',
             ],
         ]);
 
-        $defaults = $service->getContactDefaults();
+        $settings = $service->getAll();
 
-        $this->assertSame('contacto@example.com', $defaults['contact_admin_email']);
-        $this->assertSame('no-reply@example.com', $defaults['contact_from_email']);
-        $this->assertSame('Mi Sitio', $defaults['contact_site_name']);
-        $this->assertSame('Gracias por escribirnos.', $defaults['contact_autoreply_message']);
+        $this->assertSame('Teatro Museo', $settings['site_name']);
+        $this->assertSame('Sitio público.', $settings['site_description']);
     }
 
-    public function testGetContactDefaultsFallsBackToEmptyStringsWhenApiFails(): void
+    public function testGetReturnsDefaultWhenApiFailsOrKeyIsMissing(): void
     {
         $service = $this->makeService(['ok' => false, 'data' => null]);
 
-        $defaults = $service->getContactDefaults();
-
-        $this->assertSame('', $defaults['contact_admin_email']);
-        $this->assertSame('', $defaults['contact_from_email']);
-        $this->assertSame('', $defaults['contact_site_name']);
-        $this->assertSame('', $defaults['contact_autoreply_message']);
+        $this->assertSame('fallback', $service->get('missing_key', 'fallback'));
     }
 }
