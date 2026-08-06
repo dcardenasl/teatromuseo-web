@@ -189,7 +189,11 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
                     'title' => 'Tupuna, rostros vivos',
                     'slug' => 'tupuna-rostros-vivos',
                 ],
-                'start_time' => '2026-07-26 16:30:00',
+                'occurrences' => [[
+                    'start_time' => '2026-07-26 16:30:00',
+                    'end_time' => '2026-07-26 18:30:00',
+                    'timezone' => 'America/Santiago',
+                ]],
             ]], 'meta' => ['pagination' => ['total' => 1]]]
         ));
 

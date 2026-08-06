@@ -150,9 +150,12 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
                 'title' => 'Festival Uno',
                 'description' => 'Descripción del festival uno.',
             ],
-            'start_time' => '2026-08-01 19:00:00',
-            'end_time' => '2026-08-01 21:00:00',
-            'venue' => 'Sala Principal',
+            'occurrences' => [[
+                'start_time' => '2026-08-01 19:00:00',
+                'end_time' => '2026-08-01 21:00:00',
+                'venue_name' => 'Sala Principal',
+                'timezone' => 'America/Santiago',
+            ]],
             'status' => 'published',
             'cover_image' => [
                 'url' => 'https://example.com/festival-uno.jpg',

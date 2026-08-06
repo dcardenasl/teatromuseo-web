@@ -241,9 +241,12 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
                     'title' => 'Festival Uno',
                     'description' => 'Descripción del festival uno.',
                 ],
-                'start_time' => '2026-08-01 19:00:00',
-                'end_time' => '2026-08-01 21:00:00',
-                'venue' => 'Sala Principal',
+                'occurrences' => [[
+                    'start_time' => '2026-08-01 19:00:00',
+                    'end_time' => '2026-08-01 21:00:00',
+                    'venue_name' => 'Sala Principal',
+                    'timezone' => 'America/Santiago',
+                ]],
                 'status' => 'published',
                 'cover_image' => [
                     'url' => 'https://example.com/festival-uno.jpg',
@@ -260,9 +263,12 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
                     'title' => 'Función Dos',
                     'description' => 'Descripción de la función dos.',
                 ],
-                'start_time' => '2026-08-02 19:00:00',
-                'end_time' => '2026-08-02 21:00:00',
-                'venue' => 'Sala Secundaria',
+                'occurrences' => [[
+                    'start_time' => '2026-08-02 19:00:00',
+                    'end_time' => '2026-08-02 21:00:00',
+                    'venue_name' => 'Sala Secundaria',
+                    'timezone' => 'America/Santiago',
+                ]],
                 'status' => 'published',
                 'cover_image' => [
                     'url' => 'https://example.com/funcion-dos.jpg',

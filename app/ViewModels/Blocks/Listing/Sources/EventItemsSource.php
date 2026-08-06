@@ -25,9 +25,13 @@ class EventItemsSource implements ListingSourceInterface
         $apiQuery = [
             'page' => $query->page,
             'per_page' => $query->perPage,
-            'sort' => ($query->orderDirection === 'desc' ? '-' : '') . $this->apiSortField($query->orderBy),
             'filter' => ['status' => 'published'],
         ];
+
+        $sort = $this->apiSortField($query->orderBy);
+        if ($sort !== '') {
+            $apiQuery['sort'] = ($query->orderDirection === 'desc' ? '-' : '') . $sort;
+        }
 
         if ($query->query !== '') {
             $apiQuery['search'] = $query->query;
@@ -91,7 +95,11 @@ class EventItemsSource implements ListingSourceInterface
             $entry['slug'] = (string) ($entry['id'] ?? '');
         }
         $entry['excerpt'] = (string) ($localized['description'] ?? $entry['description'] ?? '');
-        $entry['published_at'] = (string) ($entry['start_time'] ?? '');
+        $occurrence = $this->selectOccurrence($entry['occurrences'] ?? null);
+        $entry['next_occurrence'] = $occurrence;
+        $entry['start_time'] = (string) ($occurrence['start_time'] ?? '');
+        $entry['end_time'] = (string) ($occurrence['end_time'] ?? '');
+        $entry['published_at'] = $entry['start_time'];
 
         $featuredImage = $entry['cover_image'] ?? $entry['featured_image'] ?? null;
         if (is_array($featuredImage)) {
@@ -155,11 +163,32 @@ class EventItemsSource implements ListingSourceInterface
         return match (trim($field)) {
             'entry.title', 'title' => 'title',
             'entry.event_type', 'event_type' => 'event_type',
-            'entry.end_time', 'end_time' => 'end_time',
-            'entry.venue', 'venue' => 'venue',
             'entry.slug', 'slug' => 'slug',
-            'entry.start_time', 'start_time', '' => 'start_time',
-            default => 'start_time',
+            'entry.start_time', 'start_time', '' => '',
+            default => '',
         };
+    }
+
+    /** @return array<string, mixed> */
+    private function selectOccurrence(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $last = [];
+        $now = time();
+        foreach ($value as $occurrence) {
+            if (! is_array($occurrence)) {
+                continue;
+            }
+            $last = $occurrence;
+            $start = strtotime((string) ($occurrence['start_time'] ?? ''));
+            if ($start !== false && $start >= $now) {
+                return $occurrence;
+            }
+        }
+
+        return $last;
     }
 }

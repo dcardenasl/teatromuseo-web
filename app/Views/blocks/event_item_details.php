@@ -16,15 +16,19 @@ if (!($hasEvent ?? false)):
     <div class="container-narrow">
         <h3 class="text-xl font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm border-b border-slate-100 pb-3"><?= esc(lang('Site.event_technical_details_title')) ?></h3>
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
-            <?php if (($startTime ?? '') !== ''): ?>
+            <?php if (!empty($occurrences ?? [])): ?>
             <div class="sm:col-span-1">
                 <dt class="text-sm font-medium text-text-muted"><?= esc(lang('Site.event_schedule_label')) ?></dt>
-                <dd class="mt-1 text-base text-text-primary">
-                    <time datetime="<?= esc($startTimeIso ?? '') ?>"><?= esc($startTime) ?></time>
-                    <?php if (($endTime ?? '') !== ''): ?>
-                        <span aria-hidden="true"> - </span>
-                        <time datetime="<?= esc($endTimeIso ?? '') ?>"><?= esc($endTime) ?></time>
-                    <?php endif; ?>
+                <dd class="mt-1 space-y-2 text-base text-text-primary">
+                    <?php foreach (($occurrences ?? []) as $occurrence): ?>
+                        <div>
+                            <time datetime="<?= esc($occurrence['start_iso'] ?? '') ?>"><?= esc($occurrence['start_label'] ?? '') ?></time>
+                            <?php if (($occurrence['end_label'] ?? '') !== ''): ?>
+                                <span aria-hidden="true"> - </span>
+                                <time datetime="<?= esc($occurrence['end_iso'] ?? '') ?>"><?= esc($occurrence['end_label']) ?></time>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
                 </dd>
             </div>
             <?php endif; ?>

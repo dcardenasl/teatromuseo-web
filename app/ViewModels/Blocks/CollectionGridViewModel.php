@@ -303,11 +303,9 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         return match (trim($field)) {
             'entry.title', 'title' => 'title',
             'entry.event_type', 'event_type' => 'event_type',
-            'entry.end_time', 'end_time' => 'end_time',
-            'entry.venue', 'venue' => 'venue',
             'entry.slug', 'slug' => 'slug',
-            'entry.start_time', 'start_time', '' => 'start_time',
-            default => 'start_time',
+            'entry.start_time', 'start_time', '' => '',
+            default => '',
         };
     }
 

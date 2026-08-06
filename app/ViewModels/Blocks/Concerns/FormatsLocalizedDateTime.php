@@ -12,22 +12,24 @@ namespace App\ViewModels\Blocks\Concerns;
  */
 trait FormatsLocalizedDateTime
 {
-    protected function formatIsoDateTime(string $value): string
+    protected function formatIsoDateTime(string $value, string $timezone = 'America/Santiago'): string
     {
-        $timestamp = $this->parseTimestamp($value);
-        if ($timestamp === null) {
+        $date = $this->parseDateTime($value, $timezone);
+        if ($date === null) {
             return '';
         }
 
-        return date(DATE_ATOM, $timestamp);
+        return $date->format(DATE_ATOM);
     }
 
-    protected function formatDisplayDateTime(string $value, string $lang): string
+    protected function formatDisplayDateTime(string $value, string $lang, string $timezone = 'America/Santiago'): string
     {
-        $timestamp = $this->parseTimestamp($value);
-        if ($timestamp === null) {
+        $date = $this->parseDateTime($value, $timezone);
+        if ($date === null) {
             return '';
         }
+
+        $timestamp = $date->getTimestamp();
 
         if (class_exists(\IntlDateFormatter::class)) {
             $formatter = new \IntlDateFormatter(
@@ -35,24 +37,27 @@ trait FormatsLocalizedDateTime
                 \IntlDateFormatter::MEDIUM,
                 \IntlDateFormatter::SHORT,
             );
+            $formatter->setTimeZone($date->getTimezone());
             $formatted = $formatter->format($timestamp);
             if (is_string($formatted) && $formatted !== '') {
                 return $formatted;
             }
         }
 
-        return date('d-m-Y H:i', $timestamp);
+        return $date->format('d-m-Y H:i');
     }
 
-    private function parseTimestamp(string $value): ?int
+    private function parseDateTime(string $value, string $timezone): ?\DateTimeImmutable
     {
         if ($value === '') {
             return null;
         }
 
-        $timestamp = strtotime($value);
-
-        return $timestamp === false ? null : $timestamp;
+        try {
+            return new \DateTimeImmutable($value, new \DateTimeZone($timezone));
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     private function intlLocale(string $lang): string

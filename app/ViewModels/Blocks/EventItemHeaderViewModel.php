@@ -32,13 +32,15 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
         $image = $event['cover_image'] ?? $event['featured_image'] ?? null;
         $imageUrl = is_array($image) ? ($image['url'] ?? '') : (is_string($image) ? $image : '');
 
-        $startTime = (string) ($event['start_time'] ?? '');
-        $endTime = (string) ($event['end_time'] ?? '');
-        $startTimeLabel = $this->formatDisplayDateTime($startTime, $this->lang);
-        $endTimeLabel = $this->formatDisplayDateTime($endTime, $this->lang);
-        $startTimeIso = $this->formatIsoDateTime($startTime);
-        $endTimeIso = $this->formatIsoDateTime($endTime);
-        $venue = (string) ($event['venue'] ?? '');
+        $occurrence = $this->selectOccurrence($event['occurrences'] ?? null);
+        $timezone = (string) ($occurrence['timezone'] ?? 'America/Santiago');
+        $startTime = (string) ($occurrence['start_time'] ?? '');
+        $endTime = (string) ($occurrence['end_time'] ?? '');
+        $startTimeLabel = $this->formatDisplayDateTime($startTime, $this->lang, $timezone);
+        $endTimeLabel = $this->formatDisplayDateTime($endTime, $this->lang, $timezone);
+        $startTimeIso = $this->formatIsoDateTime($startTime, $timezone);
+        $endTimeIso = $this->formatIsoDateTime($endTime, $timezone);
+        $venue = (string) ($occurrence['venue_name'] ?? '');
         $eventType = (string) ($event['event_type'] ?? '');
 
         $eventTypeLabel = match ($eventType) {
@@ -64,5 +66,28 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
             'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::eventsSegment($this->lang), $this->lang),
             'breadcrumbLabel' => lang('Site.event_listing_title'),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function selectOccurrence(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $last = [];
+        $now = time();
+        foreach ($value as $occurrence) {
+            if (! is_array($occurrence)) {
+                continue;
+            }
+            $last = $occurrence;
+            $start = strtotime((string) ($occurrence['start_time'] ?? ''));
+            if ($start !== false && $start >= $now) {
+                return $occurrence;
+            }
+        }
+
+        return $last;
     }
 }
