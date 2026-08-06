@@ -60,7 +60,7 @@
         "test:fixture-policy": "php scripts/check-test-fixture-policy.php",
         "test:e2e": "phpunit --testsuite=E2E --no-coverage",
         "test:coverage": "phpunit",
-        "coverage:check": "php scripts/check-coverage.php 54.75 build/logs/clover.xml",
+        "coverage:check": "php scripts/check-coverage.php 60 tests/coverage/clover.xml",
         "test:seo": "phpunit tests/feature/SeoMarkupTest.php --no-coverage",
         "analyse": "phpstan analyse --memory-limit=512M",
         "format": "php-cs-fixer fix",

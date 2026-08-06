@@ -16,7 +16,7 @@
         ignoreDeprecatedCodeUnits="true"
         disableCodeCoverageIgnore="true">
         <report>
-            <clover outputFile="build/logs/clover.xml"/>
+            <clover outputFile="tests/coverage/clover.xml"/>
             <html outputDirectory="build/logs/html"/>
             <php outputFile="build/logs/coverage.serialized"/>
             <text outputFile="php://stdout" showUncoveredFiles="false"/>

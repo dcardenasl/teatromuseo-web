@@ -56,29 +56,14 @@ jobs:
           echo 'WEB_API_BASE_URL = http://localhost:8190' >> .env
           echo 'WEB_API_KEY = ci_testing_key' >> .env
 
-      - name: PHP CS Fixer (style check)
-        run: composer format:check
+      - name: Quality gate
+        run: composer quality
 
-      - name: PHPStan (static analysis)
-        run: composer analyse
-
-      # The web app has no database. Unit tests mock WebApiClient and run in
-      # isolation; feature tests are hermetic too — HermeticFeatureTestCase
-      # injects DeterministicDomainAdapter (or a mocked service/cache) so no
-      # live Domain API or network access is required.
-      - name: Unit tests
-        run: composer test:unit
-
-      - name: Feature tests
-        run: composer test:feature
-
-      - name: Coverage test suite
+      - name: Coverage gate (>= 60% line coverage)
         if: matrix.php-version == '8.2'
-        run: composer test:coverage
-
-      - name: Coverage gate (>= 54.75% line coverage)
-        if: matrix.php-version == '8.2'
-        run: composer coverage:check
+        run: |
+          composer test:coverage
+          composer coverage:check
 
   frontend:
     name: Frontend quality
