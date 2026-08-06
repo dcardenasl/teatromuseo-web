@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Non-blocking pre-push hook. Always exits 0.
+exit 0
