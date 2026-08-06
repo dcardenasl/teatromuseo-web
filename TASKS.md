@@ -27,8 +27,6 @@
 
 ### Fase 2 — Configuración y CI
 
-- [ ] **CFG-01 — `.env.example` declara `app.baseURL` en 8186**, que es el puerto del **tótem** —
-  esta app corre en **8184**. Copiarlo verbatim produce una instalación que no arranca.
 - [ ] **CFG-02 — 12 variables leídas y no documentadas:** `CATALOG_DOMAIN_API_BASE_URL`,
   `EVENT_DOMAIN_API_BASE_URL`, `CATALOG_API_BASE_URL`, `EVENT_API_BASE_URL`, `RECAPTCHA_SITE_KEY`,
   `CSP_*`, `WEB_API_TIMEOUT`, `WEB_API_STALE_TTL`.
@@ -101,4 +99,5 @@
 
 ## ✅ Completadas
 
-*(vacío — este tracker se creó el 2026-08-05)*
+- **CFG-01 — Puerto canónico de web (2026-08-05):** `.env.example` ahora usa `8184`, coherente
+  con `start-dev.sh`. Composer quality ✅ (250 tests / 825 assertions, 5 skips).
