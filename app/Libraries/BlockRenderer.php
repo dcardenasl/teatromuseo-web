@@ -42,7 +42,6 @@ class BlockRenderer
         'catalog_item_content' => \App\ViewModels\Blocks\CatalogItemContentViewModel::class,
         'catalog_item_gallery' => \App\ViewModels\Blocks\CatalogItemGalleryViewModel::class,
         'teatroescuela_ficha' => \App\ViewModels\Blocks\TeatroEscuelaViewModel::class,
-        'curso_ficha' => \App\ViewModels\Blocks\TeatroEscuelaViewModel::class,
     ];
 
     /** @var array<string, array<string, mixed>|null> form definitions pre-loaded per render pass */
@@ -144,7 +143,19 @@ class BlockRenderer
         }
 
         $blockViewName = "blocks/{$blockKey}";
-        if (! view_exists($blockViewName)) {
+        $domainFichaKeys = [
+            'compania_ficha',
+            'exposicion_ficha',
+            'festival_ficha',
+            'obra_ficha',
+            'persona_ficha',
+            'publicacion_metadata',
+            'video_ficha',
+            'curso_ficha'
+        ];
+        if (in_array($blockKey, $domainFichaKeys, true)) {
+            $blockViewName = 'blocks/domain_ficha';
+        } elseif (! view_exists($blockViewName)) {
             $blockViewName = 'blocks/unknown';
         }
 
