@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CSP blocked every block-scoped inline style in production** — `Config\ContentSecurityPolicy`
+  shipped `styleSrc`/`styleSrcElem`/`styleSrcAttr` at `'self'` with no exception, but block
+  partials (`hero_slider`, `hero_banner`, `cards_slider`, `timeline`, `gallery_item`, `footer`,
+  ...) each render their own `<style>` block and CMS-editor-controlled `style="..."` attributes
+  (overlay/text colors, heights, animation delays) by design. With `app.CSPEnabled` true in
+  production, the browser silently dropped all of it. Added `'unsafe-inline'` to the three style
+  directives — nonces don't fit this architecture (blocks render/cache independently, with no
+  single per-request nonce to thread through them, and style *attributes* can't carry a nonce at
+  all).
 - **Cache invalidation observability** — invalidation requests now retain their source and
   operational status so automatic and manual cleanups can be distinguished.
 
