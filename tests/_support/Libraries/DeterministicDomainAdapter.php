@@ -102,6 +102,23 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
         ];
     }
 
+    /**
+     * @param list<array{path: string, query?: array<string, mixed>, cacheTtl?: int, scope?: string}> $requests
+     * @return list<array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}>
+     */
+    public function multiGet(array $requests): array
+    {
+        $results = [];
+        foreach ($requests as $req) {
+            $path = $req['path'] ?? '';
+            $query = is_array($req['query'] ?? null) ? $req['query'] : [];
+            $cacheTtl = (int) ($req['cacheTtl'] ?? 300);
+            $scope = (string) ($req['scope'] ?? 'general');
+            $results[] = $this->get($path, $query, $cacheTtl, $scope);
+        }
+        return $results;
+    }
+
     public function post(string $path, array $data = []): array
     {
         unset($path, $data);

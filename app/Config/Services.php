@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Config;
 
+use App\Interfaces\BlockAnalyzerInterface;
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
 use App\Libraries\PublicListingPageBuilder;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
+use App\Services\BlockAnalyzerService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\PageResolverService;
 use App\Services\SiteCategoryService;
@@ -161,6 +163,16 @@ class Services extends BaseService
         }
 
         return new BlockRenderer();
+    }
+
+    public static function blockAnalyzerService(bool $getShared = true): BlockAnalyzerInterface
+    {
+        if ($getShared) {
+            /** @var BlockAnalyzerInterface */
+            return static::getSharedInstance('blockAnalyzerService');
+        }
+
+        return new BlockAnalyzerService();
     }
 
     public static function cacheInvalidator(bool $getShared = true): CacheInvalidator
