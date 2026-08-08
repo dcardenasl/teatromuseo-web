@@ -50,8 +50,8 @@ class SmartPrefetchServiceTest extends TestCase
         ];
 
         $this->apiClient->expects($this->once())
-            ->method('get')
-            ->willReturn($mockResponse);
+            ->method('multiGet')
+            ->willReturn([$mockResponse]);
 
         $result = $this->service->prefetch($requirements);
 
@@ -82,8 +82,8 @@ class SmartPrefetchServiceTest extends TestCase
         ];
 
         $this->apiClient->expects($this->once())
-            ->method('get')
-            ->willReturn($mockResponse);
+            ->method('multiGet')
+            ->willReturn([$mockResponse]);
 
         $result = $this->service->prefetch($requirements);
 
@@ -99,9 +99,9 @@ class SmartPrefetchServiceTest extends TestCase
             'events' => ['ids' => [10], 'fields' => ['id', 'title']],
         ];
 
-        $this->apiClient->expects($this->exactly(2))
-            ->method('get')
-            ->willReturnOnConsecutiveCalls(
+        $this->apiClient->expects($this->once())
+            ->method('multiGet')
+            ->willReturn([
                 [
                     'ok' => true,
                     'status' => 200,
@@ -116,7 +116,7 @@ class SmartPrefetchServiceTest extends TestCase
                     'meta' => [],
                     'messages' => [],
                 ]
-            );
+            ]);
 
         $result = $this->service->prefetch($requirements);
 
@@ -134,13 +134,15 @@ class SmartPrefetchServiceTest extends TestCase
         ];
 
         $this->apiClient->expects($this->once())
-            ->method('get')
+            ->method('multiGet')
             ->willReturn([
-                'ok' => true,
-                'status' => 200,
-                'data' => [['id' => 1, 'name' => 'Item']],
-                'meta' => [],
-                'messages' => [],
+                [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [['id' => 1, 'name' => 'Item']],
+                    'meta' => [],
+                    'messages' => [],
+                ]
             ]);
 
         $result = $this->service->prefetch($requirements);
@@ -156,13 +158,15 @@ class SmartPrefetchServiceTest extends TestCase
         ];
 
         $this->apiClient->expects($this->once())
-            ->method('get')
+            ->method('multiGet')
             ->willReturn([
-                'ok' => false,
-                'status' => 404,
-                'data' => null,
-                'meta' => [],
-                'messages' => ['Not found'],
+                [
+                    'ok' => false,
+                    'status' => 404,
+                    'data' => null,
+                    'meta' => [],
+                    'messages' => ['Not found'],
+                ]
             ]);
 
         $result = $this->service->prefetch($requirements);
@@ -177,7 +181,7 @@ class SmartPrefetchServiceTest extends TestCase
         ];
 
         $this->apiClient->expects($this->never())
-            ->method('get');
+            ->method('multiGet');
 
         $result = $this->service->prefetch($requirements);
 
@@ -205,8 +209,8 @@ class SmartPrefetchServiceTest extends TestCase
         ];
 
         $this->apiClient->expects($this->once())
-            ->method('get')
-            ->willReturn($mockResponse);
+            ->method('multiGet')
+            ->willReturn([$mockResponse]);
 
         $result = $this->service->prefetch($requirements);
 
@@ -299,14 +303,18 @@ class SmartPrefetchServiceTest extends TestCase
         ];
 
         $this->apiClient->expects($this->once())
-            ->method('get')
-            ->with($this->stringContains('fields='))
+            ->method('multiGet')
+            ->with($this->callback(static function (array $requests): bool {
+                return isset($requests[0]['path']) && str_contains($requests[0]['path'], 'fields=');
+            }))
             ->willReturn([
-                'ok' => true,
-                'status' => 200,
-                'data' => [['id' => 1, 'name' => 'Item']],
-                'meta' => [],
-                'messages' => [],
+                [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [['id' => 1, 'name' => 'Item']],
+                    'meta' => [],
+                    'messages' => [],
+                ]
             ]);
 
         $this->service->prefetch($requirements);

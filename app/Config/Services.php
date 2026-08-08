@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Config;
 
 use App\Interfaces\BlockAnalyzerInterface;
+use App\Interfaces\SmartPrefetchInterface;
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
 use App\Libraries\PublicListingPageBuilder;
@@ -23,6 +24,7 @@ use App\Services\SitePageService;
 use App\Services\SiteRedirectService;
 use App\Services\SiteSettingsService;
 use App\Services\SiteTagService;
+use App\Services\SmartPrefetchService;
 use App\Services\SocialLinksService;
 use CodeIgniter\Config\BaseService;
 
@@ -173,6 +175,16 @@ class Services extends BaseService
         }
 
         return new BlockAnalyzerService();
+    }
+
+    public static function smartPrefetchService(bool $getShared = true): SmartPrefetchInterface
+    {
+        if ($getShared) {
+            /** @var SmartPrefetchInterface */
+            return static::getSharedInstance('smartPrefetchService');
+        }
+
+        return new SmartPrefetchService(static::webApiClient());
     }
 
     public static function cacheInvalidator(bool $getShared = true): CacheInvalidator

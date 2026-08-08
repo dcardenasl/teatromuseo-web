@@ -76,9 +76,26 @@ class SmartPrefetchService implements SmartPrefetchInterface
             return [];
         }
 
-        // Fetch all resources (TODO: use multiGet() for parallelization)
+        // Build multiGet requests for parallel execution
+        $multiGetRequests = [];
+        $requestIndexMap = [];  // Maps request index to resource type
+
         foreach ($batch as $resourceType => $req) {
-            $response = $this->webApiClient->get($req['url']);
+            $index = count($multiGetRequests);
+            $requestIndexMap[$index] = $resourceType;
+            $multiGetRequests[] = ['path' => $req['url']];
+        }
+
+        // Fetch all resources in parallel
+        $responses = $this->webApiClient->multiGet($multiGetRequests);
+
+        // Process responses by resource type
+        foreach ($responses as $index => $response) {
+            if (!isset($requestIndexMap[$index])) {
+                continue;
+            }
+
+            $resourceType = $requestIndexMap[$index];
 
             if (!isset($response['data'])) {
                 continue;
