@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Config;
 
+use App\Interfaces\AliasResolverInterface;
 use App\Interfaces\BlockAnalyzerInterface;
 use App\Interfaces\SmartPrefetchInterface;
 use App\Libraries\BlockRenderer;
@@ -14,6 +15,7 @@ use App\Libraries\WebApiClientInterface;
 use App\Services\BlockAnalyzerService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\PageResolverService;
+use App\Services\ParallelAliasResolver;
 use App\Services\SiteCategoryService;
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
@@ -185,6 +187,16 @@ class Services extends BaseService
         }
 
         return new SmartPrefetchService(static::webApiClient());
+    }
+
+    public static function aliasResolverService(bool $getShared = true): AliasResolverInterface
+    {
+        if ($getShared) {
+            /** @var AliasResolverInterface */
+            return static::getSharedInstance('aliasResolverService');
+        }
+
+        return new ParallelAliasResolver(static::webApiClient());
     }
 
     public static function cacheInvalidator(bool $getShared = true): CacheInvalidator
