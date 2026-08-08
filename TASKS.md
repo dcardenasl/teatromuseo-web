@@ -95,6 +95,31 @@
 - [ ] **DOC-01 — Deriva documental:** 3 menciones a `ci4-website-builder*` en `CLAUDE.md`.
   Crear el `AGENTS.md` que falta en este repo.
 
+### Fase 7 — Incidente de producción (hosting compartido, límite de procesos)
+
+**Causa raíz:** `PageController::resolve()` hace 5–8 llamadas HTTP síncronas secuenciales por carga
+de página (CMS/Catalog/Event + hub), agotando el límite de procesos concurrentes del hosting
+compartido. Se evaluó y descartó agregar un agregador en `teatromuseo-bff` porque su `aggregate()`
+también es secuencial (y BFF está congelado, fuera de alcance). Confirmado como incidente real
+(2026-08-07).
+
+- [x] ~~PERF-01~~ — **completado, pendiente de medir en producción (2026-08-07).**
+  `SiteCollectionService::CACHE_TTL` subido de 600s a 3600s (1h), igualando el TTL ya usado por
+  `SiteRedirectService`/`SiteSettingsService`/`SocialLinksService` para contenido "muy estable" —
+  las ediciones siguen invalidando de inmediato vía `CacheInvalidator` sin importar el TTL. Menor
+  riesgo de la cadena PERF, hecho primero para medir antes de seguir.
+- [ ] **PERF-02 — Paralelizar llamadas de `WebApiClient` con `curl_multi_init`.** Análisis
+  (2026-08-07): `PageController::resolve()` **no** es paralelizable de forma trivial — es una
+  cadena de decisión secuencial por diseño (redirect → prefijo de colección → página CMS → entrada
+  → 404), cada paso condicionado al resultado del anterior. La oportunidad real está en
+  `BlockRenderer::render()`: cada bloque de una página (`collection_grid`, `cards_slider`,
+  `collection_timeline`, etc.) llama a su propio servicio de forma independiente entre sí. Requiere
+  reestructurar el renderizado en dos fases (recolectar todas las peticiones necesarias → ejecutar
+  en batch concurrente → repartir resultados a cada ViewModel) — no es un cambio de una línea.
+  Diferido deliberadamente hasta medir el impacto real de PERF-01 en producción/staging.
+- [ ] **PERF-03 — Agregación cross-domain en `teatromuseo-cms-domain`.** Solo si PERF-01+02 juntos
+  no bastan. No diseñado todavía.
+
 ---
 
 ## ✅ Completadas
