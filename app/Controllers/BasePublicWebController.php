@@ -139,6 +139,21 @@ abstract class BasePublicWebController extends BaseController
             $schemaData = null;
         }
 
+        // Smart prefetch: analyze block requirements and load data in parallel
+        $prefetchedData = [];
+        if (!empty($blocks)) {
+            $blockAnalyzer = \Config\Services::blockAnalyzerService();
+            $requirements = $blockAnalyzer->analyze($blocks, $lang);
+
+            if (!empty($requirements)) {
+                $smartPrefetch = \Config\Services::smartPrefetchService();
+                $prefetchedData = $smartPrefetch->prefetch($requirements, $lang);
+            }
+        }
+
+        // Merge prefetched data into context for block rendering
+        $renderContext = array_merge($context, $prefetchedData);
+
         $data = [
             'title' => (string) ($translation['title'] ?? ''),
             'excerpt' => (string) ($translation['excerpt'] ?? ''),
@@ -155,7 +170,7 @@ abstract class BasePublicWebController extends BaseController
                 ? (string) $translation['robots']
                 : 'index, follow',
             'schemaData' => $schemaData,
-            'renderedBlocks' => \Config\Services::blockRenderer()->render($blocks, $lang, $context),
+            'renderedBlocks' => \Config\Services::blockRenderer()->render($blocks, $lang, $renderContext),
             'localized_urls' => $this->resolveLocalizedPageUrls($page, $lang),
         ];
 

@@ -333,6 +333,26 @@ class PageController extends BasePublicWebController
             $blockRenderer->addPreload($featuredImageUrl, $srcsetString, $sizesString);
         }
 
+        // Smart prefetch: analyze block requirements and load data in parallel
+        $blockContext = [
+            'featured_image_url' => $featuredImageUrl,
+            'collection_key' => (string) ($collection['collection_key'] ?? ''),
+        ];
+        $prefetchedData = [];
+        $entryBlocks = $entry['blocks'] ?? [];
+        if (!empty($entryBlocks)) {
+            $blockAnalyzer = Services::blockAnalyzerService();
+            $requirements = $blockAnalyzer->analyze($entryBlocks, $lang);
+
+            if (!empty($requirements)) {
+                $smartPrefetch = Services::smartPrefetchService();
+                $prefetchedData = $smartPrefetch->prefetch($requirements, $lang);
+            }
+        }
+
+        // Merge prefetched data into context for block rendering
+        $renderContext = array_merge($blockContext, $prefetchedData);
+
         $data = [
             'title'               => $translation['title'] ?? '',
             'excerpt'             => $translation['excerpt'] ?? '',
@@ -357,10 +377,7 @@ class PageController extends BasePublicWebController
             'articleModifiedTime'  => $articleModifiedTime,
             'metaRobots'          => (isset($translation['robots']) && trim((string) $translation['robots']) !== '') ? $translation['robots'] : 'index, follow',
             'schemaData'          => !empty($translation['schema_data']) ? json_decode($translation['schema_data'], true) : null,
-            'renderedBlocks'      => $blockRenderer->render($entry['blocks'] ?? [], $lang, [
-                'featured_image_url' => $featuredImageUrl,
-                'collection_key' => (string) ($collection['collection_key'] ?? ''),
-            ]),
+            'renderedBlocks'      => $blockRenderer->render($entryBlocks, $lang, $renderContext),
             'localized_urls'      => $this->resolveEntryLocalizedUrls($collection, $entry, $lang, $resolvedSlug),
         ];
 
