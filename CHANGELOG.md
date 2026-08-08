@@ -79,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`SiteCollectionService` cache TTL** — extended from 10 minutes to 1 hour to reduce upstream
+  request volume under shared-hosting process limits; edits still invalidate immediately via
+  `CacheInvalidator` regardless of TTL.
 - **Public listing and download presentation** — listing controls and card metadata follow the
   configured projection, while shared buttons and document-download actions use the refined site
   component styling.
