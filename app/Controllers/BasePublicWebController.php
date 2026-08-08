@@ -17,35 +17,22 @@ abstract class BasePublicWebController extends BaseController
             $data['canonicalUrl'] = site_url($this->request->getPath());
         }
 
-        // Pre-load global layout data: menus and settings
-        if (! isset($data['mainMenu'])) {
-            try {
-                $data['mainMenu'] = \Config\Services::siteMenuService()->getMenu('main');
-            } catch (\Throwable) {
+        // Pre-load global layout data: menus and settings (parallelized via multiGet)
+        try {
+            $layoutData = \Config\Services::layoutDataPrefetchService()->prefetchLayoutData($data);
+            $data = array_merge($data, $layoutData);
+        } catch (\Throwable) {
+            // Fallback to empty data if prefetch fails
+            if (! isset($data['mainMenu'])) {
                 $data['mainMenu'] = ['items' => []];
             }
-        }
-
-        if (! isset($data['footerMenu'])) {
-            try {
-                $data['footerMenu'] = \Config\Services::siteMenuService()->getMenu('footer');
-            } catch (\Throwable) {
+            if (! isset($data['footerMenu'])) {
                 $data['footerMenu'] = ['items' => []];
             }
-        }
-
-        if (! isset($data['legalMenu'])) {
-            try {
-                $data['legalMenu'] = \Config\Services::siteMenuService()->getMenu('legal');
-            } catch (\Throwable) {
+            if (! isset($data['legalMenu'])) {
                 $data['legalMenu'] = ['items' => []];
             }
-        }
-
-        if (! isset($data['settings'])) {
-            try {
-                $data['settings'] = \Config\Services::siteSettingsService()->getAll();
-            } catch (\Throwable) {
+            if (! isset($data['settings'])) {
                 $data['settings'] = [];
             }
         }
@@ -243,7 +230,7 @@ abstract class BasePublicWebController extends BaseController
      * @param array<string, mixed> $page
      * @return array<string, mixed>
      */
-    private function resolvePageTranslation(array $page, string $lang): array
+    protected function resolvePageTranslation(array $page, string $lang): array
     {
         $translations = is_array($page['translations'] ?? null) ? $page['translations'] : [];
 

@@ -53,11 +53,20 @@ class PageController extends BasePublicWebController
         $lang = service('request')->getLocale();
         [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
 
-        // For now, try to fetch a page by slug 'home'
         $pageService = Services::sitePageService();
+
+        // Priority order for homepage lookup: 'home', 'inicio', byType('home')
         $page = $pageService->getBySlug($lang, 'home', $preview, $previewExpires, $previewSig);
 
-        if (!$page) {
+        if (! $page) {
+            $page = $pageService->getBySlug($lang, 'inicio', $preview, $previewExpires, $previewSig);
+        }
+
+        if (! $page) {
+            $page = $pageService->getByType($lang, 'home');
+        }
+
+        if (! $page) {
             return $this->notFound('Página de inicio no encontrada');
         }
 
@@ -81,11 +90,20 @@ class PageController extends BasePublicWebController
             return $this->home();
         }
 
-        // Step 1: Resolve explicit redirects before collection prefixes.
-        // This keeps legacy slugs like /obras from shadowing the intended
-        // public listing when a manual redirect exists.
-        $redirectService = Services::siteRedirectService();
-        $redirect = $redirectService->resolve($path);
+        // Steps 1 & 2: Resolve redirects and fetch page in parallel (independent calls).
+        // After fetching, check redirect result first. If no redirect, use page result and proceed to fallbacks.
+        $pageService = Services::sitePageService();
+
+        $parallelResults = Services::pageResolverService()->parallelResolveRedirectAndPage(
+            $path,
+            $lang,
+            $preview,
+            $previewExpires,
+            $previewSig
+        );
+        $redirect = $parallelResults['redirect'];
+        $page = $parallelResults['page'];
+
         if ($redirect) {
             $statusCode = match ($redirect['redirect_type'] ?? 301) {
                 'temporary' => 302,
@@ -96,10 +114,50 @@ class PageController extends BasePublicWebController
             return redirect()->to(lang_url((string) $redirect['new_url'], $lang))->setStatusCode($statusCode);
         }
 
-        // Step 2: Try collection prefix match.
+        if ($page && ! $this->isExactPageSlugMatch($page, $path, $lang)) {
+            $page = null;
+        }
+
+        if (! $page) {
+            $canonicalPath = \App\Support\PublicPaths::canonicalPath($path, $lang);
+            if ($canonicalPath !== null && $canonicalPath !== '/' . $path) {
+                $targetSlug = trim($canonicalPath, '/');
+                $candidatePage = $pageService->getBySlug($lang, $targetSlug, $preview, $previewExpires, $previewSig);
+                if ($candidatePage && $this->isExactPageSlugMatch($candidatePage, $targetSlug, $lang)) {
+                    $page = $candidatePage;
+                }
+            }
+        }
+
+        if (! $page) {
+            $aliasCandidates = match ($path) {
+                'contacto' => ['contact'],
+                'contact' => ['contacto'],
+                'historia' => ['history', 'nossa-historia'],
+                'history' => ['historia'],
+                'cartelera' => ['events', 'eventos', 'programming'],
+                'events' => ['cartelera'],
+                default => [],
+            };
+
+            foreach ($aliasCandidates as $candidate) {
+                $candidatePage = $pageService->getBySlug($lang, $candidate, $preview, $previewExpires, $previewSig);
+                if ($candidatePage && $this->isExactPageSlugMatch($candidatePage, $candidate, $lang)) {
+                    $page = $candidatePage;
+                    break;
+                }
+            }
+        }
+
+        if ($page) {
+            return $this->renderCmsPage($page, $lang);
+        }
+
+
+
+        // Step 3: Try collection entry match (e.g. /es/festivales/mi-evento).
         $collectionService = Services::siteCollectionService();
         $entryService = Services::siteEntryService();
-        $pageService = Services::sitePageService();
         $collections = $collectionService->getAll($lang);
 
         foreach ($collections as $collection) {
@@ -108,38 +166,25 @@ class PageController extends BasePublicWebController
             }
 
             $pathInfo = collection_url_path_info($collection, $path);
-            if ($pathInfo === null) {
+            if ($pathInfo === null || $pathInfo['remainder'] === '') {
                 continue;
             }
 
-            $remainder = $pathInfo['remainder'];
-
-            if ($remainder === '') {
-                $page = $pageService->getBySlug($lang, $path, $preview, $previewExpires, $previewSig);
-                if ($page && (string) ($page['page_type'] ?? '') === 'collection_index' && (int) ($page['collection_id'] ?? 0) === (int) ($collection['id'] ?? 0)) {
-                    return $this->renderCmsPage($page, $lang);
-                }
-
-                // The path matched this collection's prefix (its own index page,
-                // or the collection_key fallback for collections without one) but
-                // no matching collection_index page exists. Don't 404 here: a
-                // collection lacking a dedicated index page can share its prefix
-                // with an unrelated CMS page slug — let Steps 2-5 resolve it
-                // normally instead of shadowing that page.
-                break;
-            }
-
-            $entry = $entryService->getBySlug($lang, $collection['collection_key'], $remainder, $preview, $previewExpires, $previewSig);
+            $entry = $entryService->getBySlug(
+                $lang,
+                (string) ($collection['collection_key'] ?? ''),
+                $pathInfo['remainder'],
+                $preview,
+                $previewExpires,
+                $previewSig
+            );
 
             if ($entry) {
                 return $this->renderEntry($entry, $collection, $lang);
             }
         }
 
-        // Step 3: Support CMS pages that host collection listings directly
-        // under their own slug, e.g. /es/festivales/{slug}. If the first
-        // segment resolves to a page and that page contains a collection
-        // listing block, treat the remainder as an entry slug.
+        // Step 4: Support CMS pages that host collection listings directly under their slug, e.g. /es/festivales/{slug}.
         $pathSegments = array_values(array_filter(explode('/', $path), static fn ($segment) => $segment !== ''));
         if (count($pathSegments) > 1) {
             $pageSlug = array_shift($pathSegments);
@@ -170,16 +215,22 @@ class PageController extends BasePublicWebController
             }
         }
 
-        // Step 4: Try CMS page by slug only when the path is not a collection route.
-        $page = $pageService->getBySlug($lang, $path, $preview, $previewExpires, $previewSig);
+        // Step 5: Fallback collection index page (e.g. /es/festivales when no dedicated CMS page exists).
+        foreach ($collections as $collection) {
+            if (! is_array($collection)) {
+                continue;
+            }
 
-        if ($page) {
-            return $this->renderCmsPage($page, $lang);
+            $pathInfo = collection_url_path_info($collection, $path);
+            if ($pathInfo !== null && $pathInfo['remainder'] === '') {
+                return $this->renderFallbackCollectionIndex($collection, $lang);
+            }
         }
 
-        // Step 5: 404
+        // Step 6: 404
         return $this->notFound("No se encontró la página: {$path}");
     }
+
 
     /**
      * Render a collection entry (single item).
@@ -457,4 +508,68 @@ class PageController extends BasePublicWebController
         return $localizedUrls;
     }
 
+    /**
+     * Synthesize and render a fallback listing page for a collection that lacks a dedicated CMS index page.
+     *
+     * @param array<string, mixed> $collection
+     */
+    private function renderFallbackCollectionIndex(array $collection, string $lang): ResponseInterface
+    {
+        $collectionTitle = collection_display_title($collection);
+        $collectionIntro = collection_display_intro($collection);
+        $collectionKey   = (string) ($collection['collection_key'] ?? '');
+
+        $pageData = [
+            'title'           => $collectionTitle,
+            'excerpt'         => $collectionIntro,
+            'showPageHeading' => true,
+            'pageTitle'       => $collectionTitle,
+            'metaDescription' => $collectionIntro,
+            'canonicalUrl'    => site_url('/' . $lang . collection_url_path($collection)),
+            'ogImage'         => '',
+            'metaRobots'      => 'index, follow',
+            'schemaData'      => null,
+            'localized_urls'  => localized_collection_urls($collection),
+        ];
+
+        $blocks = [
+            [
+                'block_key'    => 'collection_listing',
+                'block_config' => [
+                    'collection_id'   => (int) ($collection['id'] ?? 0),
+                    'collection_key'  => $collectionKey,
+                    'items_limit'     => 12,
+                    'order_by'        => 'published_at',
+                    'order_direction' => 'desc',
+                    'layout_variant'  => 'cards',
+                ],
+                'block_data' => [],
+                'children'   => [],
+            ],
+        ];
+
+        return $this->renderPageWithBlocks($pageData, $blocks, $lang);
+    }
+
+    /**
+     * Check if a CMS page payload returned by the domain API actually matches the requested slug exactly.
+     *
+     * @param array<string, mixed> $page
+     */
+    private function isExactPageSlugMatch(array $page, string $expectedPath, string $lang): bool
+    {
+        $expectedPath = trim($expectedPath, '/');
+        if ($expectedPath === '') {
+            return true;
+        }
+
+        $translation = $this->resolvePageTranslation($page, $lang);
+        $slug = trim((string) ($translation['slug'] ?? $page['slug'] ?? ''), '/');
+
+        if ($slug === '') {
+            return false;
+        }
+
+        return strcasecmp($slug, $expectedPath) === 0;
+    }
 }

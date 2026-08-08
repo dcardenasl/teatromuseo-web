@@ -116,6 +116,124 @@ class WebApiClient implements WebApiClientInterface
     }
 
     /**
+     * Batch GET requests executed in parallel when missing from cache.
+     *
+     * @param list<array{path: string, query?: array<string, mixed>, cacheTtl?: int, scope?: string}> $requests
+     *
+     * @return list<array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}>
+     */
+    public function multiGet(array $requests): array
+    {
+        if ($requests === []) {
+            return [];
+        }
+
+        $results = [];
+        $cache   = \Config\Services::cache();
+
+        // First pass: check cache for all requests
+        foreach ($requests as $index => $req) {
+            $path     = $req['path'] ?? '';
+            $query    = is_array($req['query'] ?? null) ? $req['query'] : [];
+            $cacheTtl = (int) ($req['cacheTtl'] ?? 300);
+            $scope    = (string) ($req['scope'] ?? 'general');
+
+            $url       = $this->buildUrl($path, $query);
+            $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
+            $cacheKey  = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
+
+            $cached = $cache->get($cacheKey);
+            if (is_array($cached)) {
+                $results[$index] = $this->resultFromArray($cached);
+            }
+        }
+
+        // If all are cached, return early
+        $misses = array_diff_key(array_flip(array_keys($requests)), $results);
+        if ($misses === []) {
+            ksort($results);
+            return array_values($results);
+        }
+
+        // Second pass: fetch missing requests in parallel
+        $mh = curl_multi_init();
+        $handles = [];
+        $headers = [
+            'Accept: application/json',
+            'Content-Type: application/json',
+            'Accept-Language: ' . $this->currentLocale(),
+        ];
+
+        if ($this->apiKey !== '') {
+            $headers[] = 'X-App-Key: ' . $this->apiKey;
+        }
+
+        foreach (array_keys($misses) as $idx) {
+            $req   = $requests[$idx];
+            $path  = $req['path'] ?? '';
+            $query = is_array($req['query'] ?? null) ? $req['query'] : [];
+            $url   = $this->buildUrl($path, $query);
+
+            if (trim($url) === '') {
+                continue;
+            }
+
+            $ch = curl_init($url);
+            if ($ch instanceof \CurlHandle) {
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT        => $this->timeout,
+                    CURLOPT_HTTPHEADER     => $headers,
+                ]);
+                curl_multi_add_handle($mh, $ch);
+                $handles[$idx] = $ch;
+            }
+        }
+
+        // Execute parallel requests
+        if ($handles !== []) {
+            $running = null;
+            do {
+                curl_multi_exec($mh, $running);
+                if ($running > 0) {
+                    curl_multi_select($mh, 0.05);
+                }
+            } while ($running > 0);
+
+            foreach ($handles as $idx => $ch) {
+                $req      = $requests[$idx];
+                $raw      = curl_multi_getcontent($ch);
+                $status   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $response = ['raw' => is_string($raw) ? $raw : false, 'status' => $status, 'error' => curl_error($ch)];
+                $result   = $this->parseResponse($response);
+
+                curl_multi_remove_handle($mh, $ch);
+                curl_close($ch);
+
+                // Cache successful results
+                if ($result['ok']) {
+                    $cacheTtl = (int) ($req['cacheTtl'] ?? 300);
+                    $scope    = (string) ($req['scope'] ?? 'general');
+                    if ($cacheTtl > 0) {
+                        $path      = $req['path'] ?? '';
+                        $query     = is_array($req['query'] ?? null) ? $req['query'] : [];
+                        $url       = $this->buildUrl($path, $query);
+                        $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
+                        $cacheKey  = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
+                        $cache->save($cacheKey, $result, $cacheTtl);
+                    }
+                }
+
+                $results[$idx] = $result;
+            }
+        }
+
+        curl_multi_close($mh);
+        ksort($results);
+        return array_values($results);
+    }
+
+    /**
      * POST request — not cached (used for form submissions).
      *
      * @param array<string, mixed> $data
@@ -159,23 +277,7 @@ class WebApiClient implements WebApiClientInterface
 
         $response = $this->execute($method, $url, $headers, $jsonBody);
 
-        if ($response['raw'] === false) {
-            return $this->errorResult(0, 'cURL error: ' . $response['error']);
-        }
-
-        $decoded  = json_decode($response['raw'], true);
-        $data     = is_array($decoded) ? ($decoded['data'] ?? $decoded) : null;
-        $meta     = is_array($decoded) && is_array($decoded['meta'] ?? null) ? $this->stringKeyed($decoded['meta']) : [];
-        $messages = $this->extractMessages($decoded);
-        $status   = $response['status'];
-
-        return [
-            'ok'       => $status >= 200 && $status < 300,
-            'status'   => $status,
-            'data'     => $data,
-            'meta'     => $meta,
-            'messages' => $messages,
-        ];
+        return $this->parseResponse($response);
     }
 
     /**
@@ -234,6 +336,34 @@ class WebApiClient implements WebApiClientInterface
     /**
      * @return array{ok: bool, status: int, data: null, meta: array<string, mixed>, messages: list<string>}
      */
+    /**
+     * Parse raw transport response into normalized result envelope.
+     *
+     * @param array{raw: string|false, status: int, error: string} $response
+     *
+     * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
+     */
+    private function parseResponse(array $response): array
+    {
+        if ($response['raw'] === false) {
+            return $this->errorResult(0, 'cURL error: ' . $response['error']);
+        }
+
+        $decoded  = json_decode($response['raw'], true);
+        $data     = is_array($decoded) ? ($decoded['data'] ?? $decoded) : null;
+        $meta     = is_array($decoded) && is_array($decoded['meta'] ?? null) ? $this->stringKeyed($decoded['meta']) : [];
+        $messages = $this->extractMessages($decoded);
+        $status   = $response['status'];
+
+        return [
+            'ok'       => $status >= 200 && $status < 300,
+            'status'   => $status,
+            'data'     => $data,
+            'meta'     => $meta,
+            'messages' => $messages,
+        ];
+    }
+
     private function errorResult(int $status, string $message): array
     {
         return [

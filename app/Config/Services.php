@@ -9,6 +9,8 @@ use App\Libraries\CacheInvalidator;
 use App\Libraries\PublicListingPageBuilder;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
+use App\Services\LayoutDataPrefetchService;
+use App\Services\PageResolverService;
 use App\Services\SiteCategoryService;
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
@@ -129,6 +131,26 @@ class Services extends BaseService
         }
 
         return new SiteRedirectService(static::webApiClient());
+    }
+
+    public static function layoutDataPrefetchService(bool $getShared = true): LayoutDataPrefetchService
+    {
+        if ($getShared) {
+            /** @var LayoutDataPrefetchService */
+            return static::getSharedInstance('layoutDataPrefetchService');
+        }
+
+        return new LayoutDataPrefetchService(static::webApiClient());
+    }
+
+    public static function pageResolverService(bool $getShared = true): PageResolverService
+    {
+        if ($getShared) {
+            /** @var PageResolverService */
+            return static::getSharedInstance('pageResolverService');
+        }
+
+        return new PageResolverService(static::webApiClient());
     }
 
     public static function blockRenderer(bool $getShared = true): BlockRenderer
