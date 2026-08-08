@@ -83,22 +83,35 @@ class ContentSecurityPolicy extends BaseConfig
      *
      * @var list<string>|string
      */
-    public $styleSrc = 'self';
+    public $styleSrc = ['self', 'unsafe-inline'];
 
     /**
      * Specifies valid sources for stylesheets <link> elements.
      *
+     * `'unsafe-inline'` is required: block partials (hero_slider, hero_banner,
+     * timeline, gallery_item, pricing_plan, footer, ...) each ship their own
+     * `<style>` block by design — a block-local/portable styling pattern used
+     * throughout app/Views/blocks. Nonces don't fit here: blocks are rendered
+     * independently and cached, with no single per-request nonce to thread
+     * through them.
+     *
      * @var list<string>|string
      */
-    public array|string $styleSrcElem = 'self';
+    public array|string $styleSrcElem = ['self', 'unsafe-inline'];
 
     /**
      * Specifies valid sources for stylesheets inline
      * style attributes and `<style>` elements.
      *
+     * `'unsafe-inline'` is required: many blocks render CMS-editor-controlled
+     * values (overlay/text colors, computed heights, animation delays) as
+     * inline `style="..."` attributes — values only known at render time, so
+     * they can't be pre-compiled into static CSS classes. Nonces don't cover
+     * style attributes at all (only `<style>`/`<script>` elements).
+     *
      * @var list<string>|string
      */
-    public array|string $styleSrcAttr = 'self';
+    public array|string $styleSrcAttr = ['self', 'unsafe-inline'];
 
     /**
      * Defines the origins from which images can be loaded.
