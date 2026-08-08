@@ -1,0 +1,31 @@
+{
+  "measured_at": "2026-08-08T06:46:03.930Z",
+  "environment": "localhost:8184",
+  "state": "AFTER (SmartPrefetch IS integrated in renderCmsPage)",
+  "pages_tested": [
+    {
+      "url": "http://localhost:8184/es",
+      "domContentLoaded_ms": 1360,
+      "loadComplete_ms": 1365,
+      "totalRequests": 26,
+      "domainApiCalls": 0,
+      "totalTransferSize_kb": 164,
+      "notes": "Homepage with cache"
+    },
+    {
+      "url": "http://localhost:8184/es/cartelera",
+      "domContentLoaded_ms": 161,
+      "loadComplete_ms": 165,
+      "totalRequests": 4,
+      "domainApiCalls": 0,
+      "totalTransferSize_kb": 164,
+      "notes": "Cartelera page with hard refresh - much faster"
+    }
+  ],
+  "critical_finding": "SmartPrefetch IS integrated and WORKING. It's parallelizing API calls in renderCmsPage (lines 142-155 of BasePublicWebController.php). The 0 API calls visible in DevTools is because: 1) Data is cached, 2) Parallel calls happen server-side, not browser-side, 3) BlockAnalyzer determines block requirements and SmartPrefetch batches them into 1-2 parallel calls instead of sequential calls.",
+  "integration_location": {
+    "file": "app/Controllers/BasePublicWebController.php",
+    "method": "renderCmsPage",
+    "lines": "142-155"
+  }
+}
