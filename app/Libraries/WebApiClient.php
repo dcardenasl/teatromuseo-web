@@ -343,6 +343,9 @@ class WebApiClient implements WebApiClientInterface
      *
      * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
      */
+    /**
+     * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
+     */
     private function parseResponse(array $response): array
     {
         if ($response['raw'] === false) {
@@ -364,6 +367,9 @@ class WebApiClient implements WebApiClientInterface
         ];
     }
 
+    /**
+     * @return array{ok: bool, status: int, data: null, meta: array<string, mixed>, messages: list<string>}
+     */
     private function errorResult(int $status, string $message): array
     {
         return [
