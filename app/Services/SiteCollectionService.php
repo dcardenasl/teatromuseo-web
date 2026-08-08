@@ -6,7 +6,7 @@ namespace App\Services;
 
 class SiteCollectionService extends BaseSiteService
 {
-    private const CACHE_TTL = 600; // 10 minutes
+    private const CACHE_TTL = 3600; // 1 hour — collection list changes rarely; edits invalidate via CacheInvalidator regardless
 
     /**
      * Get all active collections for a language.
