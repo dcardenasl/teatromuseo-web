@@ -22,7 +22,7 @@ interface BlockAnalyzerInterface
      *     'catalog_slugs' => ['slugs' => ['payaso', 'museo']],
      *   ]
      *
-     * @param array<array<string, mixed>> $blocks Array of block data from CMS API
+     * @param array<mixed> $blocks Array of block data from CMS API (handles non-array elements gracefully)
      * @param string $locale Current render locale (es, en, etc.)
      * @return array<string, array<string, mixed>> Requirements map by resource type
      */

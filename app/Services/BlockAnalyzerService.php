@@ -83,6 +83,9 @@ class BlockAnalyzerService implements BlockAnalyzerInterface
         ],
     ];
 
+    /**
+     * @param array<mixed> $blocks
+     */
     public function analyze(array $blocks, string $locale = 'es'): array
     {
         $requirements = [];

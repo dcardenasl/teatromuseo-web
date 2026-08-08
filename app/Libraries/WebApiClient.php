@@ -344,6 +344,7 @@ class WebApiClient implements WebApiClientInterface
      * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
      */
     /**
+     * @param array<string, mixed> $response
      * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
      */
     private function parseResponse(array $response): array
