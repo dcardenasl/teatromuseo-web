@@ -14,6 +14,7 @@ use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\PageResolverService;
 use App\Services\ParallelAliasResolver;
+use App\Services\PublicReadDiagnosticsService;
 use App\Services\SiteCategoryService;
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
@@ -29,6 +30,20 @@ use CodeIgniter\Config\BaseService;
 
 class Services extends BaseService
 {
+    public static function publicReadDiagnostics(bool $getShared = true): PublicReadDiagnosticsService
+    {
+        if ($getShared) {
+            /** @var PublicReadDiagnosticsService */
+            return static::getSharedInstance('publicReadDiagnostics');
+        }
+
+        return new PublicReadDiagnosticsService(
+            static::webApiClient(),
+            static::catalogWebApiClient(),
+            static::eventWebApiClient(),
+        );
+    }
+
     public static function webApiClient(bool $getShared = true): WebApiClientInterface
     {
         if ($getShared) {
@@ -42,7 +57,8 @@ class Services extends BaseService
             $config->webApiBaseUrl,
             $config->webApiKey,
             $config->webApiTimeout,
-            $config->webApiStaleTtl
+            $config->webApiStaleTtl,
+            $config->webApiMaxParallelRequests
         );
     }
 
@@ -243,7 +259,8 @@ class Services extends BaseService
             $config->catalogApiBaseUrl,
             $config->webApiKey,
             $config->webApiTimeout,
-            $config->webApiStaleTtl
+            $config->webApiStaleTtl,
+            $config->webApiMaxParallelRequests
         );
     }
 
@@ -270,7 +287,8 @@ class Services extends BaseService
             $config->eventApiBaseUrl,
             $config->webApiKey,
             $config->webApiTimeout,
-            $config->webApiStaleTtl
+            $config->webApiStaleTtl,
+            $config->webApiMaxParallelRequests
         );
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Libraries;
 
 use App\Libraries\WebApiClient;
+use App\Support\RequestContext;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\Mock\MockCache;
 use Config\Services;
@@ -68,6 +69,7 @@ final class WebApiClientTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        RequestContext::reset();
         Services::reset(true);
 
         parent::tearDown();
@@ -137,6 +139,28 @@ final class WebApiClientTest extends CIUnitTestCase
         $this->assertSame('/api/v1/public/es/pages/home', $client->telemetry[0]['remote_endpoint']);
         $this->assertSame(200, $client->telemetry[0]['status']);
         $this->assertIsFloat($client->telemetry[0]['duration_ms']);
+        $this->assertGreaterThan(0, $client->telemetry[0]['payload_bytes']);
+    }
+
+    public function testPropagatesRequestIdAndRevisionsInTelemetry(): void
+    {
+        RequestContext::begin('request-5678');
+        $client = $this->makeClient([
+            $this->jsonResponse([
+                'data' => ['id' => 1],
+                'meta' => [
+                    'source_revision' => 'cms:7',
+                    'snapshot_revision' => 'snapshot:2',
+                ],
+            ]),
+        ]);
+
+        $client->get('public/es/pages/home', [], 0, 'pages');
+
+        $this->assertContains('X-Request-ID: request-5678', $client->calls[0]['headers']);
+        $this->assertSame('cms:7', $client->telemetry[0]['source_revision']);
+        $this->assertSame('snapshot:2', $client->telemetry[0]['snapshot_revision']);
+        $this->assertGreaterThan(0, $client->telemetry[0]['payload_bytes']);
     }
 
     public function testGetMarksTimeoutsInTelemetry(): void

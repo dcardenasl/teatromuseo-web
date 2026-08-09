@@ -168,16 +168,25 @@ class App extends BaseConfig
 
     /**
      * Timeout (seconds) for requests against the Domain API.
-     * Override with WEB_API_TIMEOUT in .env. Five seconds keeps a slow
-     * domain from holding a shared-hosting worker for the full request.
+     * Override with WEB_API_TIMEOUT in .env. Two seconds keeps one slow
+     * optional block from holding a shared-hosting worker for the full page.
      */
-    public int $webApiTimeout = 5;
+    public int $webApiTimeout = 2;
 
     /**
      * TTL (seconds) for the long-lived stale cache copy served when the
      * Domain API is down. Set WEB_API_STALE_TTL=0 in .env to disable.
      */
     public int $webApiStaleTtl = 86400;
+
+    /**
+     * Maximum number of simultaneous Domain API calls from one page render.
+     * Shared hosting commonly imposes a low per-account process/connection
+     * ceiling; one concurrent call is the safe default for this shared host
+     * and prevents a cache miss from producing provider-level 508s.
+     * Override with WEB_API_MAX_PARALLEL_REQUESTS in .env.
+     */
+    public int $webApiMaxParallelRequests = 1;
 
     /**
      * TTL (seconds) for full HTML response caching on public pages.
@@ -327,6 +336,11 @@ class App extends BaseConfig
         $webApiStaleTtl = env('WEB_API_STALE_TTL');
         if (is_numeric($webApiStaleTtl) && (int) $webApiStaleTtl >= 0) {
             $this->webApiStaleTtl = (int) $webApiStaleTtl;
+        }
+
+        $webApiMaxParallelRequests = env('WEB_API_MAX_PARALLEL_REQUESTS');
+        if (is_numeric($webApiMaxParallelRequests) && (int) $webApiMaxParallelRequests > 0) {
+            $this->webApiMaxParallelRequests = min(16, (int) $webApiMaxParallelRequests);
         }
 
         $webPageCacheTtl = env('WEB_PAGE_CACHE_TTL');

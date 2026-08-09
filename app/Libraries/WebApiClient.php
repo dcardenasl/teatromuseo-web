@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Libraries;
 
+use App\Support\RequestContext;
+
 /**
  * WebApiClient — HTTP client for the public website.
  *
@@ -36,12 +38,15 @@ class WebApiClient implements WebApiClientInterface
     private string $apiKey;
     private int $timeout;
     private int $staleTtl;
+    private int $maxParallelRequests;
+    private int $lastPayloadBytes = 0;
 
     public function __construct(
         string $baseUrl,
         string $apiKey,
         int $timeout = 5,
-        int $staleTtl = 86400
+        int $staleTtl = 86400,
+        int $maxParallelRequests = 2
     ) {
         if (trim($baseUrl) === '') {
             throw new \LogicException(
@@ -61,6 +66,7 @@ class WebApiClient implements WebApiClientInterface
         $this->apiKey   = $apiKey;
         $this->timeout  = max(1, $timeout);
         $this->staleTtl = max(0, $staleTtl);
+        $this->maxParallelRequests = min(16, max(1, $maxParallelRequests));
     }
 
     /**
@@ -92,6 +98,9 @@ class WebApiClient implements WebApiClientInterface
                 false,
                 false,
                 $this->elapsedMilliseconds($startedAt),
+                $this->payloadBytes($result),
+                $this->sourceRevision($result),
+                $this->snapshotRevision($result),
             ));
 
             return $result;
@@ -119,6 +128,9 @@ class WebApiClient implements WebApiClientInterface
                 false,
                 $timeout,
                 $this->elapsedMilliseconds($startedAt),
+                $this->lastOrResultPayloadBytes($result),
+                $this->sourceRevision($result),
+                $this->snapshotRevision($result),
             ));
 
             return $result;
@@ -147,6 +159,9 @@ class WebApiClient implements WebApiClientInterface
                     true,
                     $timeout,
                     $this->elapsedMilliseconds($startedAt),
+                    $this->lastOrResultPayloadBytes($staleResult),
+                    $this->sourceRevision($staleResult),
+                    $this->snapshotRevision($staleResult),
                 ));
 
                 return $staleResult;
@@ -163,6 +178,9 @@ class WebApiClient implements WebApiClientInterface
             false,
             $timeout,
             $this->elapsedMilliseconds($startedAt),
+            $this->lastOrResultPayloadBytes($result),
+            $this->sourceRevision($result),
+            $this->snapshotRevision($result),
         ));
 
         return $result;
@@ -209,6 +227,9 @@ class WebApiClient implements WebApiClientInterface
                     false,
                     false,
                     $this->elapsedMilliseconds($batchStartedAt),
+                    $this->payloadBytes($results[$index]),
+                    $this->sourceRevision($results[$index]),
+                    $this->snapshotRevision($results[$index]),
                 ));
             }
         }
@@ -220,6 +241,27 @@ class WebApiClient implements WebApiClientInterface
             return array_values($results);
         }
 
+        // Shared hosting may reject a burst of simultaneous upstream
+        // requests with provider-level 508 responses. Keep the batch API but
+        // execute bounded chunks so one page render cannot exhaust the
+        // account's process/connection quota.
+        if (count($misses) > $this->maxParallelRequests) {
+            foreach (array_chunk(array_keys($misses), $this->parallelChunkSize()) as $chunk) {
+                $chunkRequests = array_map(
+                    fn (int $index): array => $requests[$index],
+                    $chunk,
+                );
+                $chunkResults = $this->multiGet($chunkRequests);
+                foreach ($chunk as $offset => $index) {
+                    $results[$index] = $chunkResults[$offset] ?? $this->errorResult(503, 'Missing batch response.');
+                }
+            }
+
+            ksort($results);
+
+            return array_values($results);
+        }
+
         // Second pass: fetch missing requests in parallel
         $mh = curl_multi_init();
         $handles = [];
@@ -228,6 +270,11 @@ class WebApiClient implements WebApiClientInterface
             'Content-Type: application/json',
             'Accept-Language: ' . $this->currentLocale(),
         ];
+
+        $requestId = RequestContext::requestId();
+        if ($requestId !== null) {
+            $headers[] = 'X-Request-ID: ' . $requestId;
+        }
 
         if ($this->apiKey !== '') {
             $headers[] = 'X-App-Key: ' . $this->apiKey;
@@ -340,6 +387,9 @@ class WebApiClient implements WebApiClientInterface
                     $isStale,
                     $timeout,
                     $duration,
+                    is_string($raw) ? strlen($raw) : $this->payloadBytes($result),
+                    $this->sourceRevision($result),
+                    $this->snapshotRevision($result),
                 ));
 
                 $results[$idx] = $result;
@@ -403,6 +453,9 @@ class WebApiClient implements WebApiClientInterface
                     false,
                     false,
                     $client->elapsedMilliseconds($startedAt),
+                    $client->payloadBytes($results[$index]),
+                    $client->sourceRevision($results[$index]),
+                    $client->snapshotRevision($results[$index]),
                 ));
                 continue;
             }
@@ -417,6 +470,30 @@ class WebApiClient implements WebApiClientInterface
 
         if ($misses === []) {
             ksort($results);
+            return array_values($results);
+        }
+
+        $maxParallelRequests = self::maxParallelRequestsFor($misses);
+        if (count($misses) > $maxParallelRequests) {
+            foreach (array_chunk(array_keys($misses), $maxParallelRequests) as $chunk) {
+                $chunkRequests = array_map(
+                    fn (int $index): array => $requests[$index],
+                    $chunk,
+                );
+                $chunkResults = self::multiGetAcross($chunkRequests);
+                foreach ($chunk as $offset => $index) {
+                    $results[$index] = $chunkResults[$offset] ?? [
+                        'ok' => false,
+                        'status' => 503,
+                        'data' => null,
+                        'meta' => [],
+                        'messages' => ['Missing cross-domain batch response.'],
+                    ];
+                }
+            }
+
+            ksort($results);
+
             return array_values($results);
         }
 
@@ -443,6 +520,10 @@ class WebApiClient implements WebApiClientInterface
                 'Content-Type: application/json',
                 'Accept-Language: ' . $client->currentLocale(),
             ];
+            $requestId = RequestContext::requestId();
+            if ($requestId !== null) {
+                $headers[] = 'X-Request-ID: ' . $requestId;
+            }
             if ($client->apiKey !== '') {
                 $headers[] = 'X-App-Key: ' . $client->apiKey;
             }
@@ -521,6 +602,9 @@ class WebApiClient implements WebApiClientInterface
                 $isStale,
                 $timeout,
                 $client->elapsedMilliseconds((int) $misses[$index]['startedAt']),
+                is_string($raw) ? strlen($raw) : $client->payloadBytes($result),
+                $client->sourceRevision($result),
+                $client->snapshotRevision($result),
             ));
             $results[$index] = $result;
         }
@@ -554,6 +638,9 @@ class WebApiClient implements WebApiClientInterface
             false,
             $this->isTimeoutResult($result),
             $this->elapsedMilliseconds($startedAt),
+            $this->lastOrResultPayloadBytes($result),
+            $this->sourceRevision($result),
+            $this->snapshotRevision($result),
         ));
 
         return $result;
@@ -578,6 +665,11 @@ class WebApiClient implements WebApiClientInterface
             'Content-Type: application/json',
             'Accept-Language: ' . $this->currentLocale(),
         ];
+
+        $requestId = RequestContext::requestId();
+        if ($requestId !== null) {
+            $headers[] = 'X-Request-ID: ' . $requestId;
+        }
 
         if ($this->apiKey !== '') {
             $headers[] = 'X-App-Key: ' . $this->apiKey;
@@ -665,6 +757,10 @@ class WebApiClient implements WebApiClientInterface
      */
     private function parseResponse(array $response): array
     {
+        $this->lastPayloadBytes = is_string($response['raw'] ?? null)
+            ? strlen($response['raw'])
+            : 0;
+
         if ($response['raw'] === false) {
             $message = ($response['timed_out'] ?? false) === true
                 ? 'cURL timeout'
@@ -788,6 +884,59 @@ class WebApiClient implements WebApiClientInterface
     }
 
     /**
+     * @param array<int, array{client: self}> $misses
+     * @return positive-int
+     */
+    private static function maxParallelRequestsFor(array $misses): int
+    {
+        $limits = [];
+        foreach ($misses as $miss) {
+            $client = $miss['client'] ?? null;
+            if ($client instanceof self) {
+                $limits[] = $client->maxParallelRequests;
+            }
+        }
+
+        return max(1, min($limits !== [] ? $limits : [1]));
+    }
+
+    /** @return positive-int */
+    private function parallelChunkSize(): int
+    {
+        return max(1, $this->maxParallelRequests);
+    }
+
+    /** @param array{data:mixed,meta:array<string,mixed>} $result */
+    private function payloadBytes(array $result): int
+    {
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return $encoded === false ? 0 : strlen($encoded);
+    }
+
+    /** @param array{data:mixed,meta:array<string,mixed>} $result */
+    private function lastOrResultPayloadBytes(array $result): int
+    {
+        return $this->lastPayloadBytes > 0 ? $this->lastPayloadBytes : $this->payloadBytes($result);
+    }
+
+    /** @param array{meta:array<string,mixed>} $result */
+    private function sourceRevision(array $result): ?string
+    {
+        return is_string($result['meta']['source_revision'] ?? null)
+            ? $result['meta']['source_revision']
+            : null;
+    }
+
+    /** @param array{meta:array<string,mixed>} $result */
+    private function snapshotRevision(array $result): ?string
+    {
+        return is_string($result['meta']['snapshot_revision'] ?? null)
+            ? $result['meta']['snapshot_revision']
+            : null;
+    }
+
+    /**
      * Emit one structured event for every remote request or cache lookup.
      * Override this seam in tests or an APM adapter; production writes JSON to
      * the application log so beta can aggregate it by scope and endpoint.
@@ -796,6 +945,13 @@ class WebApiClient implements WebApiClientInterface
      */
     protected function recordTelemetry(array $event): void
     {
+        $event['request_id'] ??= RequestContext::requestId();
+        $event['locale'] ??= $this->currentLocale();
+        $event['payload_bytes'] ??= 0;
+        $event['source_revision'] ??= null;
+        $event['snapshot_revision'] ??= null;
+        RequestContext::recordOutbound($event);
+
         log_message(
             'info',
             '[web-api] ' . (string) json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -815,6 +971,9 @@ class WebApiClient implements WebApiClientInterface
         bool $stale,
         bool $timeout,
         float $durationMs,
+        int $payloadBytes = 0,
+        ?string $sourceRevision = null,
+        ?string $snapshotRevision = null,
     ): array {
         return [
             'component'        => 'teatromuseo-web',
@@ -830,6 +989,9 @@ class WebApiClient implements WebApiClientInterface
             'cache_hit'        => $cacheState === 'hit',
             'stale'            => $stale,
             'timeout'          => $timeout,
+            'payload_bytes'    => max(0, $payloadBytes),
+            'source_revision'  => $sourceRevision,
+            'snapshot_revision' => $snapshotRevision,
         ];
     }
 
