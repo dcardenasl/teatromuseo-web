@@ -69,9 +69,15 @@ Referencia: [`docs/audits/2026-08-08-auditoria-rendimiento-beta-es.md`](docs/aud
   - Ejecutar el control en CI o en una tarea periódica contra beta.
   - **Aceptación:** una regresión de rutas, assets o tiempos bloquea el gate o genera una alerta accionable.
 
-### Fase 3 — Smart Prefetch & Block Analysis (✅ COMPLETADA)
+### Fase 3 — Prefetch único antes del render (✅ COMPLETADA 2026-08-09)
 
-Todas las tareas de optimización de performance (PERF-02, PERF-03) dependen de estas.
+La implementación vigente está documentada en [`docs/BLOCK_PREFETCH.md`](docs/BLOCK_PREFETCH.md)
+y en [ADR 0003](docs/adr/0003-single-block-prefetch-before-render.md). El planner único
+cubre `collection_grid`, `collection_listing`, `collection_timeline` y bloques de detalle,
+con routing por dominio, deduplicación, transporte concurrente cross-domain y envelopes
+explícitos por path. Los servicios `SmartPrefetchService` y `BlockAnalyzerService` quedaron
+eliminados; las tareas históricas más abajo no son instrucciones de implementación.
+
 Ver [`../TASKS.md`](../TASKS.md) para el estado cross-repo.
 
 ---
@@ -83,13 +89,12 @@ Ver [`../TASKS.md`](../TASKS.md) para el estado cross-repo.
 **Estado:** ✅ COMPLETADA
 
 Verificado:
-- ✅ `composer quality` verde en teatromuseo-web
-- ✅ BlockAnalyzerService con unit tests ✅
-- ✅ SmartPrefetchService con unit tests ✅
-- ✅ ParallelAliasResolver con unit tests ✅
-- ✅ Event-domain sparse fieldsets implementado
-- ✅ Documentación completa (4 archivos markdown)
-- ✅ Changelog actualizado
+- ✅ `composer test:unit` y `composer test:feature` verdes
+- ✅ `BlockPrefetchService` con unit tests de routing, deduplicación, facets, detalles y errores
+- ✅ `collection_listing` resuelve filtros, paginación, facets y preview antes del render
+- ✅ Transporte concurrente cross-domain preservando caché, stale fallback y telemetría
+- ✅ `ParallelAliasResolver` y sparse fieldsets existentes conservados
+- ✅ Documentación y ADR alineados con el contrato vigente
 
 ---
 
@@ -118,15 +123,12 @@ Integración:
 
 ---
 
-### Task #7 — Integración en PageController (2026-08-08) ✅ COMPLETADA
+### Task #7 — Integración en PageController (2026-08-08) ✅ SUPERSEDED
 
 **Estado:** ✅ COMPLETADA
 
-Integración en `app/Controllers/PageController.php`:
-- `resolve()` method usa BlockAnalyzer para detectar requirements
-- SmartPrefetch ejecuta batch paralelo de API calls
-- ContextHolder inyecta datos en viewmodels
-- Fallback gracioso si algún batch falla
+Nota histórica: esta integración fue reemplazada por `prefetchBlockContext()` y el
+planner único `BlockPrefetchService`. No usar el flujo histórico de analyzer/context holder.
 
 Flujo:
 1. Cargar página CMS + blocks
@@ -138,9 +140,9 @@ No requiere cambios en routes, filtros, o middleware.
 
 ---
 
-### Task #6 — SmartPrefetchService con interface + tests (2026-08-08) ✅ COMPLETADA
+### Task #6 — SmartPrefetchService con interface + tests (2026-08-08) ✅ SUPERSEDED
 
-**Estado:** ✅ COMPLETADA
+**Estado:** archivada; el servicio y su interfaz fueron eliminados.
 
 Implementación:
 - Archivo: `app/Services/SmartPrefetchService.php` (175 líneas)
@@ -163,9 +165,9 @@ Integración:
 
 ---
 
-### Task #5 — BlockAnalyzerService con interface + tests (2026-08-08) ✅ COMPLETADA
+### Task #5 — BlockAnalyzerService con interface + tests (2026-08-08) ✅ SUPERSEDED
 
-**Estado:** ✅ COMPLETADA
+**Estado:** archivada; el servicio y su interfaz fueron eliminados.
 
 Implementación:
 - Archivo: `app/Services/BlockAnalyzerService.php` (240 líneas)
@@ -238,9 +240,10 @@ Tests:
 
 ---
 
-### Task #9 — Documentación de Sparse Fieldsets y Smart Prefetch (2026-08-08)
+### Task #9 — Documentación de Sparse Fieldsets y prefetch (2026-08-08) ✅ SUPERSEDED
 
-**Estado:** ✅ COMPLETADA
+**Estado:** archivada; los documentos de los contratos eliminados fueron reemplazados
+por `BLOCK_PREFETCH.md`, `EXAMPLES.md` y el ADR 0003.
 
 4 archivos markdown creados en `teatromuseo-web/docs/`:
 

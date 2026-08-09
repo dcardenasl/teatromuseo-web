@@ -184,7 +184,8 @@ class CollectionGridViewModel extends AbstractBlockViewModel
 }
 ```
 
-But better: **the BlockAnalyzer (Task #5) will compute these dependencies automatically** and the SmartPrefetch service will fetch data with the right `?fields=` parameter before rendering.
+The canonical `BlockPrefetchService` planner computes these dependencies from
+the block projection and sends the right `?fields=` parameter before rendering.
 
 ### Scenario: Cache Key Includes Field Selection
 
@@ -332,6 +333,5 @@ public function testInvalidFieldsReturns400()
 ---
 
 **Related Documentation:**
-- `SMART_PREFETCH.md` — parallel prefetching with automatic field selection.
-- `BLOCK_REQUIREMENTS.md` — declaring which fields blocks need.
+- `BLOCK_PREFETCH.md` — pre-render planning and parallel execution.
 - `ci4-api-core` `SparseFieldsetTrait` source code.
