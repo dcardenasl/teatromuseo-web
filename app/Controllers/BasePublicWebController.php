@@ -264,7 +264,13 @@ abstract class BasePublicWebController extends BaseController
         try {
             return \Config\Services::blockPrefetchService()->prefetchContext($blocks, $lang);
         } catch (\Throwable) {
-            return [];
+            // Mark the prefetch phase as complete even on an internal planner
+            // failure so ViewModels render an explicit empty state instead of
+            // reopening the old per-block HTTP fallback path.
+            return [
+                'block_prefetch' => [],
+                'block_prefetch_complete' => true,
+            ];
         }
     }
 

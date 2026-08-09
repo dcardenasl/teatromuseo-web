@@ -52,6 +52,10 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $requestedDirection = $publicOrderingEnabled ? $this->requestGet('order_direction') : '';
         $orderDirection = $this->resolveOrderDirection($requestedDirection, $configuredDirection !== '' ? $configuredDirection : $defaults['order_direction']);
         $perPage = max(1, min(100, $this->configInt('per_page', 12)));
+        $requestedPerPage = $this->requestGet('limit') ?: $this->requestGet('per_page');
+        if (ctype_digit($requestedPerPage) && (int) $requestedPerPage > 0) {
+            $perPage = max(1, min(100, (int) $requestedPerPage));
+        }
 
         $query = new ListingQuery(
             page: $currentPage,
@@ -67,15 +71,24 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             filterOperator: $currentFilterOperator,
         );
 
-        $result = $source->fetch($query, $this->lang);
-
-        if ((empty($result->data) || !is_array($result->data)) && $this->isPreviewRequest()) {
-            $result = $source->previewResult();
-        }
-
         $showCategories = $this->configBool('show_categories', $defaults['show_categories']);
         $showTags = $this->configBool('show_tags', $defaults['show_tags']);
-        $facets = ($showCategories || $showTags) ? $source->facets($query, $this->lang) : [];
+        $prefetched = $this->prefetchedListing();
+        if ($prefetched !== null) {
+            $result = new \App\ViewModels\Blocks\Listing\ListingResult(
+                $this->prefetchedData($prefetched),
+                $this->prefetchedPagination($prefetched),
+            );
+            $facets = is_array($prefetched['facets'] ?? null) ? $prefetched['facets'] : [];
+        } else {
+            $result = $source->fetch($query, $this->lang);
+
+            if ((empty($result->data) || !is_array($result->data)) && $this->isPreviewRequest()) {
+                $result = $source->previewResult();
+            }
+
+            $facets = ($showCategories || $showTags) ? $source->facets($query, $this->lang) : [];
+        }
         $categories = $showCategories ? ($facets['categories'] ?? []) : [];
         $tags = $showTags ? ($facets['tags'] ?? []) : [];
 
@@ -156,7 +169,9 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         ];
 
         if ($sourceType === 'cms_collection' && $source instanceof CmsCollectionSource) {
-            $cmsCollection = $source->getCollectionData($this->lang, $this->isPreviewRequest());
+            $cmsCollection = is_array($prefetched['collection'] ?? null)
+                ? $prefetched['collection']
+                : ($prefetched === null ? $source->getCollectionData($this->lang, $this->isPreviewRequest()) : null);
             if ($cmsCollection !== null) {
                 $collection = $cmsCollection;
                 $collectionKey = (string) ($collection['collection_key'] ?? '');
@@ -402,6 +417,60 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $value = $request->getGet($key);
 
         return is_scalar($value) ? (string) $value : '';
+    }
+
+    /** @return array<string, mixed>|null */
+    private function prefetchedListing(): ?array
+    {
+        $allPrefetched = $this->context['block_prefetch'] ?? null;
+        $blockPath = (string) ($this->context['blockPath'] ?? '');
+        if (! is_array($allPrefetched) || $blockPath === '') {
+            return null;
+        }
+
+        if (is_array($allPrefetched[$blockPath] ?? null)) {
+            return $allPrefetched[$blockPath];
+        }
+
+        if (($this->context['block_prefetch_complete'] ?? false) === true) {
+            return [
+                'ok' => false,
+                'status' => 0,
+                'data' => [],
+                'meta' => [],
+                'facets' => ['categories' => [], 'tags' => []],
+                'collection' => null,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $prefetched
+     * @return list<array<string, mixed>>
+     */
+    private function prefetchedData(array $prefetched): array
+    {
+        $data = $prefetched['data'] ?? [];
+        if (is_array($data) && isset($data['data']) && is_array($data['data'])) {
+            $data = $data['data'];
+        }
+
+        return is_array($data)
+            ? array_values(array_filter($data, 'is_array'))
+            : [];
+    }
+
+    /**
+     * @param array<string, mixed> $prefetched
+     * @return array<string, mixed>
+     */
+    private function prefetchedPagination(array $prefetched): array
+    {
+        $meta = is_array($prefetched['meta'] ?? null) ? $prefetched['meta'] : [];
+
+        return is_array($meta['pagination'] ?? null) ? $meta['pagination'] : $meta;
     }
 
     private function resolveSourceType(): string

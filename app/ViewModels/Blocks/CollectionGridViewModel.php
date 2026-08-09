@@ -173,6 +173,10 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             return $prefetched;
         }
 
+        if (($this->context['block_prefetch_complete'] ?? false) === true) {
+            return [];
+        }
+
         if ($sourceType === 'event_items') {
             return $this->externalEntries('event_items', $itemsLimit, $orderBy, $orderDirection, $listingProjection);
         }

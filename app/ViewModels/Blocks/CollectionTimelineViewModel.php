@@ -57,6 +57,8 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
             $prefetched = $this->prefetchedEntries();
             if ($prefetched !== null) {
                 $entries = $prefetched;
+            } elseif (($this->context['block_prefetch_complete'] ?? false) === true) {
+                $entries = [];
             } else {
                 $result = $entryService->list($this->lang, $collectionKey, $query);
                 $entries = is_array($result['data'] ?? null) ? $result['data'] : [];

@@ -118,7 +118,7 @@ class BlockRenderer
      */
     private function renderBlock(array $block, string $lang, array $context = [], string $blockPath = ''): string
     {
-        $context = $this->injectPrefetchedItem($block, $context);
+        $context = $this->injectPrefetchedItem($block, $context, $blockPath);
         $blockKey = $block['block_key'] ?? 'unknown';
         $config   = $block['block_config'] ?? [];
         $data     = $block['block_data'] ?? [];
@@ -217,83 +217,57 @@ class BlockRenderer
     }
 
     /**
-     * Attach the result of the page prefetch context to detail blocks that identify their
-     * resource by id or slug. Without this bridge the batch completed but the
-     * ViewModels still saw an empty `event_item`/`catalog_item` context.
+     * Attach the path-keyed result of the page prefetch context to detail blocks.
+     * A missing or failed result is intentionally left empty; detail ViewModels
+     * render their existing empty/preview state without issuing HTTP.
      *
      * @param array<string, mixed> $block
      * @param array<string, mixed> $context
+     * @param string $blockPath
      * @return array<string, mixed>
      */
-    private function injectPrefetchedItem(array $block, array $context): array
+    private function injectPrefetchedItem(array $block, array $context, string $blockPath): array
     {
         $blockKey = (string) ($block['block_key'] ?? '');
-        $payload = [];
-        foreach (['block_data', 'block_config'] as $key) {
-            $value = $block[$key] ?? [];
-            if (is_string($value)) {
-                $decoded = json_decode($value, true);
-                $value = is_array($decoded) ? $decoded : [];
-            }
-            if (is_array($value)) {
-                $payload = array_merge($payload, $value);
-            }
+
+        $prefetched = is_array($context['block_prefetch'][$blockPath] ?? null)
+            ? $context['block_prefetch'][$blockPath]
+            : null;
+        $item = $this->firstPrefetchedItem($prefetched);
+
+        if ($item !== null && str_starts_with($blockKey, 'event_item_')) {
+            $context['event_item'] = $item;
         }
 
-        if (str_starts_with($blockKey, 'event_item_')) {
-            $reference = $payload['event_id'] ?? $payload['event_slug'] ?? null;
-            $item = $this->findPrefetchedItem($context['events'] ?? null, $reference);
-            if ($item !== null) {
-                $context['event_item'] = $item;
-            }
-        }
-
-        if (str_starts_with($blockKey, 'catalog_item_')) {
-            $reference = $payload['collection_item_id'] ?? $payload['collection_item_slug'] ?? null;
-            $item = $this->findPrefetchedItem($context['collection_items'] ?? null, $reference);
-            if ($item !== null) {
-                $context['catalog_item'] = $item;
-            }
+        if ($item !== null && str_starts_with($blockKey, 'catalog_item_')) {
+            $context['catalog_item'] = $item;
         }
 
         return $context;
     }
 
     /**
-     * @param mixed $items
+     * @param mixed $result
      * @return array<string, mixed>|null
      */
-    private function findPrefetchedItem(mixed $items, mixed $reference): ?array
+    private function firstPrefetchedItem(mixed $result): ?array
     {
-        if (! is_array($items) || $reference === null || $reference === '') {
+        if (! is_array($result) || ! ($result['ok'] ?? false)) {
             return null;
         }
 
-        $referenceString = (string) $reference;
-        if (isset($items[$referenceString]) && is_array($items[$referenceString])) {
-            return $items[$referenceString];
-        }
-        if (is_int($reference) && isset($items[$reference]) && is_array($items[$reference])) {
-            return $items[$reference];
+        $data = $result['data'] ?? null;
+        if (! is_array($data)) {
+            return null;
         }
 
-        foreach ($items as $item) {
-            if (! is_array($item)) {
-                continue;
-            }
-
-            $slugs = is_array($item['slugs'] ?? null) ? $item['slugs'] : [];
-            $localized = is_array($item['localized'] ?? null) ? $item['localized'] : [];
-            if ((string) ($item['id'] ?? '') === $referenceString
-                || (string) ($item['uuid'] ?? '') === $referenceString
-                || (string) ($item['slug'] ?? '') === $referenceString
-                || (string) ($localized['slug'] ?? '') === $referenceString
-                || in_array($referenceString, array_map('strval', $slugs), true)) {
-                return $item;
-            }
+        if (isset($data['data']) && is_array($data['data'])) {
+            $data = $data['data'];
         }
 
-        return null;
+        return array_is_list($data)
+            ? (is_array($data[0] ?? null) ? $data[0] : null)
+            : $data;
     }
 
     /**

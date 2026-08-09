@@ -125,12 +125,20 @@ final class BlockRendererTest extends CIUnitTestCase
                 'children' => [],
             ],
         ], 'es', [
-            'events' => [201 => [
-                'id' => 201,
-                'title' => 'Prefetched event',
-                'event_type' => 'festival',
-                'occurrences' => [],
-            ]],
+            'block_prefetch_complete' => true,
+            'block_prefetch' => [
+                '0' => [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [[
+                        'id' => 201,
+                        'title' => 'Prefetched event',
+                        'event_type' => 'festival',
+                        'occurrences' => [],
+                    ]],
+                    'meta' => [],
+                ],
+            ],
         ]);
 
         $this->assertStringContainsString('Prefetched event', $html);
