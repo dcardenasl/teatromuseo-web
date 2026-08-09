@@ -15,6 +15,28 @@
 
 ## 🟡 Próximo
 
+### Programa cross-repo — PublicRead/PageDelivery/Snapshots
+
+Fuente de verdad: [plan de entrega pública](../docs/plan/2026-08-09-entrega-publica-read-model-page-delivery.md) y
+[tracker raíz](../TASKS.md). Las tareas deben ejecutarse en el orden cross-repo y
+con los criterios de aceptación de la sección 8 del plan.
+
+- [ ] **PUB-00** — Baseline HTTP ejecutado; la capacidad beta queda pendiente de
+  métricas del hosting (PHP-FPM, MySQL, caché y upstream 508) en el tracker raíz.
+- [x] **PUB-01/PUB-02** — Contratos, gobierno, observabilidad y budgets completados
+  en el tracker raíz antes de modificar el camino público.
+- [ ] **WEB-01** — Interface y adapters PageDelivery.
+- [ ] **WEB-02** — Composición síncrona de la homepage.
+- [ ] **WEB-03** — Identidad de instancia, filtros y preview.
+- [ ] **WEB-04** — Consolidación de idiomas y layout.
+- [ ] **CACHE-01** — Backend compartido y política de caché.
+- [ ] **CACHE-02** — Builder y almacenamiento atómico.
+- [ ] **CACHE-03** — Invalidación y regeneración asíncrona.
+- [ ] **CACHE-04** — Manifest y warm-up controlado.
+- [ ] **QA-01/QA-03/QA-04** — Contratos, carga y paridad cross-repo.
+- [ ] **REL-01/REL-02/CLEAN-01** — Cutover progresivo y retirada del camino
+  anterior.
+
 ### Auditoría de rendimiento beta — 2026-08-08
 
 Referencia: [`docs/audits/2026-08-08-auditoria-rendimiento-beta-es.md`](docs/audits/2026-08-08-auditoria-rendimiento-beta-es.md)
