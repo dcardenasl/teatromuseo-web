@@ -39,6 +39,8 @@ class Filters extends BaseFilters
         'forcehttps'     => ForceHTTPS::class,
         'pagecache'      => PageCache::class,
         'performance'    => PerformanceMetrics::class,
+        'correlationid'   => \App\Filters\CorrelationIdFilter::class,
+        'requestTelemetry' => \App\Filters\RequestTelemetryFilter::class,
     ];
 
     /**
@@ -57,10 +59,17 @@ class Filters extends BaseFilters
     public array $required = [
         'before' => [
             'forcehttps', // Force Global Secure Requests
+            // These must run before PageCache so a cache hit receives a fresh
+            // request ID and emits telemetry instead of replaying headers
+            // from the request that populated the cached response.
+            'correlationid',
+            'requestTelemetry',
             'pagecache',  // Web Page Caching
         ],
         'after' => [
             'pagecache',   // Web Page Caching
+            'requestTelemetry',
+            'correlationid',
             'performance', // Performance Metrics
             // 'toolbar',     // Debug Toolbar
         ],
