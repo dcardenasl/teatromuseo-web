@@ -56,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Broken `/files/{id}/view` media fallback** — block view models no longer fabricate a
+  local `/files/{id}/view` URL when a hub-file reference has no resolved URL; the CMS domain
+  now always resolves the real public URL upstream, so a missing one means the asset should
+  render as absent instead of a broken link. Cache schema bumped to invalidate previously
+  cached responses that may still contain the removed fallback.
 - **CSP blocked every block-scoped inline style in production** — `Config\ContentSecurityPolicy`
   shipped `styleSrc`/`styleSrcElem`/`styleSrcAttr` at `'self'` with no exception, but block
   partials (`hero_slider`, `hero_banner`, `cards_slider`, `timeline`, `gallery_item`, `footer`,
