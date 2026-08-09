@@ -168,15 +168,25 @@ class App extends BaseConfig
 
     /**
      * Timeout (seconds) for requests against the Domain API.
-     * Override with WEB_API_TIMEOUT in .env.
+     * Override with WEB_API_TIMEOUT in .env. Five seconds keeps a slow
+     * domain from holding a shared-hosting worker for the full request.
      */
-    public int $webApiTimeout = 15;
+    public int $webApiTimeout = 5;
 
     /**
      * TTL (seconds) for the long-lived stale cache copy served when the
      * Domain API is down. Set WEB_API_STALE_TTL=0 in .env to disable.
      */
     public int $webApiStaleTtl = 86400;
+
+    /**
+     * TTL (seconds) for full HTML response caching on public pages.
+     *
+     * Keep this disabled outside production so feature tests and local
+     * development always render against the current upstream data.
+     * Override with WEB_PAGE_CACHE_TTL in .env.
+     */
+    public int $webPageCacheTtl = ENVIRONMENT === 'production' ? 300 : 0;
 
     /**
      * --------------------------------------------------------------------------
@@ -317,6 +327,11 @@ class App extends BaseConfig
         $webApiStaleTtl = env('WEB_API_STALE_TTL');
         if (is_numeric($webApiStaleTtl) && (int) $webApiStaleTtl >= 0) {
             $this->webApiStaleTtl = (int) $webApiStaleTtl;
+        }
+
+        $webPageCacheTtl = env('WEB_PAGE_CACHE_TTL');
+        if (is_numeric($webPageCacheTtl) && (int) $webPageCacheTtl >= 0) {
+            $this->webPageCacheTtl = (int) $webPageCacheTtl;
         }
 
         $this->cspObjectSrc = $this->parseCspSources(env('CSP_OBJECT_SRC'), $this->cspObjectSrc);

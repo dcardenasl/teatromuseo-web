@@ -172,7 +172,10 @@ class Cache extends BaseConfig
      *
      * @var bool|list<string>
      */
-    public $cacheQueryString = false;
+    // Public listings use query parameters for pagination and filters. Include
+    // the complete query string in the response-cache key so one listing
+    // variant can never serve another variant's HTML.
+    public $cacheQueryString = true;
 
     /**
      * --------------------------------------------------------------------------
@@ -196,5 +199,5 @@ class Cache extends BaseConfig
      *
      * @var list<int>
      */
-    public array $cacheStatusCodes = [];
+    public array $cacheStatusCodes = [200];
 }

@@ -38,7 +38,7 @@ class WebApiClient implements WebApiClientInterface
     public function __construct(
         string $baseUrl,
         string $apiKey,
-        int $timeout = 15,
+        int $timeout = 5,
         int $staleTtl = 86400
     ) {
         if (trim($baseUrl) === '') {
@@ -70,6 +70,7 @@ class WebApiClient implements WebApiClientInterface
      */
     public function get(string $path, array $query = [], int $cacheTtl = 300, string $scope = 'general'): array
     {
+        $startedAt = hrtime(true);
         $url       = $this->buildUrl($path, $query);
         $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
         $cacheKey  = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
@@ -78,10 +79,24 @@ class WebApiClient implements WebApiClientInterface
 
         $cached = $cache->get($cacheKey);
         if (is_array($cached)) {
-            return $this->resultFromArray($cached);
+            $result = $this->resultFromArray($cached);
+            $this->recordTelemetry($this->telemetryEvent(
+                'GET',
+                $path,
+                $url,
+                $scope,
+                $result['status'],
+                'hit',
+                false,
+                false,
+                $this->elapsedMilliseconds($startedAt),
+            ));
+
+            return $result;
         }
 
         $result = $this->request('GET', $path, $query);
+        $timeout = $this->isTimeoutResult($result);
 
         if ($result['ok']) {
             if ($cacheTtl > 0) {
@@ -91,6 +106,18 @@ class WebApiClient implements WebApiClientInterface
                     $cache->save($staleKey, $result, $this->staleTtl);
                 }
             }
+
+            $this->recordTelemetry($this->telemetryEvent(
+                'GET',
+                $path,
+                $url,
+                $scope,
+                $result['status'],
+                $cacheTtl > 0 ? 'miss' : 'bypass',
+                false,
+                $timeout,
+                $this->elapsedMilliseconds($startedAt),
+            ));
 
             return $result;
         }
@@ -108,9 +135,33 @@ class WebApiClient implements WebApiClientInterface
                 $staleResult                  = $this->resultFromArray($stale);
                 $staleResult['meta']['stale'] = true;
 
+                $this->recordTelemetry($this->telemetryEvent(
+                    'GET',
+                    $path,
+                    $url,
+                    $scope,
+                    $result['status'],
+                    'stale',
+                    true,
+                    $timeout,
+                    $this->elapsedMilliseconds($startedAt),
+                ));
+
                 return $staleResult;
             }
         }
+
+        $this->recordTelemetry($this->telemetryEvent(
+            'GET',
+            $path,
+            $url,
+            $scope,
+            $result['status'],
+            $cacheTtl > 0 ? 'miss' : 'bypass',
+            false,
+            $timeout,
+            $this->elapsedMilliseconds($startedAt),
+        ));
 
         return $result;
     }
@@ -128,6 +179,7 @@ class WebApiClient implements WebApiClientInterface
             return [];
         }
 
+        $batchStartedAt = hrtime(true);
         $results = [];
         $cache   = \Config\Services::cache();
 
@@ -145,6 +197,17 @@ class WebApiClient implements WebApiClientInterface
             $cached = $cache->get($cacheKey);
             if (is_array($cached)) {
                 $results[$index] = $this->resultFromArray($cached);
+                $this->recordTelemetry($this->telemetryEvent(
+                    'GET',
+                    $path,
+                    $url,
+                    $scope,
+                    $results[$index]['status'],
+                    'hit',
+                    false,
+                    false,
+                    $this->elapsedMilliseconds($batchStartedAt),
+                ));
             }
         }
 
@@ -204,8 +267,16 @@ class WebApiClient implements WebApiClientInterface
                 $req      = $requests[$idx];
                 $raw      = curl_multi_getcontent($ch);
                 $status   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $response = ['raw' => is_string($raw) ? $raw : false, 'status' => $status, 'error' => curl_error($ch)];
+                $error    = curl_error($ch);
+                $response = [
+                    'raw'       => is_string($raw) ? $raw : false,
+                    'status'    => $status,
+                    'error'     => $error,
+                    'timed_out' => curl_errno($ch) === CURLE_OPERATION_TIMEDOUT,
+                ];
+                $duration = (float) curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000;
                 $result   = $this->parseResponse($response);
+                $timeout  = $this->isTimeoutResult($result, $response);
 
                 curl_multi_remove_handle($mh, $ch);
                 curl_close($ch);
@@ -221,8 +292,53 @@ class WebApiClient implements WebApiClientInterface
                         $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
                         $cacheKey  = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
                         $cache->save($cacheKey, $result, $cacheTtl);
+
+                        if ($this->staleTtl > 0) {
+                            $staleKey = 'web_api_stale_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
+                            $cache->save($staleKey, $result, $this->staleTtl);
+                        }
+                    }
+                } elseif ($result['status'] === 0 || $result['status'] >= 500) {
+                    // Keep the same stale-on-outage contract as get(). This is
+                    // especially important for SmartPrefetch, which uses
+                    // multiGet() for all block data.
+                    $path      = $req['path'] ?? '';
+                    $query     = is_array($req['query'] ?? null) ? $req['query'] : [];
+                    $scope     = (string) ($req['scope'] ?? 'general');
+                    $url       = $this->buildUrl($path, $query);
+                    $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
+                    $staleKey  = 'web_api_stale_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
+                    $stale     = $cache->get($staleKey);
+
+                    if (is_array($stale)) {
+                        $staleResult                  = $this->resultFromArray($stale);
+                        $staleResult['meta']['stale'] = true;
+                        $result                        = $staleResult;
                     }
                 }
+
+                $path      = $req['path'] ?? '';
+                $query     = is_array($req['query'] ?? null) ? $req['query'] : [];
+                $scope     = (string) ($req['scope'] ?? 'general');
+                $url       = $this->buildUrl($path, $query);
+                $cacheTtl  = (int) ($req['cacheTtl'] ?? 300);
+                $isStale   = (bool) ($result['meta']['stale'] ?? false);
+                $cacheMode = $isStale ? 'stale' : ($cacheTtl > 0 ? 'miss' : 'bypass');
+                if ($duration <= 0) {
+                    $duration = $this->elapsedMilliseconds($batchStartedAt);
+                }
+
+                $this->recordTelemetry($this->telemetryEvent(
+                    'GET',
+                    $path,
+                    $url,
+                    $scope,
+                    $status,
+                    $cacheMode,
+                    $isStale,
+                    $timeout,
+                    $duration,
+                ));
 
                 $results[$idx] = $result;
             }
@@ -242,7 +358,23 @@ class WebApiClient implements WebApiClientInterface
      */
     public function post(string $path, array $data = []): array
     {
-        return $this->request('POST', $path, [], $data);
+        $startedAt = hrtime(true);
+        $url       = $this->buildUrl($path);
+        $result    = $this->request('POST', $path, [], $data);
+
+        $this->recordTelemetry($this->telemetryEvent(
+            'POST',
+            $path,
+            $url,
+            'none',
+            $result['status'],
+            'bypass',
+            false,
+            $this->isTimeoutResult($result),
+            $this->elapsedMilliseconds($startedAt),
+        ));
+
+        return $result;
     }
 
     /**
@@ -287,7 +419,7 @@ class WebApiClient implements WebApiClientInterface
      * @param non-empty-string   $method
      * @param list<string>       $headers
      *
-     * @return array{raw: string|false, status: int, error: string}
+     * @return array{raw: string|false, status: int, error: string, timed_out?: bool}
      */
     protected function execute(string $method, string $url, array $headers, ?string $jsonBody): array
     {
@@ -310,12 +442,14 @@ class WebApiClient implements WebApiClientInterface
         $raw    = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error  = curl_error($ch);
+        $timedOut = curl_errno($ch) === CURLE_OPERATION_TIMEDOUT;
         curl_close($ch);
 
         return [
-            'raw'    => is_string($raw) ? $raw : false,
-            'status' => $status,
-            'error'  => $error,
+            'raw'       => is_string($raw) ? $raw : false,
+            'status'    => $status,
+            'error'     => $error,
+            'timed_out' => $timedOut,
         ];
     }
 
@@ -339,7 +473,7 @@ class WebApiClient implements WebApiClientInterface
     /**
      * Parse raw transport response into normalized result envelope.
      *
-     * @param array{raw: string|false, status: int, error: string} $response
+     * @param array{raw: string|false, status: int, error: string, timed_out?: bool} $response
      *
      * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
      */
@@ -350,7 +484,11 @@ class WebApiClient implements WebApiClientInterface
     private function parseResponse(array $response): array
     {
         if ($response['raw'] === false) {
-            return $this->errorResult(0, 'cURL error: ' . $response['error']);
+            $message = ($response['timed_out'] ?? false) === true
+                ? 'cURL timeout'
+                : 'cURL error: ' . $response['error'];
+
+            return $this->errorResult(0, $message);
         }
 
         $decoded  = json_decode($response['raw'], true);
@@ -465,5 +603,81 @@ class WebApiClient implements WebApiClientInterface
         $locale = service('request')->getLocale();
 
         return $locale !== '' ? $locale : (string) config('App')->defaultLocale;
+    }
+
+    /**
+     * Emit one structured event for every remote request or cache lookup.
+     * Override this seam in tests or an APM adapter; production writes JSON to
+     * the application log so beta can aggregate it by scope and endpoint.
+     *
+     * @param array<string, mixed> $event
+     */
+    protected function recordTelemetry(array $event): void
+    {
+        log_message(
+            'info',
+            '[web-api] ' . (string) json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function telemetryEvent(
+        string $method,
+        string $path,
+        string $url,
+        string $scope,
+        int $status,
+        string $cacheState,
+        bool $stale,
+        bool $timeout,
+        float $durationMs,
+    ): array {
+        return [
+            'component'        => 'teatromuseo-web',
+            'event'            => 'web_api_request',
+            'method'           => $method,
+            'request_path'     => $this->currentRequestPath(),
+            'path'             => $path,
+            'remote_endpoint'  => (string) (parse_url($url, PHP_URL_PATH) ?? $url),
+            'scope'            => $scope,
+            'duration_ms'      => round($durationMs, 2),
+            'status'           => $status,
+            'cache_state'      => $cacheState,
+            'cache_hit'        => $cacheState === 'hit',
+            'stale'            => $stale,
+            'timeout'          => $timeout,
+        ];
+    }
+
+    private function elapsedMilliseconds(int $startedAt): float
+    {
+        return (hrtime(true) - $startedAt) / 1_000_000;
+    }
+
+    /**
+     * @param array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>} $result
+     * @param array{raw?: string|false, status?: int, error?: string, timed_out?: bool} $response
+     */
+    private function isTimeoutResult(array $result, array $response = []): bool
+    {
+        if (($response['timed_out'] ?? false) === true) {
+            return true;
+        }
+
+        $message = strtolower(implode(' ', $result['messages']));
+
+        return $result['status'] === 0
+            && (str_contains($message, 'timed out') || str_contains($message, 'timeout'));
+    }
+
+    private function currentRequestPath(): string
+    {
+        try {
+            return trim((string) service('request')->getUri()->getPath(), '/');
+        } catch (\Throwable) {
+            return '';
+        }
     }
 }

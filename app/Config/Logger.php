@@ -43,6 +43,18 @@ class Logger extends BaseConfig
      */
     public $threshold = (ENVIRONMENT === 'production') ? 4 : 9;
 
+    public function __construct()
+    {
+        parent::__construct();
+
+        if (
+            ENVIRONMENT === 'production'
+            && filter_var(env('WEB_API_TELEMETRY', false), FILTER_VALIDATE_BOOLEAN)
+        ) {
+            $this->threshold = 7;
+        }
+    }
+
     /**
      * --------------------------------------------------------------------------
      * Date Format for Logs

@@ -9,6 +9,44 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\Mock\MockCache;
 use Config\Services;
 
+/** @internal */
+final class InstrumentedWebApiClient extends WebApiClient
+{
+    /** @var list<array{method: string, url: string, headers: list<string>, jsonBody: string|null}> */
+    public array $calls = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $telemetry = [];
+
+    /**
+     * @param list<array{raw: string|false, status: int, error: string}> $responses
+     */
+    public function __construct(private array $responses)
+    {
+        parent::__construct('http://domain.test', 'test_app_key', 5, 3600);
+    }
+
+    protected function execute(string $method, string $url, array $headers, ?string $jsonBody): array
+    {
+        $this->calls[] = [
+            'method'   => $method,
+            'url'      => $url,
+            'headers'  => $headers,
+            'jsonBody' => $jsonBody,
+        ];
+
+        $next = array_shift($this->responses);
+
+        return $next ?? ['raw' => false, 'status' => 0, 'error' => 'no scripted response left'];
+    }
+
+    /** @param array<string, mixed> $event */
+    protected function recordTelemetry(array $event): void
+    {
+        $this->telemetry[] = $event;
+    }
+}
+
 /**
  * Unit tests for WebApiClient using the protected execute() seam: a subclass
  * replaces the cURL transport with scripted responses, so caching, stale
@@ -38,34 +76,9 @@ final class WebApiClientTest extends CIUnitTestCase
     /**
      * @param list<array{raw: string|false, status: int, error: string}> $responses
      */
-    private function makeClient(array $responses): WebApiClient
+    private function makeClient(array $responses): InstrumentedWebApiClient
     {
-        return new class ($responses) extends WebApiClient {
-            /** @var list<array{method: string, url: string, headers: list<string>, jsonBody: string|null}> */
-            public array $calls = [];
-
-            /**
-             * @param list<array{raw: string|false, status: int, error: string}> $responses
-             */
-            public function __construct(private array $responses)
-            {
-                parent::__construct('http://domain.test', 'test_app_key', 5, 3600);
-            }
-
-            protected function execute(string $method, string $url, array $headers, ?string $jsonBody): array
-            {
-                $this->calls[] = [
-                    'method'   => $method,
-                    'url'      => $url,
-                    'headers'  => $headers,
-                    'jsonBody' => $jsonBody,
-                ];
-
-                $next = array_shift($this->responses);
-
-                return $next ?? ['raw' => false, 'status' => 0, 'error' => 'no scripted response left'];
-            }
-        };
+        return new InstrumentedWebApiClient($responses);
     }
 
     /**
@@ -104,6 +117,61 @@ final class WebApiClientTest extends CIUnitTestCase
 
         $this->assertSame($first['data'], $second['data']);
         $this->assertCount(1, $client->calls, 'Second call must be served from cache');
+    }
+
+    public function testGetEmitsCacheAndEndpointTelemetry(): void
+    {
+        $client = $this->makeClient([
+            $this->jsonResponse(['data' => ['id' => 1]]),
+        ]);
+
+        $client->get('public/es/pages/home', [], 300, 'pages');
+        $client->get('public/es/pages/home', [], 300, 'pages');
+
+        $this->assertCount(2, $client->telemetry);
+        $this->assertSame('miss', $client->telemetry[0]['cache_state']);
+        $this->assertFalse($client->telemetry[0]['cache_hit']);
+        $this->assertSame('hit', $client->telemetry[1]['cache_state']);
+        $this->assertTrue($client->telemetry[1]['cache_hit']);
+        $this->assertSame('public/es/pages/home', $client->telemetry[0]['path']);
+        $this->assertSame('/api/v1/public/es/pages/home', $client->telemetry[0]['remote_endpoint']);
+        $this->assertSame(200, $client->telemetry[0]['status']);
+        $this->assertIsFloat($client->telemetry[0]['duration_ms']);
+    }
+
+    public function testGetMarksTimeoutsInTelemetry(): void
+    {
+        $client = $this->makeClient([
+            ['raw' => false, 'status' => 0, 'error' => 'Operation timed out after 5000 milliseconds'],
+        ]);
+
+        $result = $client->get('public/es/collections', [], 300, 'collections');
+
+        $this->assertFalse($result['ok']);
+        $this->assertCount(1, $client->telemetry);
+        $this->assertTrue($client->telemetry[0]['timeout']);
+        $this->assertSame('miss', $client->telemetry[0]['cache_state']);
+        $this->assertSame(0, $client->telemetry[0]['status']);
+    }
+
+    public function testMultiGetEmitsTelemetryForCachedRequests(): void
+    {
+        $client = $this->makeClient([
+            $this->jsonResponse(['data' => ['id' => 3]]),
+        ]);
+        $request = [[
+            'path'    => 'public/es/pages/home',
+            'cacheTtl' => 300,
+            'scope'   => 'pages',
+        ]];
+
+        $client->get('public/es/pages/home', [], 300, 'pages');
+        $client->multiGet($request);
+
+        $this->assertCount(2, $client->telemetry);
+        $this->assertSame('hit', $client->telemetry[1]['cache_state']);
+        $this->assertTrue($client->telemetry[1]['cache_hit']);
+        $this->assertSame('public/es/pages/home', $client->telemetry[1]['path']);
     }
 
     public function testGetDoesNotCacheFailures(): void
@@ -153,6 +221,28 @@ final class WebApiClientTest extends CIUnitTestCase
 
         $this->assertTrue($result['ok']);
         $this->assertSame(['id' => 42], $result['data']);
+        $this->assertTrue($result['meta']['stale'] ?? false);
+    }
+
+    public function testMultiGetServesStaleCopyWhenUpstreamReturns500(): void
+    {
+        $client = $this->makeClient([
+            $this->jsonResponse(['data' => ['id' => 84]]),
+        ]);
+        $requests = [[
+            'path' => 'public/es/pages/home',
+            'cacheTtl' => 300,
+            'scope' => 'pages',
+        ]];
+
+        // Prime the stale copy through the tested single-request transport seam.
+        $client->get('public/es/pages/home', [], 300, 'pages');
+        $this->cache->deleteMatching('web_api_v*');
+
+        $result = $client->multiGet($requests)[0];
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame(['id' => 84], $result['data']);
         $this->assertTrue($result['meta']['stale'] ?? false);
     }
 

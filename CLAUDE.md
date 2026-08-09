@@ -46,7 +46,7 @@ Key environment variables:
 - `app.defaultLocale=es`
 - `WEB_API_BASE_URL=http://localhost:8190`
 - `WEB_API_KEY=web_api_test_key`
-- `WEB_API_TIMEOUT=15`
+- `WEB_API_TIMEOUT=5`
 - `WEB_API_STALE_TTL=86400`
 - `CACHE_INVALIDATE_KEY=<strong-secret>`
 - `cache.handler=file`
