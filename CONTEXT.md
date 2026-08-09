@@ -2,6 +2,35 @@
 
 Este contexto describe cómo el sitio público compone páginas CMS que combinan contenido editorial con datos de catálogo y eventos.
 
+## Contratos canónicos de entrega pública
+
+Las lecturas nuevas de CMS, catálogo y eventos usan el namespace versionado
+`/api/v1/public-read`. Las rutas CRUD existentes no se reutilizan como fachada
+de lectura pública. La composición de una página pertenece al módulo
+`PageDelivery` de esta aplicación, no a un dominio ni al BFF.
+
+El término **PageDelivery** designa la operación que recibe locale, ruta,
+preview y variante de la página, compone las lecturas remotas y entrega datos
+precargados al render. Puede usar un adapter síncrono o un snapshot público sin
+cambiar controladores ni ViewModels. Ninguna vista ni ViewModel inicia I/O.
+
+Un **snapshot público** es una representación versionada y completa de una
+entrega publicada. Incluye locale, ruta, variante, `source_revision`,
+`snapshot_revision`, estado (`fresh`, `stale`, `preview` o `unavailable`) y los
+datos ya compuestos. Preview nunca lee ni contamina la caché pública.
+
+Las lecturas nuevas comparten un envelope versionado: `version`, `ok`, `data`,
+`meta`, `source` y `messages`. `meta` contiene locale, revisiones, timestamps,
+campos y metadata de paginación; filtros, orden, página, límite y facetas son
+parte de la identidad de la respuesta. Fallback de locale es explícito y sigue
+la prioridad locale solicitada → locale por defecto publicado.
+
+La caché pública debe ser compartida entre workers y la invalidación ocurre
+después de publicar el cambio. Un snapshot válido no se borra antes de que
+exista su reemplazo. El BFF queda fuera del primer camino de Web: se mantiene
+para futuros consumidores desacoplados y sólo se incorpora cuando exista un
+segundo consumidor real que justifique el salto.
+
 ## Lenguaje
 
 **Bloque dinámico**:
