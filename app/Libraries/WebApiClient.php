@@ -27,8 +27,10 @@ class WebApiClient implements WebApiClientInterface
     // v8 invalidates payloads cached before the canonical public slugs and
     // TeatroEscuela nomenclature were applied to CMS bootstrap data.
     // v9 invalidates entry payloads cached before schema-declared listing
-    // fields (including TeatroEscuela start_date) were exposed.
-    private const CACHE_SCHEMA_VERSION = 10;
+    // fields (including TeatroEscuela start_date) were exposed. v11 also
+    // invalidates responses that may contain the removed frontend file URL
+    // fallback.
+    private const CACHE_SCHEMA_VERSION = 11;
 
     private string $baseUrl;
     private string $apiKey;

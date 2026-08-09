@@ -228,10 +228,6 @@ abstract class AbstractBlockViewModel
             : null;
         $url = is_string($value['url'] ?? null) ? trim($value['url']) : '';
 
-        if ($sourceKind === 'hub_file' && $fileId !== null && $url === '') {
-            $url = '/files/' . $fileId . '/view';
-        }
-
         if (($sourceKind === 'hub_file' && $fileId === null)
             || ($sourceKind === 'external_url' && $url === '')
             || ! in_array($sourceKind, ['hub_file', 'external_url'], true)) {
