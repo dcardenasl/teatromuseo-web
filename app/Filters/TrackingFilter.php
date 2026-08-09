@@ -225,7 +225,7 @@ class TrackingFilter implements FilterInterface
 
     private function isInternalPath(string $path): bool
     {
-        $skip = ['/health', '/ping', '/ready', '/live', '/sitemap', '/api/', '/assets/'];
+        $skip = ['/health', '/ping', '/ready', '/live', '/sitemap', '/api/', '/diagnostics/', '/assets/'];
         foreach ($skip as $prefix) {
             if (str_starts_with($path, $prefix)) {
                 return true;

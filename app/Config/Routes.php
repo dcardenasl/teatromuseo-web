@@ -8,6 +8,10 @@ use CodeIgniter\Router\RouteCollection;
 
 // Health check endpoint (no locale prefix, excluded from localized routing)
 $routes->get('health', 'HealthController::index', ['as' => 'health']);
+$routes->get('diagnostics/public-read', 'DiagnosticsController::publicRead', [
+    'as'     => 'diagnostics_public_read',
+    'filter' => 'throttle:10,60',
+]);
 $routes->get('sitemap.xml', 'SitemapController::index', ['as' => 'sitemap']);
 
 // Internal cache invalidation — no locale prefix, secured by X-Invalidate-Key header.
