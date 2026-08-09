@@ -36,6 +36,18 @@ final class PageResolutionTest extends HermeticFeatureTestCase
         $result->assertSee($title);
     }
 
+    public function testLegacyHomepageSlugsRedirectToLocalizedRoot(): void
+    {
+        $locale = $this->locale();
+
+        foreach (['home', 'inicio'] as $slug) {
+            $result = $this->get($locale . '/' . $slug);
+
+            $result->assertStatus(301);
+            $result->assertHeader('Location', lang_url('/', $locale));
+        }
+    }
+
     public function testResolvesLocalizedPageInEachConfiguredLanguage(): void
     {
         foreach ($this->locales() as $position => $locale) {
@@ -179,6 +191,59 @@ final class PageResolutionTest extends HermeticFeatureTestCase
 
         $result->assertStatus(404);
         $result->assertSee($slug);
+    }
+
+    public function testUnknownPathDoesNotProbeEntriesForEveryCollection(): void
+    {
+        $locale = $this->locale();
+        $missingPath = $this->slug('missing-route');
+        $collections = [
+            $this->collection('one'),
+            $this->collection('two'),
+            $this->collection('three'),
+        ];
+
+        $this->domainAdapter->fakeGet($this->domainPath('collections'), $collections);
+        $this->domainAdapter->fakeGetFailure($this->domainPath('pages/' . $missingPath));
+        $this->domainAdapter->fakeGetFailure('public/redirects/' . $missingPath);
+
+        $result = $this->get($locale . '/' . $missingPath);
+
+        $result->assertStatus(404);
+        $entryRequests = array_values(array_filter(
+            $this->domainAdapter->requestedPaths(),
+            static fn (string $path): bool => str_starts_with($path, 'public/' . $locale . '/entries/'),
+        ));
+
+        $this->assertSame([], $entryRequests);
+    }
+
+    public function testCollectionEntryOnlyProbesTheMatchingCollection(): void
+    {
+        $locale = $this->locale();
+        $target = $this->collection('target');
+        $other = $this->collection('other');
+        $entrySlug = $this->slug('indexed-entry');
+
+        $this->domainAdapter->fakeGet($this->domainPath('collections'), [$target, $other]);
+        $this->domainAdapter->fakeGet(
+            $this->domainPath('entries/' . $target['collection_key'] . '/' . $entrySlug),
+            $this->entry($entrySlug, $this->text('indexed-entry-title')),
+        );
+
+        $result = $this->get($locale . '/' . $target['slug'] . '/' . $entrySlug);
+
+        $result->assertStatus(200);
+        $this->assertContains(
+            $this->domainPath('entries/' . $target['collection_key'] . '/' . $entrySlug),
+            $this->domainAdapter->requestedPaths(),
+        );
+        $otherEntryRequests = array_values(array_filter(
+            $this->domainAdapter->requestedPaths(),
+            static fn (string $path): bool => str_contains($path, '/entries/' . $other['collection_key'] . '/'),
+        ));
+
+        $this->assertSame([], $otherEntryRequests);
     }
 
     /** @return array<string, mixed> */

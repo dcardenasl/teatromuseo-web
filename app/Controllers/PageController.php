@@ -90,6 +90,12 @@ class PageController extends BasePublicWebController
             return $this->home();
         }
 
+        // Keep legacy homepage slugs working while exposing the localized root
+        // as the single canonical homepage URL.
+        if (in_array($path, ['home', 'inicio'], true)) {
+            return redirect()->to(lang_url('/', $lang))->setStatusCode(301);
+        }
+
         // Steps 1 & 2: Resolve redirects and fetch page in parallel (independent calls).
         // After fetching, check redirect result first. If no redirect, use page result and proceed to fallbacks.
         $pageService = Services::sitePageService();
@@ -159,14 +165,14 @@ class PageController extends BasePublicWebController
         $collectionService = Services::siteCollectionService();
         $entryService = Services::siteEntryService();
         $collections = $collectionService->getAll($lang);
+        $collectionCandidates = $this->collectionCandidatesForPath($collections, $path);
 
-        foreach ($collections as $collection) {
-            if (! is_array($collection)) {
-                continue;
-            }
-
-            $pathInfo = collection_url_path_info($collection, $path);
-            if ($pathInfo === null || $pathInfo['remainder'] === '') {
+        // Only collections whose canonical prefix matches the request may
+        // receive an entry lookup. Unknown paths never probe every collection.
+        foreach ($collectionCandidates as $candidate) {
+            $collection = $candidate['collection'];
+            $pathInfo   = $candidate['pathInfo'];
+            if ($pathInfo['remainder'] === '') {
                 continue;
             }
 
@@ -195,7 +201,7 @@ class PageController extends BasePublicWebController
                 if ($page) {
                     $collectionId = $this->resolveCollectionIdFromBlocks($page['blocks'] ?? []);
                     if ($collectionId > 0) {
-                        $collection = $this->resolveCollectionById($collectionId, $lang);
+                        $collection = $this->resolveCollectionById($collectionId, $lang, $collections);
                         if ($collection !== null) {
                             $entry = $entryService->getBySlug(
                                 $lang,
@@ -216,14 +222,9 @@ class PageController extends BasePublicWebController
         }
 
         // Step 5: Fallback collection index page (e.g. /es/festivales when no dedicated CMS page exists).
-        foreach ($collections as $collection) {
-            if (! is_array($collection)) {
-                continue;
-            }
-
-            $pathInfo = collection_url_path_info($collection, $path);
-            if ($pathInfo !== null && $pathInfo['remainder'] === '') {
-                return $this->renderFallbackCollectionIndex($collection, $lang);
+        foreach ($collectionCandidates as $candidate) {
+            if ($candidate['pathInfo']['remainder'] === '') {
+                return $this->renderFallbackCollectionIndex($candidate['collection'], $lang);
             }
         }
 
@@ -333,25 +334,14 @@ class PageController extends BasePublicWebController
             $blockRenderer->addPreload($featuredImageUrl, $srcsetString, $sizesString);
         }
 
-        // Smart prefetch: analyze block requirements and load data in parallel
         $blockContext = [
             'featured_image_url' => $featuredImageUrl,
             'collection_key' => (string) ($collection['collection_key'] ?? ''),
         ];
-        $prefetchedData = [];
         $entryBlocks = $entry['blocks'] ?? [];
-        if (!empty($entryBlocks)) {
-            $blockAnalyzer = Services::blockAnalyzerService();
-            $requirements = $blockAnalyzer->analyze($entryBlocks, $lang);
 
-            if (!empty($requirements)) {
-                $smartPrefetch = Services::smartPrefetchService();
-                $prefetchedData = $smartPrefetch->prefetch($requirements, $lang);
-            }
-        }
-
-        // Merge prefetched data into context for block rendering
-        $renderContext = array_merge($blockContext, $prefetchedData);
+        // Resolve all dynamic block data through one page-level prefetch pass.
+        $renderContext = array_merge($blockContext, $this->prefetchBlockContext($entryBlocks, $lang));
 
         $data = [
             'title'               => $translation['title'] ?? '',
@@ -450,13 +440,60 @@ class PageController extends BasePublicWebController
     }
 
     /**
+     * Build an in-memory prefix index from the cached collection list. The
+     * expensive operation is the remote entry lookup, so only candidates
+     * whose canonical prefix matches the request are returned.
+     *
+     * @param array<mixed> $collections
+     * @return list<array{collection: array<string, mixed>, pathInfo: array{prefix: string, remainder: string}}>
+     */
+    private function collectionCandidatesForPath(array $collections, string $path): array
+    {
+        $normalizedPath = trim($path, '/');
+        if ($normalizedPath === '') {
+            return [];
+        }
+
+        $firstSegment = explode('/', $normalizedPath, 2)[0];
+        $prefixIndex  = [];
+
+        foreach ($collections as $collection) {
+            if (! is_array($collection)) {
+                continue;
+            }
+
+            $prefix = trim(collection_url_path($collection), '/');
+            if ($prefix === '') {
+                continue;
+            }
+
+            $prefixFirstSegment = explode('/', $prefix, 2)[0];
+            $prefixIndex[$prefixFirstSegment][] = $collection;
+        }
+
+        $candidates = [];
+        foreach ($prefixIndex[$firstSegment] ?? [] as $collection) {
+            $pathInfo = collection_url_path_info($collection, $normalizedPath);
+            if ($pathInfo !== null) {
+                $candidates[] = [
+                    'collection' => $collection,
+                    'pathInfo'   => $pathInfo,
+                ];
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param array<mixed>|null $collections
      * @return array<string, mixed>|null
      */
-    private function resolveCollectionById(int $collectionId, string $lang): ?array
+    private function resolveCollectionById(int $collectionId, string $lang, ?array $collections = null): ?array
     {
-        $collectionService = Services::siteCollectionService();
+        $collections ??= Services::siteCollectionService()->getAll($lang);
 
-        foreach ($collectionService->getAll($lang) as $collection) {
+        foreach ($collections as $collection) {
             if (is_array($collection) && (int) ($collection['id'] ?? 0) === $collectionId) {
                 return $collection;
             }
