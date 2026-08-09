@@ -300,7 +300,7 @@ class WebApiClient implements WebApiClientInterface
                     }
                 } elseif ($result['status'] === 0 || $result['status'] >= 500) {
                     // Keep the same stale-on-outage contract as get(). This is
-                    // especially important for SmartPrefetch, which uses
+                    // especially important for block prefetch, which uses
                     // multiGet() for all block data.
                     $path      = $req['path'] ?? '';
                     $query     = is_array($req['query'] ?? null) ? $req['query'] : [];
@@ -346,6 +346,186 @@ class WebApiClient implements WebApiClientInterface
 
         curl_multi_close($mh);
         ksort($results);
+        return array_values($results);
+    }
+
+    /**
+     * Execute one concurrent batch across clients with different base URLs.
+     * Each request keeps the cache, API key, timeout and telemetry policy of its
+     * owning WebApiClient instance.
+     *
+     * @param list<array{client: self, path: string, query?: array<string, mixed>, cacheTtl?: int, scope?: string}> $requests
+     * @return list<array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}>
+     */
+    public static function multiGetAcross(array $requests): array
+    {
+        if ($requests === []) {
+            return [];
+        }
+
+        $startedAt = hrtime(true);
+        $cache = \Config\Services::cache();
+        $results = [];
+        $misses = [];
+
+        foreach ($requests as $index => $request) {
+            $client = $request['client'] ?? null;
+            if (! $client instanceof self) {
+                $results[$index] = [
+                    'ok' => false,
+                    'status' => 503,
+                    'data' => null,
+                    'meta' => [],
+                    'messages' => ['Invalid cross-domain prefetch client.'],
+                ];
+                continue;
+            }
+
+            $path = (string) ($request['path'] ?? '');
+            $query = is_array($request['query'] ?? null) ? $request['query'] : [];
+            $scope = (string) ($request['scope'] ?? 'general');
+            $url = $client->buildUrl($path, $query);
+            $keySuffix = $scope . '_' . md5($url . '|' . $client->currentLocale());
+            $cacheKey = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
+            $cached = $cache->get($cacheKey);
+
+            if (is_array($cached)) {
+                $results[$index] = $client->resultFromArray($cached);
+                $client->recordTelemetry($client->telemetryEvent(
+                    'GET',
+                    $path,
+                    $url,
+                    $scope,
+                    $results[$index]['status'],
+                    'hit',
+                    false,
+                    false,
+                    $client->elapsedMilliseconds($startedAt),
+                ));
+                continue;
+            }
+
+            $misses[$index] = [
+                'request' => $request,
+                'client' => $client,
+                'url' => $url,
+                'startedAt' => hrtime(true),
+            ];
+        }
+
+        if ($misses === []) {
+            ksort($results);
+            return array_values($results);
+        }
+
+        $multiHandle = curl_multi_init();
+        $handles = [];
+        foreach ($misses as $index => $miss) {
+            /** @var self $client */
+            $client = $miss['client'];
+            $request = $miss['request'];
+            $handle = curl_init($miss['url']);
+            if (! $handle instanceof \CurlHandle) {
+                $results[$index] = [
+                    'ok' => false,
+                    'status' => 0,
+                    'data' => null,
+                    'meta' => [],
+                    'messages' => ['Could not initialize cURL.'],
+                ];
+                continue;
+            }
+
+            $headers = [
+                'Accept: application/json',
+                'Content-Type: application/json',
+                'Accept-Language: ' . $client->currentLocale(),
+            ];
+            if ($client->apiKey !== '') {
+                $headers[] = 'X-App-Key: ' . $client->apiKey;
+            }
+            curl_setopt_array($handle, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => $client->timeout,
+                CURLOPT_HTTPHEADER => $headers,
+            ]);
+            curl_multi_add_handle($multiHandle, $handle);
+            $handles[$index] = $handle;
+            unset($request);
+        }
+
+        if ($handles !== []) {
+            $running = null;
+            do {
+                curl_multi_exec($multiHandle, $running);
+                if ($running > 0) {
+                    curl_multi_select($multiHandle, 0.05);
+                }
+            } while ($running > 0);
+        }
+
+        foreach ($handles as $index => $handle) {
+            /** @var self $client */
+            $client = $misses[$index]['client'];
+            $request = $misses[$index]['request'];
+            $path = (string) ($request['path'] ?? '');
+            $query = is_array($request['query'] ?? null) ? $request['query'] : [];
+            $scope = (string) ($request['scope'] ?? 'general');
+            $cacheTtl = (int) ($request['cacheTtl'] ?? 300);
+            $raw = curl_multi_getcontent($handle);
+            $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+            $error = curl_error($handle);
+            $transportResponse = [
+                'raw' => is_string($raw) ? $raw : false,
+                'status' => $status,
+                'error' => $error,
+                'timed_out' => curl_errno($handle) === CURLE_OPERATION_TIMEDOUT,
+            ];
+            $result = $client->parseResponse($transportResponse);
+            $timeout = $client->isTimeoutResult($result, $transportResponse);
+            $url = $client->buildUrl($path, $query);
+
+            curl_multi_remove_handle($multiHandle, $handle);
+            curl_close($handle);
+
+            $keySuffix = $scope . '_' . md5($url . '|' . $client->currentLocale());
+            $cacheKey = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
+            $staleKey = 'web_api_stale_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
+            if ($result['ok']) {
+                if ($cacheTtl > 0) {
+                    $cache->save($cacheKey, $result, $cacheTtl);
+                    if ($client->staleTtl > 0) {
+                        $cache->save($staleKey, $result, $client->staleTtl);
+                    }
+                }
+            } elseif ($result['status'] === 0 || $result['status'] >= 500) {
+                $stale = $cache->get($staleKey);
+                if (is_array($stale)) {
+                    $staleResult = $client->resultFromArray($stale);
+                    $staleResult['meta']['stale'] = true;
+                    $result = $staleResult;
+                }
+            }
+
+            $isStale = (bool) ($result['meta']['stale'] ?? false);
+            $cacheMode = $isStale ? 'stale' : ($cacheTtl > 0 ? 'miss' : 'bypass');
+            $client->recordTelemetry($client->telemetryEvent(
+                'GET',
+                $path,
+                $url,
+                $scope,
+                $status,
+                $cacheMode,
+                $isStale,
+                $timeout,
+                $client->elapsedMilliseconds((int) $misses[$index]['startedAt']),
+            ));
+            $results[$index] = $result;
+        }
+
+        curl_multi_close($multiHandle);
+        ksort($results);
+
         return array_values($results);
     }
 

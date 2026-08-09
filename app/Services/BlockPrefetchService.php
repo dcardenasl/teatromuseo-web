@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
 
 /**
@@ -449,6 +450,36 @@ final class BlockPrefetchService
 
         $pending = array_slice($requests, $offset);
         $responses = [];
+        $allNative = true;
+        foreach ($pending as $request) {
+            $client = $this->clients[(string) ($request['client'] ?? '')] ?? null;
+            if (! $client instanceof WebApiClient) {
+                $allNative = false;
+                break;
+            }
+        }
+
+        if ($allNative) {
+            /** @var list<array{client: WebApiClient, path: string, query: array<string, mixed>, cacheTtl: int, scope: string}> $nativeRequests */
+            $nativeRequests = [];
+            foreach ($pending as $request) {
+                $client = $this->clients[(string) $request['client']] ?? null;
+                if (! $client instanceof WebApiClient) {
+                    continue;
+                }
+                $nativeRequests[] = [
+                    'client' => $client,
+                    'path' => (string) $request['path'],
+                    'query' => is_array($request['query']) ? $request['query'] : [],
+                    'cacheTtl' => (int) $request['cacheTtl'],
+                    'scope' => (string) $request['scope'],
+                ];
+            }
+            foreach (WebApiClient::multiGetAcross($nativeRequests) as $index => $response) {
+                $responses[$offset + $index] = $response;
+            }
+            return $responses;
+        }
 
         $grouped = [];
         foreach ($pending as $index => $request) {
