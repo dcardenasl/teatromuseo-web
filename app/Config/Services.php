@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace Config;
 
 use App\Interfaces\AliasResolverInterface;
-use App\Interfaces\BlockAnalyzerInterface;
-use App\Interfaces\SmartPrefetchInterface;
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
 use App\Libraries\PublicListingPageBuilder;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
-use App\Services\BlockAnalyzerService;
 use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\PageResolverService;
@@ -27,7 +24,6 @@ use App\Services\SitePageService;
 use App\Services\SiteRedirectService;
 use App\Services\SiteSettingsService;
 use App\Services\SiteTagService;
-use App\Services\SmartPrefetchService;
 use App\Services\SocialLinksService;
 use CodeIgniter\Config\BaseService;
 
@@ -170,30 +166,6 @@ class Services extends BaseService
         return new BlockRenderer();
     }
 
-    public static function blockAnalyzerService(bool $getShared = true): BlockAnalyzerInterface
-    {
-        if ($getShared) {
-            /** @var BlockAnalyzerInterface */
-            return static::getSharedInstance('blockAnalyzerService');
-        }
-
-        return new BlockAnalyzerService();
-    }
-
-    public static function smartPrefetchService(bool $getShared = true): SmartPrefetchInterface
-    {
-        if ($getShared) {
-            /** @var SmartPrefetchInterface */
-            return static::getSharedInstance('smartPrefetchService');
-        }
-
-        return new SmartPrefetchService([
-            'cms' => static::webApiClient(),
-            'catalog' => static::catalogWebApiClient(),
-            'event' => static::eventWebApiClient(),
-        ]);
-    }
-
     public static function blockPrefetchService(bool $getShared = true): BlockPrefetchService
     {
         if ($getShared) {
@@ -205,7 +177,7 @@ class Services extends BaseService
             'cms' => static::webApiClient(),
             'catalog' => static::catalogWebApiClient(),
             'event' => static::eventWebApiClient(),
-        ], static::blockAnalyzerService(), static::smartPrefetchService());
+        ]);
     }
 
     public static function aliasResolverService(bool $getShared = true): AliasResolverInterface
