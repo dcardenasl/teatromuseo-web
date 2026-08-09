@@ -15,7 +15,59 @@
 
 ## 🟡 Próximo
 
-*(vacío)*
+### Auditoría de rendimiento beta — 2026-08-08
+
+Referencia: [`docs/audits/2026-08-08-auditoria-rendimiento-beta-es.md`](docs/audits/2026-08-08-auditoria-rendimiento-beta-es.md)
+
+- [x] **`WEB-PERF-01` — Instrumentar timeouts y caché (P0)**
+  - Registrar por petición `path`, endpoint remoto, duración, status, cache hit/miss, `stale` y timeout.
+  - Separar métricas de `teatromuseo-web`, CMS, catálogo y eventos; publicar p50/p95/p99 y tasa de timeout.
+  - Verificar qué rutas coinciden con el timeout actual de 5 s y si el backend de caché es compartido entre workers.
+  - **Aceptación:** cada navegación lenta de la auditoría puede correlacionarse con un endpoint y una causa concreta en logs/APM.
+  - **Verificado 2026-08-09:** deploy en beta, eventos `[web-api]` visibles en `writable/logs`, p50/p95/p99 calculados y tasa de timeout medida. Beta mantiene respuestas `508` de los dominios/hosting que deben resolverse aparte.
+
+- [x] **`WEB-PERF-02` — Resolver rutas desconocidas sin recorrer todas las colecciones (P0)**
+  - Optimizar `PageController::resolve()` para resolver por prefijo/índice de colección antes de consultar slugs.
+  - Evitar consultas secuenciales a cada colección para detalles de compañías, videos y rutas inexistentes.
+  - Añadir tests para rutas válidas, aliases y 404, incluyendo presupuesto de llamadas HTTP.
+  - **Aceptación:** un 404 no dispara una consulta por cada colección y queda por debajo de 500 ms en caché fría local.
+  - **Verificado 2026-08-09:** ruta inexistente en beta respondió `404` en `253 ms` y registró cero requests al scope `entries`.
+
+- [ ] **`WEB-PERF-03` — Consolidar caché de API y HTML (P1)**
+  - Confirmar la configuración efectiva de beta para backend de caché, TTL, `cacheQueryString` y stale fallback.
+  - Revisar claves por locale, query string y variante de contenido; evitar duplicación entre workers.
+  - Definir invalidación para publicaciones y cambios de menú/media.
+  - **Aceptación:** hit rate, expiraciones e invalidaciones son visibles y las rutas de colección no vuelven a bloquear 5 s tras una expiración normal.
+
+- [ ] **`WEB-PERF-04` — Reducir payload y render de listados (P1)**
+  - Auditar `include=listing_content` y aplicar fieldsets mínimos para tarjetas: título, resumen corto, fecha, imagen y slug.
+  - Reducir el HTML de listados de aproximadamente 98–109 KB sin perder contenido visible ni SEO.
+  - Medir consultas, serialización y tiempo de render en `CollectionListingViewModel` y sus fuentes.
+  - **Aceptación:** payload y tiempo p95 quedan documentados antes/después; el listado conserva paginación, imágenes y accesibilidad.
+
+- [ ] **`WEB-PERF-05` — Reparar contratos de URLs y pantallas 404 (P1)**
+  - Corregir enlaces y resolución de contacto, legales, compañías y videos.
+  - Alinear `/es`, `/es/`, `/es/inicio` y `/public/es` con una única URL canónica navegable.
+  - Regenerar menú, sitemap y cachés después de la corrección.
+  - **Aceptación:** el crawl público no encuentra enlaces internos rotos y el canonical responde sin redirección inconsistente.
+
+- [ ] **`WEB-PERF-06` — Corregir y optimizar assets publicados (P1)**
+  - Eliminar URLs `localhost` de logo, hero y cualquier media serializada en settings/CMS.
+  - Verificar que `/files/{id}/view` devuelve `200`, `Content-Type` de imagen, `Cache-Control` y dimensiones válidas.
+  - Añadir variantes `srcset`/`sizes` para tarjetas e imágenes hero, especialmente las de 1080×1350.
+  - **Aceptación:** cero assets con `localhost`, cero imágenes rotas y reducción medida de bytes transferidos/decodificados.
+
+- [ ] **`WEB-PERF-07` — Convertir filtros AJAX a respuestas parciales (P2)**
+  - Evitar descargar y parsear el layout HTML completo cuando sólo cambian grilla y paginación.
+  - Mantener URL, historial, SEO progresivo, accesibilidad y fallback sin JavaScript.
+  - Traducir estados vacíos para que no se publiquen claves `Site.*`.
+  - **Aceptación:** la respuesta de filtro contiene sólo el fragmento necesario y no incluye menús, footer ni scripts globales.
+
+- [ ] **`WEB-PERF-08` — Automatizar smoke test y presupuesto de rendimiento (P2)**
+  - Añadir crawl de enlaces públicos, validación de canonical y detección de `localhost`, 404 y claves i18n sin traducir.
+  - Medir rutas en frío/caliente con presupuesto de HTML, `load`, imágenes y timeout rate.
+  - Ejecutar el control en CI o en una tarea periódica contra beta.
+  - **Aceptación:** una regresión de rutas, assets o tiempos bloquea el gate o genera una alerta accionable.
 
 ### Fase 3 — Smart Prefetch & Block Analysis (✅ COMPLETADA)
 
@@ -349,15 +401,12 @@ también es secuencial (y BFF está congelado, fuera de alcance). Confirmado com
   `SiteRedirectService`/`SiteSettingsService`/`SocialLinksService` para contenido "muy estable" —
   las ediciones siguen invalidando de inmediato vía `CacheInvalidator` sin importar el TTL. Menor
   riesgo de la cadena PERF, hecho primero para medir antes de seguir.
-- [ ] **PERF-02 — Paralelizar llamadas de `WebApiClient` con `curl_multi_init`.** Análisis
-  (2026-08-07): `PageController::resolve()` **no** es paralelizable de forma trivial — es una
-  cadena de decisión secuencial por diseño (redirect → prefijo de colección → página CMS → entrada
-  → 404), cada paso condicionado al resultado del anterior. La oportunidad real está en
-  `BlockRenderer::render()`: cada bloque de una página (`collection_grid`, `cards_slider`,
-  `collection_timeline`, etc.) llama a su propio servicio de forma independiente entre sí. Requiere
-  reestructurar el renderizado en dos fases (recolectar todas las peticiones necesarias → ejecutar
-  en batch concurrente → repartir resultados a cada ViewModel) — no es un cambio de una línea.
-  Diferido deliberadamente hasta medir el impacto real de PERF-01 en producción/staging.
+- [x] **PERF-02 — Batch concurrente de datos dinámicos (completado 2026-08-08).**
+  `PageController::resolve()` conserva su cadena de decisión secuencial, pero el render de bloques
+  ahora trabaja en dos fases: `BlockPrefetchService` recolecta las consultas de grids/timelines,
+  `WebApiClient::multiGet()` las ejecuta agrupadas por dominio y `BlockRenderer` reparte los
+  resultados a cada ViewModel. El análisis recorre bloques anidados y los ViewModels reutilizan el
+  contexto precargado, evitando una llamada HTTP por bloque.
 - [ ] **PERF-03 — Agregación cross-domain en `teatromuseo-cms-domain`.** Solo si PERF-01+02 juntos
   no bastan. No diseñado todavía.
 
