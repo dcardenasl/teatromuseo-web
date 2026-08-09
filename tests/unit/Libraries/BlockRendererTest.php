@@ -114,4 +114,25 @@ final class BlockRendererTest extends CIUnitTestCase
     {
         $this->assertSame('', $this->renderer->render([]));
     }
+
+    public function testInjectsPrefetchedEventIntoDetailBlock(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'event_item_header',
+                'block_config' => [],
+                'block_data' => ['event_id' => 201],
+                'children' => [],
+            ],
+        ], 'es', [
+            'events' => [201 => [
+                'id' => 201,
+                'title' => 'Prefetched event',
+                'event_type' => 'festival',
+                'occurrences' => [],
+            ]],
+        ]);
+
+        $this->assertStringContainsString('Prefetched event', $html);
+    }
 }

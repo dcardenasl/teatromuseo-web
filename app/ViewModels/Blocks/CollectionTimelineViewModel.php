@@ -54,8 +54,13 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
                 $query['category_id'] = $categoryId;
             }
 
-            $result = $entryService->list($this->lang, $collectionKey, $query);
-            $entries = is_array($result['data'] ?? null) ? $result['data'] : [];
+            $prefetched = $this->prefetchedEntries();
+            if ($prefetched !== null) {
+                $entries = $prefetched;
+            } else {
+                $result = $entryService->list($this->lang, $collectionKey, $query);
+                $entries = is_array($result['data'] ?? null) ? $result['data'] : [];
+            }
             $listingUrl = $this->collectionListingUrl($collectionKey);
 
             $normalized = [];
@@ -92,6 +97,23 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /** @return list<array<string, mixed>>|null */
+    private function prefetchedEntries(): ?array
+    {
+        $blockPath = (string) ($this->context['blockPath'] ?? '');
+        $allPrefetched = $this->context['block_prefetch'] ?? null;
+        if ($blockPath === '' || ! is_array($allPrefetched) || ! is_array($allPrefetched[$blockPath] ?? null)) {
+            return null;
+        }
+
+        $entries = $allPrefetched[$blockPath]['data'] ?? [];
+        if (! is_array($entries)) {
+            return [];
+        }
+
+        return array_values(array_filter($entries, 'is_array'));
     }
 
     /** @param list<mixed> $values */

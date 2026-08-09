@@ -88,20 +88,42 @@ class BlockAnalyzerService implements BlockAnalyzerInterface
      */
     public function analyze(array $blocks, string $locale = 'es'): array
     {
+        // BlockRenderer walks nested children recursively. Flattening the
+        // same tree here ensures a child event/catalog block is included in
+        // the batch instead of issuing a request during render.
+        $flattenedBlocks = [];
+        $flatten = function (array $nodes) use (&$flatten, &$flattenedBlocks): void {
+            foreach ($nodes as $node) {
+                if (! is_array($node)) {
+                    continue;
+                }
+
+                $flattenedBlocks[] = $node;
+                if (is_array($node['children'] ?? null)) {
+                    $flatten($node['children']);
+                }
+            }
+        };
+        $flatten($blocks);
+        $blocks = $flattenedBlocks;
+
         $requirements = [];
 
         foreach ($blocks as $block) {
-            if (!is_array($block)) {
-                continue;
-            }
-
             $blockType = $block['block_key'] ?? null;
             if ($blockType === null) {
                 continue;
             }
 
-            $blockData = $block['data'] ?? [];
-            if (!is_array($blockData)) {
+            $blockData = [];
+            foreach (['data', 'block_data', 'config', 'block_config'] as $payloadKey) {
+                $payload = $this->normalizeBlockPayload($block[$payloadKey] ?? null);
+                if ($payload !== []) {
+                    $blockData = array_merge($blockData, $payload);
+                }
+            }
+
+            if ($blockData === []) {
                 continue;
             }
 
@@ -153,6 +175,28 @@ class BlockAnalyzerService implements BlockAnalyzerInterface
         }
 
         return $requirements;
+    }
+
+    /**
+     * Public CMS payloads may expose block data/config as decoded arrays or as
+     * JSON strings, while unit fixtures historically used the shorter `data`
+     * and `config` keys. Normalize both forms at the analysis boundary.
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeBlockPayload(mixed $payload): array
+    {
+        if (is_array($payload)) {
+            return $payload;
+        }
+
+        if (! is_string($payload) || trim($payload) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($payload, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     public function getBlockRequirements(string $blockType, array $blockData, string $locale = 'es'): array

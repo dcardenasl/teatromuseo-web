@@ -103,8 +103,8 @@ class BlockRenderer
         $this->preloadFormDefinitions($blocks, $lang);
 
         $html = '';
-        foreach ($blocks as $block) {
-            $html .= $this->renderBlock($block, $lang, $context);
+        foreach ($blocks as $index => $block) {
+            $html .= $this->renderBlock($block, $lang, $context, (string) $index);
         }
 
         return $html;
@@ -116,8 +116,9 @@ class BlockRenderer
      * @param array<string, mixed> $block
      * @param array<string, mixed> $context
      */
-    private function renderBlock(array $block, string $lang, array $context = []): string
+    private function renderBlock(array $block, string $lang, array $context = [], string $blockPath = ''): string
     {
+        $context = $this->injectPrefetchedItem($block, $context);
         $blockKey = $block['block_key'] ?? 'unknown';
         $config   = $block['block_config'] ?? [];
         $data     = $block['block_data'] ?? [];
@@ -132,8 +133,16 @@ class BlockRenderer
         }
 
         $renderedChildren = '';
-        foreach ($children as $child) {
-            $renderedChildren .= $this->renderBlock($child, $lang, array_merge($context, ['is_child' => true]));
+        foreach ($children as $childIndex => $child) {
+            $childPath = $blockPath === ''
+                ? (string) $childIndex
+                : $blockPath . '.' . $childIndex;
+            $renderedChildren .= $this->renderBlock(
+                $child,
+                $lang,
+                array_merge($context, ['is_child' => true]),
+                $childPath,
+            );
         }
 
         $formDefinition = null;
@@ -171,7 +180,10 @@ class BlockRenderer
 
         if (is_string($blockKey) && isset(self::VIEW_MODELS[$blockKey])) {
             $viewModelClass = self::VIEW_MODELS[$blockKey];
-            $viewModelContext = ['formDefinition' => $formDefinition];
+            $viewModelContext = [
+                'formDefinition' => $formDefinition,
+                'blockPath' => $blockPath,
+            ];
             if (in_array($blockKey, ['collection_grid', 'collection_listing', 'collection_timeline', 'team_grid'], true)) {
                 // These two view models need the current request (GET filters,
                 // preview-mode detection) and the Site*Service adapters. Resolving
@@ -202,6 +214,86 @@ class BlockRenderer
         // request — a block field like "title" would otherwise leak into the
         // page template rendered afterwards. Disable it for isolation.
         return view($blockViewName, $viewData, ['saveData' => false]);
+    }
+
+    /**
+     * Attach the result of the page prefetch context to detail blocks that identify their
+     * resource by id or slug. Without this bridge the batch completed but the
+     * ViewModels still saw an empty `event_item`/`catalog_item` context.
+     *
+     * @param array<string, mixed> $block
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function injectPrefetchedItem(array $block, array $context): array
+    {
+        $blockKey = (string) ($block['block_key'] ?? '');
+        $payload = [];
+        foreach (['block_data', 'block_config'] as $key) {
+            $value = $block[$key] ?? [];
+            if (is_string($value)) {
+                $decoded = json_decode($value, true);
+                $value = is_array($decoded) ? $decoded : [];
+            }
+            if (is_array($value)) {
+                $payload = array_merge($payload, $value);
+            }
+        }
+
+        if (str_starts_with($blockKey, 'event_item_')) {
+            $reference = $payload['event_id'] ?? $payload['event_slug'] ?? null;
+            $item = $this->findPrefetchedItem($context['events'] ?? null, $reference);
+            if ($item !== null) {
+                $context['event_item'] = $item;
+            }
+        }
+
+        if (str_starts_with($blockKey, 'catalog_item_')) {
+            $reference = $payload['collection_item_id'] ?? $payload['collection_item_slug'] ?? null;
+            $item = $this->findPrefetchedItem($context['collection_items'] ?? null, $reference);
+            if ($item !== null) {
+                $context['catalog_item'] = $item;
+            }
+        }
+
+        return $context;
+    }
+
+    /**
+     * @param mixed $items
+     * @return array<string, mixed>|null
+     */
+    private function findPrefetchedItem(mixed $items, mixed $reference): ?array
+    {
+        if (! is_array($items) || $reference === null || $reference === '') {
+            return null;
+        }
+
+        $referenceString = (string) $reference;
+        if (isset($items[$referenceString]) && is_array($items[$referenceString])) {
+            return $items[$referenceString];
+        }
+        if (is_int($reference) && isset($items[$reference]) && is_array($items[$reference])) {
+            return $items[$reference];
+        }
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $slugs = is_array($item['slugs'] ?? null) ? $item['slugs'] : [];
+            $localized = is_array($item['localized'] ?? null) ? $item['localized'] : [];
+            if ((string) ($item['id'] ?? '') === $referenceString
+                || (string) ($item['uuid'] ?? '') === $referenceString
+                || (string) ($item['slug'] ?? '') === $referenceString
+                || (string) ($localized['slug'] ?? '') === $referenceString
+                || in_array($referenceString, array_map('strval', $slugs), true)) {
+                return $item;
+            }
+        }
+
+        return null;
     }
 
     /**

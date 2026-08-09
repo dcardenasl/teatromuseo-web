@@ -55,6 +55,24 @@ class BlockAnalyzerServiceTest extends TestCase
         $this->assertNotEmpty($result['collection_items']['fields']);
     }
 
+    public function test_analyze_supports_public_block_data_and_json_config(): void
+    {
+        $blocks = [
+            [
+                'block_key' => 'collection_grid',
+                'block_data' => json_encode(['collection_item_ids' => [7]]),
+            ],
+            [
+                'block_key' => 'collection_grid',
+                'block_config' => json_encode(['collection_item_id' => 8]),
+            ],
+        ];
+
+        $result = $this->analyzer->analyze($blocks);
+
+        $this->assertSame([7, 8], $result['collection_items']['ids']);
+    }
+
     public function test_analyze_collection_listing_extracts_ids(): void
     {
         $blocks = [
@@ -88,6 +106,19 @@ class BlockAnalyzerServiceTest extends TestCase
         $this->assertArrayHasKey('collection_items', $result);
         $this->assertEquals([5], $result['collection_items']['ids']);
         $this->assertContains('period', $result['collection_items']['fields']);
+    }
+
+    public function test_analyze_includes_nested_blocks(): void
+    {
+        $result = $this->analyzer->analyze([[
+            'block_key' => 'container',
+            'children' => [[
+                'block_key' => 'event_item_header',
+                'data' => ['event_id' => 77],
+            ]],
+        ]]);
+
+        $this->assertSame([77], $result['events']['ids']);
     }
 
     public function test_analyze_event_item_header_by_id(): void

@@ -11,6 +11,15 @@ abstract class BasePublicWebController extends BaseController
     /** @param array<string,mixed> $data */
     protected function render(string $view, array $data = []): ResponseInterface
     {
+        $preview = $this->request->getGet('preview') === '1';
+        $pageCacheTtl = config('App')->webPageCacheTtl;
+        if (! $preview && $pageCacheTtl > 0) {
+            // CodeIgniter resets ResponseCache's TTL at the start of every
+            // request. Set it only for rendered public HTML responses; form
+            // posts, redirects and preview requests stay uncached.
+            $this->cachePage($pageCacheTtl);
+        }
+
         $data['view'] = $view;
 
         if (empty($data['canonicalUrl'])) {
@@ -52,9 +61,13 @@ abstract class BasePublicWebController extends BaseController
         // the rest of the process (e.g. across PHPUnit test cases).
         $body = view('layouts/public', $data, ['saveData' => false]);
         $etag = '"' . sha1($body) . '"';
+        $cacheable = ! $preview && $pageCacheTtl > 0;
+        $cacheControl = $cacheable
+            ? sprintf('public, max-age=%d, stale-while-revalidate=60', $pageCacheTtl)
+            : 'no-store, private';
 
         return $this->response
-            ->setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
+            ->setHeader('Cache-Control', $cacheControl)
             ->setHeader('ETag', $etag)
             ->setHeader('Vary', 'Accept-Language')
             ->setBody($body);
@@ -90,6 +103,7 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function renderPageWithBlocks(array $pageData, array $blocks, string $lang, array $context = []): ResponseInterface
     {
+        $context = array_merge($context, $this->prefetchBlockContext($blocks, $lang));
         $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
 
         return $this->render('page', $pageData);
@@ -139,20 +153,8 @@ abstract class BasePublicWebController extends BaseController
             $schemaData = null;
         }
 
-        // Smart prefetch: analyze block requirements and load data in parallel
-        $prefetchedData = [];
-        if (!empty($blocks)) {
-            $blockAnalyzer = \Config\Services::blockAnalyzerService();
-            $requirements = $blockAnalyzer->analyze($blocks, $lang);
-
-            if (!empty($requirements)) {
-                $smartPrefetch = \Config\Services::smartPrefetchService();
-                $prefetchedData = $smartPrefetch->prefetch($requirements, $lang);
-            }
-        }
-
-        // Merge prefetched data into context for block rendering
-        $renderContext = array_merge($context, $prefetchedData);
+        // Resolve all dynamic block data through one page-level prefetch pass.
+        $renderContext = array_merge($context, $this->prefetchBlockContext($blocks, $lang));
 
         $data = [
             'title' => (string) ($translation['title'] ?? ''),
@@ -230,7 +232,14 @@ abstract class BasePublicWebController extends BaseController
             return $this->notFound();
         }
 
-        $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($page['blocks'] ?? [], $lang, $context);
+        $blocks = is_array($page['blocks'] ?? null)
+            ? array_values(array_filter(
+                $page['blocks'],
+                static fn (mixed $block): bool => is_array($block),
+            ))
+            : [];
+        $context = array_merge($context, $this->prefetchBlockContext($blocks, $lang));
+        $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
 
         return $this->render('page', $pageData);
     }
@@ -239,6 +248,24 @@ abstract class BasePublicWebController extends BaseController
     {
         return $this->render('errors/404', ['message' => $message])
             ->setStatusCode(404);
+    }
+
+    /**
+     * Resolve dynamic blocks before ViewModels render the page.
+     *
+     * The public page must remain renderable if a domain is unavailable; the
+     * individual ViewModels already handle an empty prefetched result.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @return array<string, mixed>
+     */
+    protected function prefetchBlockContext(array $blocks, string $lang): array
+    {
+        try {
+            return \Config\Services::blockPrefetchService()->prefetchContext($blocks, $lang);
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**

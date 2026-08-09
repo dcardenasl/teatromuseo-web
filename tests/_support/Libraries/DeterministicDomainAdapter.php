@@ -11,6 +11,9 @@ use App\Libraries\WebApiClientInterface;
  */
 final class DeterministicDomainAdapter implements WebApiClientInterface
 {
+    /** @var list<array{path: string, query: array<string, mixed>, cacheTtl: int, scope: string}> */
+    public array $calls = [];
+
     /** @var list<string> */
     private array $locales;
 
@@ -51,7 +54,12 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
 
     public function get(string $path, array $query = [], int $cacheTtl = 300, string $scope = 'general'): array
     {
-        unset($query, $cacheTtl, $scope);
+        $this->calls[] = [
+            'path'     => $path,
+            'query'    => $query,
+            'cacheTtl' => $cacheTtl,
+            'scope'    => $scope,
+        ];
 
         if (isset($this->responses[$path])) {
             return $this->responses[$path];
@@ -124,6 +132,15 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
         unset($path, $data);
 
         return $this->response([]);
+    }
+
+    /** @return list<string> */
+    public function requestedPaths(): array
+    {
+        return array_map(
+            static fn (array $call): string => $call['path'],
+            $this->calls,
+        );
     }
 
     /** @param array<string, mixed> $meta */

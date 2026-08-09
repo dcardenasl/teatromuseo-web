@@ -10,118 +10,162 @@ use App\Libraries\WebApiClientInterface;
 class SmartPrefetchService implements SmartPrefetchInterface
 {
     /**
-     * Mapping of resource types to their API endpoints and field defaults.
+     * Mapping of resource types to their owning client, endpoint and fields.
+     * Paths are relative to WebApiClient::buildUrl(), which adds /api/v1/.
      *
-     * @var array<string, array{endpoint: string, default_fields: array<string>}>
+     * @var array<string, array{client: string, endpoint: string, default_fields: list<string>}>
      */
     private const RESOURCE_ENDPOINTS = [
         'collection_items' => [
-            'endpoint' => 'catalog/collection-items',
+            'client' => 'catalog',
+            'endpoint' => 'public/catalog/collection-items',
             'default_fields' => ['id', 'uuid', 'name', 'slug', 'cover_file_id', 'cover_url'],
         ],
         'events' => [
-            'endpoint' => 'events/events',
+            'client' => 'event',
+            'endpoint' => 'public/events',
             'default_fields' => ['id', 'uuid', 'title', 'slug', 'event_type', 'cover_file_id', 'cover_image'],
         ],
         'categories' => [
-            'endpoint' => 'catalog/categories',
+            'client' => 'catalog',
+            'endpoint' => 'public/catalog/categories',
             'default_fields' => ['id', 'name', 'slug'],
         ],
         'techniques' => [
-            'endpoint' => 'catalog/techniques',
+            'client' => 'catalog',
+            'endpoint' => 'public/catalog/techniques',
             'default_fields' => ['id', 'name', 'slug'],
         ],
     ];
 
-    public function __construct(
-        private WebApiClientInterface $webApiClient
-    ) {
+    /** @var array<string, WebApiClientInterface> */
+    private array $clients = [];
+
+    /**
+     * @param array<string, WebApiClientInterface> $clients
+     */
+    public function __construct(array $clients)
+    {
+        foreach ($clients as $name => $client) {
+            if ($client instanceof WebApiClientInterface) {
+                $this->clients[$name] = $client;
+            }
+        }
     }
 
     public function prefetch(array $requirements, string $locale = 'es'): array
     {
+        unset($locale);
+
         if (empty($requirements)) {
             return [];
         }
 
         $results = [];
-        $batch = [];
+        /** @var array<string, list<array{resource_type: string, ids: list<int|string>}>> $requestMap */
+        $requestMap = [];
+        /** @var array<string, list<array{path: string, query: array<string, mixed>, cacheTtl: int, scope: string}>> $requestsByClient */
+        $requestsByClient = [];
 
         foreach ($requirements as $resourceType => $reqs) {
             if (!isset(self::RESOURCE_ENDPOINTS[$resourceType])) {
                 continue;
             }
 
-            $ids = $reqs['ids'] ?? [];
-            $fields = $reqs['fields'] ?? self::RESOURCE_ENDPOINTS[$resourceType]['default_fields'];
-
-            if (empty($ids)) {
+            $definition = self::RESOURCE_ENDPOINTS[$resourceType];
+            $client = $this->clients[$definition['client']] ?? null;
+            if (!$client instanceof WebApiClientInterface) {
                 continue;
             }
 
-            // Build URL with sparse fieldset parameter
-            $endpoint = self::RESOURCE_ENDPOINTS[$resourceType]['endpoint'];
-            $fieldsParam = !empty($fields) ? '?fields=' . implode(',', array_map('urlencode', $fields)) : '';
-            $url = "/api/v1/public/{$endpoint}{$fieldsParam}";
+            $clientKey = $definition['client'];
+            $ids = array_values(array_filter(
+                is_array($reqs['ids'] ?? null) ? $reqs['ids'] : [],
+                static fn (mixed $id): bool => is_int($id) || (is_string($id) && trim($id) !== ''),
+            ));
+            $slugs = array_values(array_filter(
+                is_array($reqs['slugs'] ?? null) ? $reqs['slugs'] : [],
+                static fn (mixed $slug): bool => is_string($slug) && trim($slug) !== '',
+            ));
+            $fields = array_values(array_filter(
+                is_array($reqs['fields'] ?? null) ? $reqs['fields'] : $definition['default_fields'],
+                static fn (mixed $field): bool => is_string($field) && trim($field) !== '',
+            ));
+            $query = $fields === [] ? [] : ['fields' => implode(',', $fields)];
 
-            // Collect batch queries for parallel execution
-            $batch[$resourceType] = [
-                'url' => $url,
-                'ids' => $ids,
-                'fields' => $fields,
-            ];
+            if ($ids !== []) {
+                // Filter at the domain to avoid downloading an entire
+                // catalogue just to discard unrelated items.
+                $query['filter'] = ['id' => ['in' => $ids]];
+                $query['per_page'] = min(100, max(1, count($ids)));
+                $requestsByClient[$clientKey][] = [
+                    'path' => $definition['endpoint'],
+                    'query' => $query,
+                    'cacheTtl' => 300,
+                    'scope' => $resourceType,
+                ];
+                $requestMap[$clientKey][] = [
+                    'resource_type' => $resourceType,
+                    'ids' => $ids,
+                ];
+            }
+
+            // Slugs cannot use the numeric id filter. Resolve them through
+            // the public detail endpoint in the same domain-level batch.
+            foreach ($slugs as $slug) {
+                $requestsByClient[$clientKey][] = [
+                    'path' => $definition['endpoint'] . '/' . rawurlencode((string) $slug),
+                    'query' => $fields === [] ? [] : ['fields' => implode(',', $fields)],
+                    'cacheTtl' => 300,
+                    'scope' => $resourceType,
+                ];
+                $requestMap[$clientKey][] = [
+                    'resource_type' => $resourceType,
+                    'ids' => [],
+                ];
+            }
         }
 
-        if (empty($batch)) {
+        if ($requestsByClient === []) {
             return [];
         }
 
-        // Build multiGet requests for parallel execution
-        $multiGetRequests = [];
-        $requestIndexMap = [];  // Maps request index to resource type
-
-        foreach ($batch as $resourceType => $req) {
-            $index = count($multiGetRequests);
-            $requestIndexMap[$index] = $resourceType;
-            $multiGetRequests[] = ['path' => $req['url']];
-        }
-
-        // Fetch all resources in parallel
-        $responses = $this->webApiClient->multiGet($multiGetRequests);
-
-        // Process responses by resource type
-        foreach ($responses as $index => $response) {
-            if (!isset($requestIndexMap[$index])) {
+        // Each client owns a different base URL, so batch within each domain.
+        // WebApiClient::multiGet() executes the requests in that group in parallel.
+        foreach ($requestsByClient as $clientKey => $requests) {
+            $client = $this->clients[$clientKey] ?? null;
+            if (!$client instanceof WebApiClientInterface) {
                 continue;
             }
 
-            $resourceType = $requestIndexMap[$index];
-
-            if (!isset($response['data'])) {
-                continue;
-            }
-
-            $results[$resourceType] = [];
-            $data = $response['data'];
-
-            if (!is_array($data)) {
-                continue;
-            }
-
-            // Handle both indexed arrays and paginated results
-            $items = $data;
-            if (isset($data['data']) && is_array($data['data'])) {
-                $items = $data['data'];
-            }
-
-            foreach ($items as $item) {
-                if (!is_array($item)) {
+            $responses = $client->multiGet($requests);
+            foreach ($responses as $index => $response) {
+                $request = $requestMap[$clientKey][$index] ?? null;
+                if ($request === null || !isset($response['data']) || !is_array($response['data'])) {
                     continue;
                 }
 
-                $itemId = $item['id'] ?? null;
-                if ($itemId !== null) {
-                    $results[$resourceType][$itemId] = $item;
+                $resourceType = $request['resource_type'];
+                $requestedIds = array_fill_keys(
+                    array_map(static fn (int|string $id): string => (string) $id, $request['ids']),
+                    true,
+                );
+                $results[$resourceType] ??= [];
+                $data = $response['data'];
+
+                // Handle list, paginated, and single-detail responses.
+                $items = isset($data['data']) && is_array($data['data'])
+                    ? $data['data']
+                    : (array_is_list($data) ? $data : [$data]);
+                foreach ($items as $item) {
+                    if (!is_array($item)) {
+                        continue;
+                    }
+
+                    $itemId = $item['id'] ?? null;
+                    if ($itemId !== null && ($requestedIds === [] || isset($requestedIds[(string) $itemId]))) {
+                        $results[$resourceType][$itemId] = $item;
+                    }
                 }
             }
         }
@@ -131,41 +175,49 @@ class SmartPrefetchService implements SmartPrefetchInterface
 
     public function prefetchBatch(string $resourceType, array $ids, array $fields = [], string $locale = 'es'): array
     {
-        if (!isset(self::RESOURCE_ENDPOINTS[$resourceType])) {
+        unset($locale);
+
+        if (!isset(self::RESOURCE_ENDPOINTS[$resourceType]) || empty($ids)) {
             return [];
         }
 
-        if (empty($ids)) {
+        $definition = self::RESOURCE_ENDPOINTS[$resourceType];
+        $client = $this->clients[$definition['client']] ?? null;
+        if (!$client instanceof WebApiClientInterface) {
             return [];
         }
 
-        $fieldsToUse = !empty($fields) ? $fields : self::RESOURCE_ENDPOINTS[$resourceType]['default_fields'];
-        $endpoint = self::RESOURCE_ENDPOINTS[$resourceType]['endpoint'];
-        $fieldsParam = '?fields=' . implode(',', array_map('urlencode', $fieldsToUse));
-        $url = "/api/v1/public/{$endpoint}{$fieldsParam}";
+        $fieldsToUse = !empty($fields) ? $fields : $definition['default_fields'];
+        $query = [
+            'fields' => implode(',', $fieldsToUse),
+            'filter' => ['id' => ['in' => array_values($ids)]],
+            'per_page' => min(100, max(1, count($ids))),
+        ];
 
-        $response = $this->webApiClient->get($url);
+        $response = $client->get($definition['endpoint'], $query, 300, $resourceType);
 
         $results = [];
         if (!isset($response['data']) || !is_array($response['data'])) {
             return $results;
         }
 
+        $requestedIds = array_fill_keys(
+            array_map(static fn (int|string $id): string => (string) $id, $ids),
+            true,
+        );
         $data = $response['data'];
 
-        // Handle both indexed arrays and paginated results
-        $items = $data;
-        if (isset($data['data']) && is_array($data['data'])) {
-            $items = $data['data'];
-        }
-
+        // Handle list, paginated, and single-detail responses.
+        $items = isset($data['data']) && is_array($data['data'])
+            ? $data['data']
+            : (array_is_list($data) ? $data : [$data]);
         foreach ($items as $item) {
             if (!is_array($item)) {
                 continue;
             }
 
             $itemId = $item['id'] ?? null;
-            if ($itemId !== null && in_array($itemId, $ids, true)) {
+            if ($itemId !== null && isset($requestedIds[(string) $itemId])) {
                 $results[$itemId] = $item;
             }
         }

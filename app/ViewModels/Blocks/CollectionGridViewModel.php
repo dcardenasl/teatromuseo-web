@@ -149,34 +149,12 @@ class CollectionGridViewModel extends AbstractBlockViewModel
                 return [];
             }
 
-            $normalized = [];
-            foreach ($entries as $entry) {
-                if (! is_array($entry)) {
-                    continue;
-                }
+            $entries = array_values(array_filter(
+                $entries,
+                static fn (mixed $entry): bool => is_array($entry),
+            ));
 
-                $featuredImage = $this->mediaReferenceFromPayload($entry, 'featured_image');
-                $entry['featured_image'] = $featuredImage['url'] !== '' ? $featuredImage : null;
-                $imageSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['image'] ?? '')) : '';
-                $projectedImage = $this->projectionMedia($entry, $imageSource);
-                if ($projectedImage !== null) {
-                    $entry['featured_image'] = $projectedImage;
-                }
-                $dateSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['date'] ?? '')) : '';
-                $entry['display_date'] = $this->projectionValue($entry, $dateSource) ?: ListingDateResolver::resolve($entry, ListingDateResolver::isValidSource($dateSource) ? $dateSource : 'auto');
-                $titleSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['title'] ?? '')) : '';
-                $summarySource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['summary'] ?? '')) : '';
-                if ($titleSource !== '' && $this->projectionValue($entry, $titleSource) !== '') {
-                    $entry['title'] = $this->projectionValue($entry, $titleSource);
-                }
-                if ($summarySource !== '' && $this->projectionValue($entry, $summarySource) !== '') {
-                    $entry['excerpt'] = $this->projectionValue($entry, $summarySource);
-                }
-
-                $normalized[] = $entry;
-            }
-
-            return $normalized;
+            return $this->normalizeCmsEntries($entries, $listingProjection);
         } catch (\Throwable) {
             return [];
         }
@@ -190,6 +168,11 @@ class CollectionGridViewModel extends AbstractBlockViewModel
      */
     private function resolvePreviewEntries(string $collectionKey, string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0, array $listingProjection = []): array
     {
+        $prefetched = $this->prefetchedEntries($sourceType, $listingProjection);
+        if ($prefetched !== null) {
+            return $prefetched;
+        }
+
         if ($sourceType === 'event_items') {
             return $this->externalEntries('event_items', $itemsLimit, $orderBy, $orderDirection, $listingProjection);
         }
@@ -239,6 +222,96 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $listingProjection
+     * @return list<array<string, mixed>>|null
+     */
+    private function prefetchedEntries(string $sourceType, array $listingProjection): ?array
+    {
+        $blockPath = (string) ($this->context['blockPath'] ?? '');
+        $allPrefetched = $this->context['block_prefetch'] ?? null;
+        if ($blockPath === '' || ! is_array($allPrefetched) || ! is_array($allPrefetched[$blockPath] ?? null)) {
+            return null;
+        }
+
+        $payload = $allPrefetched[$blockPath];
+        $entries = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $entries = array_values(array_filter($entries, 'is_array'));
+
+        if ($sourceType === 'cms_collection') {
+            return $this->normalizeCmsEntries($entries, $listingProjection);
+        }
+
+        $source = $sourceType === 'event_items' ? $this->eventSource() : $this->catalogSource();
+        if ($source === null) {
+            return [];
+        }
+
+        $normalized = array_map(
+            fn (array $entry): array => $source->normalizeEntry($entry),
+            $entries,
+        );
+
+        return array_map(function (array $entry) use ($listingProjection): array {
+            $slots = is_array($listingProjection['slots'] ?? null) ? $listingProjection['slots'] : [];
+            $title = $this->projectionValue($entry, trim((string) ($slots['title'] ?? '')));
+            $summary = $this->projectionValue($entry, trim((string) ($slots['summary'] ?? '')));
+            $image = $this->projectionMedia($entry, trim((string) ($slots['image'] ?? '')));
+            $date = $this->projectionValue($entry, trim((string) ($slots['date'] ?? '')));
+            if ($title !== '') {
+                $entry['title'] = $title;
+            }
+            if ($summary !== '') {
+                $entry['excerpt'] = $summary;
+            }
+            if ($image !== null) {
+                $entry['featured_image'] = $image;
+            }
+            if ($date !== '') {
+                $entry['display_date'] = $date;
+            }
+
+            return $entry;
+        }, $normalized);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param array<string, mixed> $listingProjection
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeCmsEntries(array $entries, array $listingProjection): array
+    {
+        $normalized = [];
+        foreach ($entries as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $featuredImage = $this->mediaReferenceFromPayload($entry, 'featured_image');
+            $entry['featured_image'] = $featuredImage['url'] !== '' ? $featuredImage : null;
+            $imageSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['image'] ?? '')) : '';
+            $projectedImage = $this->projectionMedia($entry, $imageSource);
+            if ($projectedImage !== null) {
+                $entry['featured_image'] = $projectedImage;
+            }
+            $dateSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['date'] ?? '')) : '';
+            $entry['display_date'] = $this->projectionValue($entry, $dateSource) ?: ListingDateResolver::resolve($entry, ListingDateResolver::isValidSource($dateSource) ? $dateSource : 'auto');
+            $titleSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['title'] ?? '')) : '';
+            $summarySource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['summary'] ?? '')) : '';
+            if ($titleSource !== '' && $this->projectionValue($entry, $titleSource) !== '') {
+                $entry['title'] = $this->projectionValue($entry, $titleSource);
+            }
+            if ($summarySource !== '' && $this->projectionValue($entry, $summarySource) !== '') {
+                $entry['excerpt'] = $this->projectionValue($entry, $summarySource);
+            }
+
+            $normalized[] = $entry;
+        }
+
+        return $normalized;
     }
 
     /**

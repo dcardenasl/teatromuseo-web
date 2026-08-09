@@ -13,6 +13,7 @@ use App\Libraries\PublicListingPageBuilder;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
 use App\Services\BlockAnalyzerService;
+use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\PageResolverService;
 use App\Services\ParallelAliasResolver;
@@ -186,7 +187,25 @@ class Services extends BaseService
             return static::getSharedInstance('smartPrefetchService');
         }
 
-        return new SmartPrefetchService(static::webApiClient());
+        return new SmartPrefetchService([
+            'cms' => static::webApiClient(),
+            'catalog' => static::catalogWebApiClient(),
+            'event' => static::eventWebApiClient(),
+        ]);
+    }
+
+    public static function blockPrefetchService(bool $getShared = true): BlockPrefetchService
+    {
+        if ($getShared) {
+            /** @var BlockPrefetchService */
+            return static::getSharedInstance('blockPrefetchService');
+        }
+
+        return new BlockPrefetchService([
+            'cms' => static::webApiClient(),
+            'catalog' => static::catalogWebApiClient(),
+            'event' => static::eventWebApiClient(),
+        ], static::blockAnalyzerService(), static::smartPrefetchService());
     }
 
     public static function aliasResolverService(bool $getShared = true): AliasResolverInterface

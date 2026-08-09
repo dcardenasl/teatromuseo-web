@@ -17,7 +17,11 @@ class SmartPrefetchServiceTest extends TestCase
     protected function setUp(): void
     {
         $this->apiClient = $this->createMock(WebApiClientInterface::class);
-        $this->service = new SmartPrefetchService($this->apiClient);
+        $this->service = new SmartPrefetchService([
+            'cms' => $this->apiClient,
+            'catalog' => $this->apiClient,
+            'event' => $this->apiClient,
+        ]);
     }
 
     public function test_prefetch_empty_requirements(): void
@@ -92,6 +96,55 @@ class SmartPrefetchServiceTest extends TestCase
         $this->assertEquals('Festival', $result['events'][10]['title']);
     }
 
+    public function test_prefetch_routes_each_resource_to_its_domain_client(): void
+    {
+        $catalogClient = $this->createMock(WebApiClientInterface::class);
+        $eventClient = $this->createMock(WebApiClientInterface::class);
+
+        $catalogClient->expects($this->once())
+            ->method('multiGet')
+            ->with($this->callback(static function (array $requests): bool {
+                return ($requests[0]['path'] ?? '') === 'public/catalog/collection-items'
+                    && ($requests[0]['query']['fields'] ?? '') === 'id'
+                    && ($requests[0]['query']['filter']['id']['in'] ?? []) === [1];
+            }))
+            ->willReturn([[
+                'ok' => true,
+                'status' => 200,
+                'data' => [['id' => 1, 'name' => 'Item']],
+                'meta' => [],
+                'messages' => [],
+            ]]);
+
+        $eventClient->expects($this->once())
+            ->method('multiGet')
+            ->with($this->callback(static function (array $requests): bool {
+                return ($requests[0]['path'] ?? '') === 'public/events'
+                    && ($requests[0]['query']['fields'] ?? '') === 'id'
+                    && ($requests[0]['query']['filter']['id']['in'] ?? []) === [10];
+            }))
+            ->willReturn([[
+                'ok' => true,
+                'status' => 200,
+                'data' => [['id' => 10, 'title' => 'Event']],
+                'meta' => [],
+                'messages' => [],
+            ]]);
+
+        $service = new SmartPrefetchService([
+            'catalog' => $catalogClient,
+            'event' => $eventClient,
+        ]);
+
+        $result = $service->prefetch([
+            'collection_items' => ['ids' => [1], 'fields' => ['id']],
+            'events' => ['ids' => [10], 'fields' => ['id']],
+        ]);
+
+        $this->assertArrayHasKey(1, $result['collection_items']);
+        $this->assertArrayHasKey(10, $result['events']);
+    }
+
     public function test_prefetch_multiple_resource_types(): void
     {
         $requirements = [
@@ -99,24 +152,24 @@ class SmartPrefetchServiceTest extends TestCase
             'events' => ['ids' => [10], 'fields' => ['id', 'title']],
         ];
 
-        $this->apiClient->expects($this->once())
+        $this->apiClient->expects($this->exactly(2))
             ->method('multiGet')
-            ->willReturn([
-                [
+            ->willReturnOnConsecutiveCalls(
+                [[
                     'ok' => true,
                     'status' => 200,
                     'data' => [['id' => 1, 'name' => 'Item']],
                     'meta' => [],
                     'messages' => [],
-                ],
-                [
+                ]],
+                [[
                     'ok' => true,
                     'status' => 200,
                     'data' => [['id' => 10, 'title' => 'Event']],
                     'meta' => [],
                     'messages' => [],
-                ]
-            ]);
+                ]],
+            );
 
         $result = $this->service->prefetch($requirements);
 
@@ -247,7 +300,7 @@ class SmartPrefetchServiceTest extends TestCase
 
         $this->apiClient->expects($this->once())
             ->method('get')
-            ->with($this->stringContains('/api/v1/public/catalog/collection-items'))
+            ->with($this->stringContains('public/catalog/collection-items'))
             ->willReturn($mockResponse);
 
         $result = $this->service->prefetchBatch('collection_items', [1, 2]);
@@ -287,7 +340,12 @@ class SmartPrefetchServiceTest extends TestCase
     {
         $this->apiClient->expects($this->once())
             ->method('get')
-            ->with($this->stringContains('fields='))
+            ->with(
+                'public/catalog/collection-items',
+                $this->callback(static fn (array $query): bool => ($query['fields'] ?? '') === 'id,name,slug'),
+                300,
+                'collection_items',
+            )
             ->willReturn(['ok' => true, 'status' => 200, 'data' => [], 'meta' => [], 'messages' => []]);
 
         $this->service->prefetchBatch('collection_items', [1], ['id', 'name', 'slug']);
@@ -305,7 +363,7 @@ class SmartPrefetchServiceTest extends TestCase
         $this->apiClient->expects($this->once())
             ->method('multiGet')
             ->with($this->callback(static function (array $requests): bool {
-                return isset($requests[0]['path']) && str_contains($requests[0]['path'], 'fields=');
+                return ($requests[0]['query']['fields'] ?? '') === 'id,name';
             }))
             ->willReturn([
                 [
