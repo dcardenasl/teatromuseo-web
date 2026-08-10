@@ -28,20 +28,35 @@ class SocialLinksService extends BaseSiteService
     public function getActiveLinks(): array
     {
         $settings = $this->fetchData('public/settings', [], self::CACHE_TTL, 'settings') ?? [];
+
+        return $this->getActiveLinksFromSettings($settings);
+    }
+
+    /**
+     * Build links from an already prefetched settings payload.
+     *
+     * Layout composition uses this method so the footer never starts another
+     * HTTP request while rendering a page.
+     *
+     * @param array<string, mixed> $settings
+     * @return array<int, array<string, string>>
+     */
+    public function getActiveLinksFromSettings(array $settings): array
+    {
         $active = [];
 
         foreach (self::SOCIAL_NETWORKS as $network) {
             $url = $settings[$network['key']] ?? '';
 
             // Skip if empty, placeholder, or invalid
-            if (empty($url) || !$this->isValidSocialUrl($url)) {
+            if (! is_string($url) || trim($url) === '' || ! $this->isValidSocialUrl($url)) {
                 continue;
             }
 
             $active[] = [
                 'key' => $network['key'],
                 'label' => $network['label'],
-                'url' => $url,
+                'url' => trim($url),
             ];
         }
 

@@ -65,6 +65,13 @@ class LayoutDataPrefetchService extends BaseSiteService
             }
         }
 
+        if (! isset($data['socialLinks'])) {
+            $settings = is_array($output['settings'] ?? null)
+                ? $output['settings']
+                : (is_array($data['settings'] ?? null) ? $data['settings'] : []);
+            $output['socialLinks'] = \Config\Services::socialLinksService()->getActiveLinksFromSettings($settings);
+        }
+
         return $output;
     }
 

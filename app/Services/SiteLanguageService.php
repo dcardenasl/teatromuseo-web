@@ -11,15 +11,24 @@ final class SiteLanguageService extends BaseSiteService
     // for a public-content cache window to expire.
     private const CACHE_TTL = 0;
 
+    /** @var list<array{code: string, name: string, native_name: string, is_default: bool}>|null */
+    private ?array $activeLanguages = null;
+
     /** @return list<array{code: string, name: string, native_name: string, is_default: bool}> */
     public function getActive(): array
     {
-        $languages = $this->fetchData('cms/public/languages', [], self::CACHE_TTL, 'languages');
-        if ($languages === null) {
-            return [];
+        if ($this->activeLanguages !== null) {
+            return $this->activeLanguages;
         }
 
-        return array_values(array_filter(array_map(static function (mixed $language): ?array {
+        $languages = $this->fetchData('cms/public/languages', [], self::CACHE_TTL, 'languages');
+        if ($languages === null) {
+            $this->activeLanguages = [];
+
+            return $this->activeLanguages;
+        }
+
+        $this->activeLanguages = array_values(array_filter(array_map(static function (mixed $language): ?array {
             if (! is_array($language)) {
                 return null;
             }
@@ -36,6 +45,8 @@ final class SiteLanguageService extends BaseSiteService
                 'is_default' => (bool) ($language['is_default'] ?? false),
             ];
         }, $languages)));
+
+        return $this->activeLanguages;
     }
 
     /** @return list<string> */

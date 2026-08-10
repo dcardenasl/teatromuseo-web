@@ -161,9 +161,7 @@
             <?php endif; ?>
 
             <!-- Social Links -->
-            <?php
-            $socialLinks = \Config\Services::socialLinksService()->getActiveLinks();
-            ?>
+            <?php $socialLinks = is_array($socialLinks ?? null) ? $socialLinks : []; ?>
             <?php if (!empty($socialLinks)): ?>
                 <div class="space-y-4">
                     <p class="section-eyebrow"><?= lang('Site.footer_social_label') ?></p>
