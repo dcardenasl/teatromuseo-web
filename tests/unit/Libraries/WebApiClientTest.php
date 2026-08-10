@@ -216,7 +216,10 @@ final class WebApiClientTest extends CIUnitTestCase
     public function testGetServesStaleCopyWhenUpstreamReturns500(): void
     {
         $client = $this->makeClient([
-            $this->jsonResponse(['data' => ['id' => 42]]),
+            $this->jsonResponse([
+                'data' => ['id' => 42],
+                'source' => ['domain' => 'events', 'state' => 'fresh', 'stale' => false],
+            ]),
             $this->jsonResponse(['error' => 'upstream down'], 500),
         ]);
 
@@ -229,6 +232,43 @@ final class WebApiClientTest extends CIUnitTestCase
         $this->assertTrue($result['ok']);
         $this->assertSame(['id' => 42], $result['data']);
         $this->assertTrue($result['meta']['stale'] ?? false, 'Stale responses must be flagged in meta');
+        $this->assertSame('stale', $result['meta']['source']['state'] ?? null);
+        $this->assertTrue($result['meta']['source']['stale'] ?? false);
+    }
+
+    public function testGetServesStaleCopyWhenProviderReturns508(): void
+    {
+        $client = $this->makeClient([
+            $this->jsonResponse(['data' => ['id' => 508]]),
+            $this->jsonResponse(['error' => 'entry process limit'], 508),
+        ]);
+
+        $client->get('public/es/pages/home', [], 300, 'pages');
+        $this->cache->deleteMatching('web_api_v*');
+
+        $result = $client->get('public/es/pages/home', [], 300, 'pages');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame(['id' => 508], $result['data']);
+        $this->assertTrue($result['meta']['stale'] ?? false);
+        $this->assertSame(508, $client->telemetry[1]['status']);
+        $this->assertSame('stale', $client->telemetry[1]['cache_state']);
+    }
+
+    public function testGetPreservesProviderSourceStateInNormalizedMeta(): void
+    {
+        $client = $this->makeClient([
+            $this->jsonResponse([
+                'data' => ['id' => 42],
+                'source' => ['domain' => 'catalog', 'state' => 'fresh', 'stale' => false],
+            ]),
+        ]);
+
+        $result = $client->get('public-read/es/collection-items/42', [], 0, 'collection_items');
+
+        $this->assertSame('catalog', $result['meta']['source']['domain'] ?? null);
+        $this->assertSame('fresh', $result['meta']['source']['state'] ?? null);
+        $this->assertFalse($result['meta']['source']['stale'] ?? true);
     }
 
     public function testGetServesStaleCopyOnTransportFailure(): void

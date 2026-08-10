@@ -160,7 +160,8 @@ class Services extends BaseService
             $config->webApiKey,
             $config->webApiTimeout,
             $config->webApiStaleTtl,
-            $config->webApiMaxParallelRequests
+            $config->webApiMaxParallelRequests,
+            $config->webApiConnectTimeout,
         );
     }
 
@@ -362,7 +363,8 @@ class Services extends BaseService
             $config->webApiKey,
             $config->webApiTimeout,
             $config->webApiStaleTtl,
-            $config->webApiMaxParallelRequests
+            $config->webApiMaxParallelRequests,
+            $config->webApiConnectTimeout,
         );
     }
 
@@ -390,7 +392,8 @@ class Services extends BaseService
             $config->webApiKey,
             $config->webApiTimeout,
             $config->webApiStaleTtl,
-            $config->webApiMaxParallelRequests
+            $config->webApiMaxParallelRequests,
+            $config->webApiConnectTimeout,
         );
     }
 

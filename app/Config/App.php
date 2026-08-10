@@ -174,6 +174,13 @@ class App extends BaseConfig
     public int $webApiTimeout = 2;
 
     /**
+     * Connection-establishment timeout (seconds) for Domain API requests.
+     * A slow connection must not hold a shared-hosting worker for the full
+     * response deadline. Override with WEB_API_CONNECT_TIMEOUT in .env.
+     */
+    public int $webApiConnectTimeout = 1;
+
+    /**
      * TTL (seconds) for the long-lived stale cache copy served when the
      * Domain API is down. Set WEB_API_STALE_TTL=0 in .env to disable.
      */
@@ -187,6 +194,13 @@ class App extends BaseConfig
      * Override with WEB_API_MAX_PARALLEL_REQUESTS in .env.
      */
     public int $webApiMaxParallelRequests = 1;
+
+    /**
+     * First-party page-view tracking is disabled in production by default.
+     * Tracking is best-effort and must never compete with public delivery for
+     * a PHP worker or database connection.
+     */
+    public bool $trackingEnabled = ENVIRONMENT !== 'production';
 
     /**
      * TTL (seconds) for full HTML response caching on public pages.
@@ -369,6 +383,11 @@ class App extends BaseConfig
             $this->webApiTimeout = (int) $webApiTimeout;
         }
 
+        $webApiConnectTimeout = env('WEB_API_CONNECT_TIMEOUT');
+        if (is_numeric($webApiConnectTimeout) && (int) $webApiConnectTimeout > 0) {
+            $this->webApiConnectTimeout = min($this->webApiTimeout, (int) $webApiConnectTimeout);
+        }
+
         $webApiStaleTtl = env('WEB_API_STALE_TTL');
         if (is_numeric($webApiStaleTtl) && (int) $webApiStaleTtl >= 0) {
             $this->webApiStaleTtl = (int) $webApiStaleTtl;
@@ -376,8 +395,20 @@ class App extends BaseConfig
 
         $webApiMaxParallelRequests = env('WEB_API_MAX_PARALLEL_REQUESTS');
         if (is_numeric($webApiMaxParallelRequests) && (int) $webApiMaxParallelRequests > 0) {
-            $this->webApiMaxParallelRequests = min(16, (int) $webApiMaxParallelRequests);
+            // Production must stay within the shared-hosting budget even if a
+            // stale or mistyped .env requests a larger burst. Non-production
+            // environments may opt into wider concurrency for load tests.
+            $maximumParallelRequests = ENVIRONMENT === 'production' ? 1 : 16;
+            $this->webApiMaxParallelRequests = min(
+                $maximumParallelRequests,
+                (int) $webApiMaxParallelRequests,
+            );
         }
+
+        $this->trackingEnabled = $this->parseBoolean(
+            env('WEB_TRACKING_ENABLED'),
+            $this->trackingEnabled,
+        );
 
         $webPageCacheTtl = env('WEB_PAGE_CACHE_TTL');
         if (is_numeric($webPageCacheTtl) && (int) $webPageCacheTtl >= 0) {

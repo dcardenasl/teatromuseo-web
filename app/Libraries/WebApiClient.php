@@ -37,6 +37,7 @@ class WebApiClient implements WebApiClientInterface
     private string $baseUrl;
     private string $apiKey;
     private int $timeout;
+    private int $connectTimeout;
     private int $staleTtl;
     private int $maxParallelRequests;
     private int $lastPayloadBytes = 0;
@@ -46,7 +47,8 @@ class WebApiClient implements WebApiClientInterface
         string $apiKey,
         int $timeout = 5,
         int $staleTtl = 86400,
-        int $maxParallelRequests = 2
+        int $maxParallelRequests = 2,
+        int $connectTimeout = 1,
     ) {
         if (trim($baseUrl) === '') {
             throw new \LogicException(
@@ -67,6 +69,7 @@ class WebApiClient implements WebApiClientInterface
         $this->timeout  = max(1, $timeout);
         $this->staleTtl = max(0, $staleTtl);
         $this->maxParallelRequests = min(16, max(1, $maxParallelRequests));
+        $this->connectTimeout = min($this->timeout, max(1, $connectTimeout));
     }
 
     /**
@@ -148,6 +151,7 @@ class WebApiClient implements WebApiClientInterface
 
                 $staleResult                  = $this->resultFromArray($stale);
                 $staleResult['meta']['stale'] = true;
+                $staleResult['meta']['source'] = $this->staleSource($staleResult['meta']['source'] ?? null);
 
                 $this->recordTelemetry($this->telemetryEvent(
                     'GET',
@@ -295,6 +299,8 @@ class WebApiClient implements WebApiClientInterface
                 curl_setopt_array($ch, [
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_TIMEOUT        => $this->timeout,
+                    CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
+                    CURLOPT_NOSIGNAL       => true,
                     CURLOPT_HTTPHEADER     => $headers,
                 ]);
                 curl_multi_add_handle($mh, $ch);
@@ -362,6 +368,7 @@ class WebApiClient implements WebApiClientInterface
                     if (is_array($stale)) {
                         $staleResult                  = $this->resultFromArray($stale);
                         $staleResult['meta']['stale'] = true;
+                        $staleResult['meta']['source'] = $this->staleSource($staleResult['meta']['source'] ?? null);
                         $result                        = $staleResult;
                     }
                 }
@@ -530,6 +537,8 @@ class WebApiClient implements WebApiClientInterface
             curl_setopt_array($handle, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => $client->timeout,
+                CURLOPT_CONNECTTIMEOUT => $client->connectTimeout,
+                CURLOPT_NOSIGNAL => true,
                 CURLOPT_HTTPHEADER => $headers,
             ]);
             curl_multi_add_handle($multiHandle, $handle);
@@ -586,6 +595,7 @@ class WebApiClient implements WebApiClientInterface
                 if (is_array($stale)) {
                     $staleResult = $client->resultFromArray($stale);
                     $staleResult['meta']['stale'] = true;
+                    $staleResult['meta']['source'] = $client->staleSource($staleResult['meta']['source'] ?? null);
                     $result = $staleResult;
                 }
             }
@@ -705,6 +715,8 @@ class WebApiClient implements WebApiClientInterface
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
+            CURLOPT_NOSIGNAL       => true,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_CUSTOMREQUEST  => $method,
         ]);
@@ -742,17 +754,10 @@ class WebApiClient implements WebApiClientInterface
     }
 
     /**
-     * @return array{ok: bool, status: int, data: null, meta: array<string, mixed>, messages: list<string>}
-     */
-    /**
      * Parse raw transport response into normalized result envelope.
      *
      * @param array{raw: string|false, status: int, error: string, timed_out?: bool} $response
      *
-     * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
-     */
-    /**
-     * @param array<string, mixed> $response
      * @return array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}
      */
     private function parseResponse(array $response): array
@@ -772,6 +777,9 @@ class WebApiClient implements WebApiClientInterface
         $decoded  = json_decode($response['raw'], true);
         $data     = is_array($decoded) ? ($decoded['data'] ?? $decoded) : null;
         $meta     = is_array($decoded) && is_array($decoded['meta'] ?? null) ? $this->stringKeyed($decoded['meta']) : [];
+        if (is_array($decoded) && is_array($decoded['source'] ?? null)) {
+            $meta['source'] = $this->stringKeyed($decoded['source']);
+        }
         $messages = $this->extractMessages($decoded);
         $status   = $response['status'];
 
@@ -841,6 +849,19 @@ class WebApiClient implements WebApiClientInterface
         }
 
         return $result;
+    }
+
+    /**
+     * @param mixed $source
+     * @return array<string, mixed>
+     */
+    protected function staleSource(mixed $source): array
+    {
+        $normalized = is_array($source) ? $this->stringKeyed($source) : [];
+        $normalized['state'] = 'stale';
+        $normalized['stale'] = true;
+
+        return $normalized;
     }
 
     /**

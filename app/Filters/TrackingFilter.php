@@ -32,6 +32,12 @@ class TrackingFilter implements FilterInterface
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
+        /** @var \Config\App $appConfig */
+        $appConfig = config('App');
+        if (! $appConfig->trackingEnabled) {
+            return $response;
+        }
+
         $statusCode = $response->getStatusCode();
 
         // Skip errors, redirects, and non-page responses
