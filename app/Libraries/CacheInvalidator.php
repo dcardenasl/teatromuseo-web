@@ -40,13 +40,16 @@ class CacheInvalidator
      * never the entire cache store.
      *
      * @param list<string> $scopes
-     * @return array{invalidated: list<string>, deleted: int}
+     * @param list<string> $locales
+     * @param list<string> $routes
+     * @return array{invalidated: list<string>, deleted: int, snapshots_invalidated: int}
      */
-    public function invalidate(array $scopes, string $source = 'remote'): array
+    public function invalidate(array $scopes, string $source = 'remote', array $locales = [], array $routes = []): array
     {
         $cache        = \Config\Services::cache();
         $invalidated  = [];
         $totalDeleted = 0;
+        $snapshotsInvalidated = 0;
 
         foreach ($scopes as $scope) {
             if (! in_array($scope, self::VALID_SCOPES, true)) {
@@ -66,10 +69,16 @@ class CacheInvalidator
         }
 
         if ($invalidated !== []) {
+            $snapshotStore = \Config\Services::pageSnapshotStore();
+            $snapshotsInvalidated = $snapshotStore->invalidateScopes($invalidated, $locales, $routes);
             $this->recordStatus($invalidated, $totalDeleted, $source);
         }
 
-        return ['invalidated' => $invalidated, 'deleted' => $totalDeleted];
+        return [
+            'invalidated' => $invalidated,
+            'deleted' => $totalDeleted,
+            'snapshots_invalidated' => $snapshotsInvalidated,
+        ];
     }
 
     /**
@@ -98,6 +107,7 @@ class CacheInvalidator
         return [
             'configured' => trim((string) env('CACHE_INVALIDATE_KEY', '')) !== '',
             'handler' => (string) config('Cache')->handler,
+            'snapshot_backend' => \Config\Services::pageSnapshotStore()->status(),
             'last_invalidation_at' => $this->nullableString($stored['last_invalidation_at'] ?? null),
             'last_invalidation_source' => $this->nullableString($stored['last_invalidation_source'] ?? null),
             'last_invalidation_scopes' => $this->stringList($stored['last_invalidation_scopes'] ?? []),

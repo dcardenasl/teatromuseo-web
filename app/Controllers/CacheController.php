@@ -11,7 +11,7 @@ class CacheController extends BaseController
     /**
      * POST /cache/invalidate
      *
-     * Body:    {"scopes": ["pages", "menus"]}
+     * Body:    {"scopes": ["pages", "menus"], "locales": ["es"], "routes": ["home"]}
      * Auth:    X-Invalidate-Key header (shared secret, never logged)
      */
     public function invalidate(): ResponseInterface
@@ -42,6 +42,12 @@ class CacheController extends BaseController
             : null;
         $rawScopes = is_array($body) && is_array($body['scopes'] ?? null) ? $body['scopes'] : [];
         $scopes    = array_values(array_filter($rawScopes, 'is_string'));
+        $locales = is_array($body) && is_array($body['locales'] ?? null)
+            ? array_values(array_filter($body['locales'], 'is_string'))
+            : [];
+        $routes = is_array($body) && is_array($body['routes'] ?? null)
+            ? array_values(array_filter($body['routes'], 'is_string'))
+            : [];
 
         if (empty($scopes)) {
             return $this->response
@@ -50,12 +56,20 @@ class CacheController extends BaseController
         }
 
         $source = $this->request->getHeaderLine('X-Cache-Invalidation-Source');
-        $result = service('cacheInvalidator')->invalidate($scopes, $source !== '' ? $source : 'remote');
+        $result = service('cacheInvalidator')->invalidate(
+            $scopes,
+            $source !== '' ? $source : 'remote',
+            $locales,
+            $routes,
+        );
 
         return $this->response->setJSON([
             'ok'          => true,
             'invalidated' => $result['invalidated'],
             'deleted'     => $result['deleted'],
+            'snapshots_invalidated' => $result['snapshots_invalidated'] ?? 0,
+            'locales' => $locales,
+            'routes' => $routes,
         ]);
     }
 
