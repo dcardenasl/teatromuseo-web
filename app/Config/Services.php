@@ -17,8 +17,10 @@ use App\PageDelivery\NullSnapshotStore;
 use App\PageDelivery\PageDeliveryInterface;
 use App\PageDelivery\PageDeliveryService;
 use App\PageDelivery\RegenerationLockInterface;
+use App\PageDelivery\SnapshotBuilder;
+use App\PageDelivery\SnapshotBuilderInterface;
 use App\PageDelivery\SnapshotPageDeliveryAdapter;
-use App\PageDelivery\SnapshotStoreInterface;
+use App\PageDelivery\SnapshotPublisherInterface;
 use App\PageDelivery\SynchronousPageDeliveryAdapter;
 use App\PageDelivery\SystemClock;
 use App\Services\BlockPrefetchService;
@@ -80,19 +82,28 @@ class Services extends BaseService
             lock: static::pageRegenerationLock(),
             mode: $config->pageDeliveryMode,
             allowSynchronousFallback: $config->pageDeliveryAllowSynchronousFallback,
+            builder: static::snapshotBuilder(),
         );
     }
 
-    public static function pageSnapshotStore(bool $getShared = true): SnapshotStoreInterface
+    public static function pageSnapshotStore(bool $getShared = true): SnapshotPublisherInterface
     {
         if ($getShared) {
-            /** @var SnapshotStoreInterface */
+            /** @var SnapshotPublisherInterface */
             return static::getSharedInstance('pageSnapshotStore');
         }
 
-        $directory = config('App')->pageSnapshotDirectory;
+        $config = config('App');
+        $directory = $config->pageSnapshotDirectory;
 
-        return $directory !== '' ? new FileSnapshotStore($directory) : new NullSnapshotStore();
+        return $directory !== '' && $config->pageSnapshotShared
+            ? new FileSnapshotStore(
+                $directory,
+                $config->pageSnapshotMaxBytes,
+                $config->pageSnapshotRetention,
+                $config->pageSnapshotCompression,
+            )
+            : new NullSnapshotStore();
     }
 
     public static function pageRegenerationLock(bool $getShared = true): RegenerationLockInterface
@@ -102,11 +113,37 @@ class Services extends BaseService
             return static::getSharedInstance('pageRegenerationLock');
         }
 
-        $directory = config('App')->pageSnapshotDirectory;
+        $config = config('App');
+        $directory = $config->pageSnapshotDirectory;
 
-        return $directory !== ''
-            ? new FileRegenerationLock($directory . DIRECTORY_SEPARATOR . 'locks')
+        return $directory !== '' && $config->pageSnapshotShared
+            ? new FileRegenerationLock($directory . DIRECTORY_SEPARATOR . 'locks', $config->pageSnapshotLockTtl)
             : new NullRegenerationLock();
+    }
+
+    public static function snapshotBuilder(bool $getShared = true): SnapshotBuilderInterface
+    {
+        if ($getShared) {
+            /** @var SnapshotBuilderInterface */
+            return static::getSharedInstance('snapshotBuilder');
+        }
+
+        $config = config('App');
+        $clock = new SystemClock();
+
+        return new SnapshotBuilder(
+            synchronous: new SynchronousPageDeliveryAdapter(
+                static::sitePageService(),
+                static::layoutDataPrefetchService(),
+                static::blockPrefetchService(),
+                $clock,
+            ),
+            publisher: static::pageSnapshotStore(),
+            lock: static::pageRegenerationLock(),
+            clock: $clock,
+            ttl: $config->pageSnapshotTtl,
+            scopes: $config->pageSnapshotScopes,
+        );
     }
 
     public static function webApiClient(bool $getShared = true): WebApiClientInterface

@@ -18,6 +18,7 @@ final class PageDeliveryService implements PageDeliveryInterface
         private readonly RegenerationLockInterface $lock,
         private readonly string $mode = 'snapshot',
         private readonly bool $allowSynchronousFallback = false,
+        private readonly ?SnapshotBuilderInterface $builder = null,
     ) {
     }
 
@@ -33,6 +34,15 @@ final class PageDeliveryService implements PageDeliveryInterface
         }
 
         if (! $this->allowSynchronousFallback) {
+            return $snapshot;
+        }
+
+        if ($this->builder !== null) {
+            $build = $this->builder->build($request);
+            if ($build->response !== null) {
+                return $build->response;
+            }
+
             return $snapshot;
         }
 

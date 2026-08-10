@@ -46,8 +46,15 @@ final class SnapshotPageDeliveryAdapter implements PageDeliveryInterface
         }
 
         $now = $this->clock->now();
-        $fresh = $now <= $snapshot->expiresAt;
+        $fresh = $snapshot->invalidatedAt === null && $now <= $snapshot->expiresAt;
         $staleUntil = $snapshot->expiresAt->modify('+' . max(0, $this->staleTtl) . ' seconds');
+        if ($snapshot->invalidatedAt !== null) {
+            $staleUntil = max(
+                $staleUntil->getTimestamp(),
+                $snapshot->invalidatedAt->modify('+' . max(0, $this->staleTtl) . ' seconds')->getTimestamp(),
+            );
+            $staleUntil = (new \DateTimeImmutable())->setTimestamp($staleUntil);
+        }
         if (! $fresh && ($this->staleTtl <= 0 || $now > $staleUntil)) {
             return PageDeliveryResponse::failure(503, ['The public snapshot has expired.'], [
                 'locale' => $request->locale,
@@ -66,6 +73,7 @@ final class SnapshotPageDeliveryAdapter implements PageDeliveryInterface
             meta: array_merge($response->meta, [
                 'cache' => $state,
                 'snapshot_revision' => $snapshot->revision,
+                'etag' => $snapshot->etag,
                 'generated_at' => $snapshot->generatedAt->format(DATE_ATOM),
                 'expires_at' => $snapshot->expiresAt->format(DATE_ATOM),
             ]),
