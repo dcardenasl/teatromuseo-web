@@ -52,7 +52,9 @@ app.defaultLocale=es
 WEB_API_BASE_URL=http://localhost:8190
 WEB_API_KEY=web_api_test_key
 WEB_API_TIMEOUT=5
+WEB_API_CONNECT_TIMEOUT=1
 WEB_API_STALE_TTL=86400
+WEB_TRACKING_ENABLED=false
 CSP_IMAGE_SRC="self http: https: data:"
 CSP_FRAME_SRC="self http: https:"
 CSP_MEDIA_SRC="self http: https:"
@@ -108,6 +110,23 @@ composer quality
 npm run lint:js
 npm run build:all
 ```
+
+Para ejecutar el contrato HTTP cross-repo en CI o con los cuatro servicios
+locales levantados, configura las URLs y una clave registrada en los tres
+dominios:
+
+```bash
+DOMAIN_CONTRACT_CMS_BASE_URL=http://localhost:8190 \
+DOMAIN_CONTRACT_CATALOG_BASE_URL=http://localhost:8191 \
+DOMAIN_CONTRACT_EVENTS_BASE_URL=http://localhost:8193 \
+DOMAIN_CONTRACT_APP_KEY="$WEB_API_KEY" \
+composer test:contract:integration
+```
+
+El gate verifica `401` sin `X-App-Key` y el envelope `200` autenticado de CMS,
+Catalog y Events. Si las claves difieren, se pueden usar
+`DOMAIN_CONTRACT_CMS_APP_KEY`, `DOMAIN_CONTRACT_CATALOG_APP_KEY` y
+`DOMAIN_CONTRACT_EVENTS_APP_KEY` por separado.
 
 La política de PHPStan baseline es decreasing-only: no agregues deuda nueva al
 baseline para cerrar cambios ordinarios.

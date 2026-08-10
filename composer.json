@@ -56,6 +56,7 @@
         "test:unit": "phpunit --testsuite=Unit --no-coverage",
         "test:feature": "phpunit --testsuite=Feature --no-coverage",
         "test:contract": "phpunit --testsuite=Contract --no-coverage",
+        "test:contract:integration": "RUN_CONTRACT_TESTS=1 phpunit --testsuite=Contract --no-coverage",
         "test:dynamic": "phpunit tests/unit tests/feature --no-coverage",
         "test:fixture-policy": "php scripts/check-test-fixture-policy.php",
         "test:e2e": "phpunit --testsuite=E2E --no-coverage",
