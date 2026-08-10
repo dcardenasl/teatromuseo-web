@@ -36,6 +36,10 @@ final class BlockPrefetchServiceTest extends TestCase
         $this->assertSame('News item', $result['0']['data'][0]['title']);
         $this->assertSame('Archive item', $result['1']['data'][0]['title']);
         $this->assertSame(['pagination' => ['total' => 1]], $result['0']['meta']);
+        $this->assertSame('collection_grid', $result['0']['instance']['type']);
+        $this->assertSame(3, $result['0']['instance']['limit']);
+        $this->assertSame(1, $result['0']['instance']['page']);
+        $this->assertSame('archive', $result['1']['instance']['config']['collection_key']);
     }
 
     public function testRoutesCatalogAndEventGridsToTheirOwningClients(): void

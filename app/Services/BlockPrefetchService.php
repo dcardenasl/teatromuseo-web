@@ -438,7 +438,49 @@ final class BlockPrefetchService
                 : [];
         }
 
+        $result['instance'] = $this->instanceMetadata($plan, $result);
+
         $plan['result'] = $result;
+    }
+
+    /**
+     * Preserve the full instance identity alongside the result envelope. The
+     * block path is the stable discriminator when two blocks share a type.
+     *
+     * @param array<string, mixed> $plan
+     * @param array<string, mixed> $result
+     * @return array<string, mixed>
+     */
+    private function instanceMetadata(array $plan, array $result): array
+    {
+        $query = is_array($plan['main_query'] ?? null) ? $plan['main_query'] : [];
+        $payload = is_array($plan['payload'] ?? null) ? $plan['payload'] : [];
+        $filters = is_array($query['filter'] ?? null) ? $query['filter'] : [];
+        foreach (['category', 'tag', 'q', 'search', 'filter_by', 'filter_value', 'filter_operator'] as $key) {
+            if (array_key_exists($key, $query)) {
+                $filters[$key] = $query[$key];
+            }
+        }
+
+        $state = ! ($result['ok'] ?? false)
+            ? 'unavailable'
+            : (($result['stale'] ?? false) === true ? 'stale' : 'fresh');
+
+        return [
+            'path' => (string) ($plan['block_path'] ?? ''),
+            'type' => (string) ($plan['block_key'] ?? ''),
+            'config' => $payload,
+            'page' => max(1, (int) ($query['page'] ?? 1)),
+            'limit' => max(1, (int) ($query['per_page'] ?? $query['limit'] ?? 0)),
+            'filters' => $filters,
+            'order' => [
+                'sort' => (string) ($query['sort'] ?? $query['order_by'] ?? ''),
+                'direction' => (string) ($query['order_direction'] ?? ''),
+            ],
+            'facets' => array_values(array_map('strval', array_keys($plan['facet_indexes'] ?? []))),
+            'preview' => $this->isPreviewRequest(),
+            'source' => $state,
+        ];
     }
 
     /**
