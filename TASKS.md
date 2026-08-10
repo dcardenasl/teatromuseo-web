@@ -25,10 +25,6 @@ con los criterios de aceptación de la sección 8 del plan.
   métricas del hosting (PHP-FPM, MySQL, caché y upstream 508) en el tracker raíz.
 - [x] **PUB-01/PUB-02** — Contratos, gobierno, observabilidad y budgets completados
   en el tracker raíz antes de modificar el camino público.
-- [ ] **WEB-01** — Interface y adapters PageDelivery.
-- [ ] **WEB-02** — Composición síncrona de la homepage.
-- [ ] **WEB-03** — Identidad de instancia, filtros y preview.
-- [ ] **WEB-04** — Consolidación de idiomas y layout.
 - [ ] **CACHE-01** — Backend compartido y política de caché.
 - [ ] **CACHE-02** — Builder y almacenamiento atómico.
 - [ ] **CACHE-03** — Invalidación y regeneración asíncrona.
@@ -105,6 +101,20 @@ Ver [`../TASKS.md`](../TASKS.md) para el estado cross-repo.
 ---
 
 ## ✅ Completadas
+
+### Fase 2 — Entrega de páginas en Web (2026-08-09) ✅ COMPLETADA
+
+- [x] **WEB-01** — Interface, request/respuesta tipadas, adapters síncrono y
+  snapshot-first, configuración y lock de regeneración.
+- [x] **WEB-02** — Homepage con composición bounded, prefetch único de bloques y
+  cero I/O durante render; desactivada para tráfico normal por configuración.
+- [x] **WEB-03** — Identidad de instancia, query/preview, filtros, orden,
+  paginación, facetas y estados `fresh/stale/unavailable`.
+- [x] **WEB-04** — Idiomas, settings, layout y social links consolidados sin
+  lecturas duplicadas ni llamadas desde las vistas.
+
+Verificación: `composer quality`, contratos, policy de fixtures e i18n verdes;
+292 tests, 983 assertions y 5 skipped.
 
 ### Task #10 — Verificación Final (2026-08-08) ✅ COMPLETADA
 
