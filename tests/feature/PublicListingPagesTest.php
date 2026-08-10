@@ -196,7 +196,7 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
             ['id' => 2, 'slug' => 'piezas', 'name' => 'Piezas'],
         ]);
 
-        $this->domainAdapter->fakeGet('public/catalog/collection-items', [
+        $this->domainAdapter->fakeGet('public-read/es/collection-items', [
             [
                 'id' => 101,
                 'name' => 'Obra Uno',
@@ -230,7 +230,7 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
 
     private function seedEventListing(): void
     {
-        $this->domainAdapter->fakeGet('public/events', [
+        $this->domainAdapter->fakeGet('public-read/es/events', [
             [
                 'id' => 201,
                 'uuid' => 'evt-201',

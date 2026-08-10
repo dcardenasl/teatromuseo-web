@@ -39,7 +39,12 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $apiClient
             ->expects($this->once())
             ->method('get')
-            ->with('public/events/muestra-de-verano', [], 300, 'events')
+            ->with(
+                'public-read/es/events/muestra-de-verano',
+                ['fields' => 'id,uuid,title,event_type,description,slug,slugs,cover_file_id,cover_image,gallery_file_ids,gallery_images,translations,localized,occurrences,status,created_at,updated_at'],
+                300,
+                'events',
+            )
             ->willReturn(['ok' => true, 'data' => $event, 'meta' => []]);
 
         $service = new SiteEventService($apiClient);
@@ -64,7 +69,12 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $apiClient
             ->expects($this->once())
             ->method('get')
-            ->with('public/events/event-24', [], 300, 'events')
+            ->with(
+                'public-read/es/events/event-24',
+                ['fields' => 'id,uuid,title,event_type,description,slug,slugs,cover_file_id,cover_image,gallery_file_ids,gallery_images,translations,localized,occurrences,status,created_at,updated_at'],
+                300,
+                'events',
+            )
             ->willReturn(['ok' => true, 'data' => $event, 'meta' => []]);
 
         $service = new SiteEventService($apiClient);
@@ -93,7 +103,17 @@ final class SiteEventServiceTest extends CIUnitTestCase
         $apiClient
             ->expects($this->once())
             ->method('get')
-            ->with('public/events', ['page' => 2, 'per_page' => 12], 180, 'events')
+            ->with(
+                'public-read/es/events',
+                [
+                    'page' => 2,
+                    'per_page' => 12,
+                    'sort' => 'agenda',
+                    'fields' => 'id,uuid,title,event_type,slug,cover_file_id,cover_image,localized,next_occurrence_at,status',
+                ],
+                180,
+                'events',
+            )
             ->willReturn(['ok' => true, 'data' => [], 'meta' => ['total' => 24, 'page' => 2, 'per_page' => 12]]);
 
         $service = new SiteEventService($apiClient);

@@ -8,6 +8,8 @@ class SiteCatalogService extends BaseSiteService
 {
     private const CACHE_TTL_DETAIL = 300; // 5 minutes
     private const CACHE_TTL_LIST = 180;   // 3 minutes
+    private const LIST_FIELDS = 'id,name,category_id,inventory_code,status,summary,cover_image,slug,localized,category,created_at,updated_at';
+    private const DETAIL_FIELDS = 'id,name,category_id,inventory_code,status,summary,curiosidad,contenido,origin,period,creator,ubicacion,materials,cover_file_id,cover_image,gallery_file_ids,gallery_images,collection_number,collection_group,physical_description,dimensions,ingress_type,donated_by,tags,links,company_history,localized,translations,slug,slugs,techniques,created_at,updated_at';
 
     /**
      * List categories of the catalog.
@@ -67,8 +69,8 @@ class SiteCatalogService extends BaseSiteService
     public function listItems(string $lang, array $query = []): array
     {
         $response = $this->apiClient->get(
-            'public/catalog/collection-items',
-            $query,
+            "public-read/{$lang}/collection-items",
+            $this->publicReadQuery($query),
             self::CACHE_TTL_LIST,
             'collection_items'
         );
@@ -97,10 +99,50 @@ class SiteCatalogService extends BaseSiteService
     public function getItem(string $lang, string $idOrCode): ?array
     {
         return $this->fetchData(
-            "public/catalog/collection-items/{$idOrCode}",
-            [],
+            "public-read/{$lang}/collection-items/" . rawurlencode($idOrCode),
+            ['fields' => self::DETAIL_FIELDS],
             self::CACHE_TTL_DETAIL,
             'collection_items'
         );
+    }
+
+    /**
+     * Translate the legacy nested-filter shape into the canonical PublicRead
+     * query. Published and active state are enforced by the domain reader.
+     *
+     * @param array<string, mixed> $query
+     * @return array<string, mixed>
+     */
+    private function publicReadQuery(array $query): array
+    {
+        $filter = is_array($query['filter'] ?? null) ? $query['filter'] : [];
+        $sort = ltrim(trim((string) ($query['sort'] ?? 'name')), '-');
+        $sort = in_array($sort, ['name', 'created_at', 'id'], true) ? $sort : 'name';
+
+        $result = [
+            'page' => max(1, (int) ($query['page'] ?? 1)),
+            'per_page' => min(100, max(1, (int) ($query['per_page'] ?? 20))),
+            'sort' => $sort,
+            'fields' => self::LIST_FIELDS,
+        ];
+
+        foreach (['search', 'technique', 'technique_id'] as $key) {
+            $value = trim((string) ($query[$key] ?? $filter[$key] ?? ''));
+            if ($value !== '') {
+                $result[$key] = $value;
+            }
+        }
+
+        $categoryId = (int) ($filter['category_id'] ?? $query['category_id'] ?? 0);
+        if ($categoryId > 0) {
+            $result['category_id'] = $categoryId;
+        }
+
+        $category = trim((string) ($query['category'] ?? $filter['category'] ?? ''));
+        if ($category !== '') {
+            $result['category'] = $category;
+        }
+
+        return $result;
     }
 }

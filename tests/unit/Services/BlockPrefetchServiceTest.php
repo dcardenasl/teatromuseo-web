@@ -51,11 +51,11 @@ final class BlockPrefetchServiceTest extends TestCase
 
         $catalog->expects($this->once())
             ->method('multiGet')
-            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public/catalog/collection-items'))
+            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public-read/es/collection-items'))
             ->willReturn([$this->success([['id' => 7]])]);
         $event->expects($this->once())
             ->method('multiGet')
-            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public/events'))
+            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public-read/es/events'))
             ->willReturn([$this->success([['id' => 8]])]);
 
         $service = new BlockPrefetchService(['catalog' => $catalog, 'event' => $event]);
@@ -75,7 +75,7 @@ final class BlockPrefetchServiceTest extends TestCase
             ->method('multiGet')
             ->with($this->callback(static function (array $requests): bool {
                 return count($requests) === 2
-                    && ($requests[0]['path'] ?? '') === 'public/catalog/collection-items'
+                    && ($requests[0]['path'] ?? '') === 'public-read/es/collection-items'
                     && ($requests[1]['path'] ?? '') === 'public/catalog/categories';
             }))
             ->willReturn([
@@ -103,7 +103,7 @@ final class BlockPrefetchServiceTest extends TestCase
         $event = $this->createMock(WebApiClientInterface::class);
         $event->expects($this->once())
             ->method('multiGet')
-            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public/events'))
+            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public-read/es/events/201'))
             ->willReturn([$this->success([['id' => 201, 'title' => 'Prefetched event']])]);
 
         $service = new BlockPrefetchService(['event' => $event]);

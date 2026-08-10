@@ -25,7 +25,6 @@ class EventItemsSource implements ListingSourceInterface
         $apiQuery = [
             'page' => $query->page,
             'per_page' => $query->perPage,
-            'filter' => ['status' => 'published'],
         ];
 
         $sort = $this->apiSortField($query->orderBy);
@@ -38,7 +37,7 @@ class EventItemsSource implements ListingSourceInterface
         }
 
         if ($query->tag !== '') {
-            $apiQuery['filter']['event_type'] = $query->tag;
+            $apiQuery['event_type'] = $query->tag;
         }
 
         try {
@@ -97,7 +96,7 @@ class EventItemsSource implements ListingSourceInterface
         $entry['excerpt'] = (string) ($localized['description'] ?? $entry['description'] ?? '');
         $occurrence = $this->selectOccurrence($entry['occurrences'] ?? null);
         $entry['next_occurrence'] = $occurrence;
-        $entry['start_time'] = (string) ($occurrence['start_time'] ?? '');
+        $entry['start_time'] = (string) ($occurrence['start_time'] ?? $entry['next_occurrence_at'] ?? '');
         $entry['end_time'] = (string) ($occurrence['end_time'] ?? '');
         $entry['published_at'] = $entry['start_time'];
 
@@ -162,10 +161,9 @@ class EventItemsSource implements ListingSourceInterface
     {
         return match (trim($field)) {
             'entry.title', 'title' => 'title',
-            'entry.event_type', 'event_type' => 'event_type',
-            'entry.slug', 'slug' => 'slug',
-            'entry.start_time', 'start_time', '' => '',
-            default => '',
+            'entry.start_time', 'start_time', '' => 'agenda',
+            'entry.event_type', 'event_type', 'entry.slug', 'slug' => 'title',
+            default => 'agenda',
         };
     }
 

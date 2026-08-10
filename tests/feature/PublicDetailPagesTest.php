@@ -82,7 +82,7 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
             ['id' => 1, 'slug' => 'categorias', 'name' => 'English category', 'localized' => ['name' => 'Categoría localizada']],
         ]);
 
-        $this->domainAdapter->fakeGet('public/catalog/collection-items/TMP-001', [
+        $this->domainAdapter->fakeGet('public-read/es/collection-items/TMP-001', [
             'id' => 101,
             'name' => 'Pieza de prueba',
             'inventory_code' => 'TMP-001',
@@ -140,7 +140,7 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
             ],
         ];
 
-        $this->domainAdapter->fakeGet('public/events/festival-uno', [
+        $this->domainAdapter->fakeGet('public-read/es/events/festival-uno', [
             'id' => 201,
             'uuid' => 'evt-201',
             'title' => 'Festival Uno',

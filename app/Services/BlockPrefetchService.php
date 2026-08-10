@@ -185,8 +185,16 @@ final class BlockPrefetchService
             }
 
             $definition = str_starts_with((string) $plan['block_key'], 'event_item_')
-                ? ['client' => 'event', 'endpoint' => 'public/events', 'scope' => 'events']
-                : ['client' => 'catalog', 'endpoint' => 'public/catalog/collection-items', 'scope' => 'collection_items'];
+                ? [
+                    'client' => 'event',
+                    'endpoint' => 'public-read/' . rawurlencode($locale) . '/events',
+                    'scope' => 'events',
+                ]
+                : [
+                    'client' => 'catalog',
+                    'endpoint' => 'public-read/' . rawurlencode($locale) . '/collection-items',
+                    'scope' => 'collection_items',
+                ];
             if (! isset($this->clients[$definition['client']])) {
                 $plan['result'] = $this->failedResult(503, 'Dynamic detail client is unavailable.');
                 return;
@@ -194,12 +202,7 @@ final class BlockPrefetchService
 
             $query = ['fields' => implode(',', $this->detailFields($plan['source_type']))];
             $path = $definition['endpoint'];
-            if ($reference['kind'] === 'id') {
-                $query['filter'] = ['id' => ['in' => [$reference['value']]]];
-                $query['per_page'] = 1;
-            } else {
-                $path .= '/' . rawurlencode($reference['value']);
-            }
+            $path .= '/' . rawurlencode($reference['value']);
 
             $plan['main_index'] = $this->addRequest(
                 $requests,
@@ -271,11 +274,11 @@ final class BlockPrefetchService
 
         if ($sourceType === 'event_items') {
             $client = 'event';
-            $path = 'public/events';
+            $path = 'public-read/' . rawurlencode($locale) . '/events';
             $scope = 'events';
         } elseif ($sourceType === 'catalog_items') {
             $client = 'catalog';
-            $path = 'public/catalog/collection-items';
+            $path = 'public-read/' . rawurlencode($locale) . '/collection-items';
             $scope = 'collection_items';
         } else {
             $collectionKey = trim((string) ($plan['collection_key'] ?? ''));
@@ -778,8 +781,8 @@ final class BlockPrefetchService
     private function detailFields(string $sourceType): array
     {
         return $sourceType === 'event_items'
-            ? ['id', 'uuid', 'title', 'slug', 'event_type', 'cover_file_id', 'cover_image', 'description', 'localized', 'translations', 'content', 'gallery_file_ids', 'gallery_images']
-            : ['id', 'uuid', 'name', 'slug', 'inventory_code', 'cover_file_id', 'cover_url', 'cover_image', 'category_id', 'description', 'localized', 'translations', 'content', 'gallery_file_ids'];
+            ? ['id', 'uuid', 'title', 'event_type', 'description', 'slug', 'slugs', 'cover_file_id', 'cover_image', 'gallery_file_ids', 'gallery_images', 'translations', 'localized', 'occurrences', 'status', 'created_at', 'updated_at']
+            : ['id', 'name', 'category_id', 'inventory_code', 'status', 'summary', 'curiosidad', 'contenido', 'origin', 'period', 'creator', 'ubicacion', 'materials', 'cover_file_id', 'cover_image', 'gallery_file_ids', 'gallery_images', 'collection_number', 'collection_group', 'physical_description', 'dimensions', 'ingress_type', 'donated_by', 'tags', 'links', 'company_history', 'localized', 'translations', 'slug', 'slugs', 'techniques', 'created_at', 'updated_at'];
     }
 
     /**
@@ -825,22 +828,23 @@ final class BlockPrefetchService
         }
 
         if ($sourceType === 'event_items') {
-            $query = ['page' => $page, 'per_page' => $limit, 'filter' => ['status' => 'published']];
+            $query = [
+                'page' => $page,
+                'per_page' => $limit,
+                'sort' => 'agenda',
+                'fields' => 'id,uuid,title,event_type,slug,cover_file_id,cover_image,localized,next_occurrence_at,status',
+            ];
             $sort = match ($orderBy) {
                 'entry.title', 'title' => 'title',
-                'entry.event_type', 'event_type' => 'event_type',
-                'entry.slug', 'slug' => 'slug',
-                default => '',
+                default => 'agenda',
             };
-            if ($sort !== '') {
-                $query['sort'] = ($direction === 'desc' ? '-' : '') . $sort;
-            }
+            $query['sort'] = $sort;
             if ($isListing && ($q = $this->requestValue('q')) !== '') {
                 $query['search'] = $q;
             }
             $tag = $isListing ? $this->requestValue('tag') : '';
             if ($tag !== '') {
-                $query['filter']['event_type'] = $tag;
+                $query['event_type'] = $tag;
             }
             return $query;
         }
@@ -856,13 +860,12 @@ final class BlockPrefetchService
             $query = [
                 'page' => $page,
                 'per_page' => $limit,
-                'sort' => ($direction === 'desc' ? '-' : '') . $sort,
-                'filter' => ['is_active' => '1'],
-                'fields' => $isListing ? 'id,uuid,name,slug,inventory_code,category_id,cover_file_id,cover_url,cover_image,localized,summary' : 'id,uuid,name,slug,category_id,cover_file_id,cover_url,localized,summary',
+                'sort' => $sort,
+                'fields' => 'id,name,category_id,inventory_code,status,summary,cover_image,slug,localized,category,created_at,updated_at',
             ];
             $categoryId = max(0, (int) ($plan['category_id'] ?? $payload['category_id'] ?? 0));
             if ($categoryId > 0) {
-                $query['filter']['category_id'] = $categoryId;
+                $query['category_id'] = $categoryId;
             }
             if ($isListing && ($q = $this->requestValue('q')) !== '') {
                 $query['search'] = $q;

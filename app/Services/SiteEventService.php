@@ -11,6 +11,8 @@ class SiteEventService extends BaseSiteService
     private const CACHE_TTL_DETAIL = 300;
     private const CACHE_TTL_LIST = 180;
     private const CACHE_TTL_TYPES = 600;
+    private const LIST_FIELDS = 'id,uuid,title,event_type,slug,cover_file_id,cover_image,localized,next_occurrence_at,status';
+    private const DETAIL_FIELDS = 'id,uuid,title,event_type,description,slug,slugs,cover_file_id,cover_image,gallery_file_ids,gallery_images,translations,localized,occurrences,status,created_at,updated_at';
 
     public function __construct(WebApiClientInterface $apiClient)
     {
@@ -25,8 +27,8 @@ class SiteEventService extends BaseSiteService
     public function getEvent(string $lang, string $idOrSlug): ?array
     {
         return $this->fetchData(
-            "public/events/{$idOrSlug}",
-            [],
+            "public-read/{$lang}/events/" . rawurlencode($idOrSlug),
+            ['fields' => self::DETAIL_FIELDS],
             self::CACHE_TTL_DETAIL,
             'events'
         );
@@ -40,7 +42,12 @@ class SiteEventService extends BaseSiteService
      */
     public function listEvents(string $lang, array $queryParams = []): array
     {
-        $response = $this->apiClient->get('public/events', $queryParams, self::CACHE_TTL_LIST, 'events');
+        $response = $this->apiClient->get(
+            "public-read/{$lang}/events",
+            $this->publicReadQuery($queryParams),
+            self::CACHE_TTL_LIST,
+            'events',
+        );
 
         if (! ($response['ok'] ?? false)) {
             return ['data' => [], 'meta' => []];
@@ -96,5 +103,47 @@ class SiteEventService extends BaseSiteService
         }
 
         return $types;
+    }
+
+    /**
+     * Translate the legacy listing shape into the canonical PublicRead
+     * contract. PublicRead owns the published filter, so it is deliberately
+     * not forwarded as a database-style nested filter.
+     *
+     * @param array<string, mixed> $query
+     * @return array<string, mixed>
+     */
+    private function publicReadQuery(array $query): array
+    {
+        $filter = is_array($query['filter'] ?? null) ? $query['filter'] : [];
+        $sort = ltrim(trim((string) ($query['sort'] ?? '')), '-');
+        $sort = match ($sort) {
+            'title' => 'title',
+            'event_type' => 'title',
+            'latest', 'created_at' => 'latest',
+            'id' => 'id',
+            default => 'agenda',
+        };
+
+        $result = [
+            'page' => max(1, (int) ($query['page'] ?? 1)),
+            'per_page' => min(100, max(1, (int) ($query['per_page'] ?? 20))),
+            'sort' => $sort,
+            'fields' => self::LIST_FIELDS,
+        ];
+
+        foreach (['search', 'from', 'to'] as $key) {
+            $value = trim((string) ($query[$key] ?? ''));
+            if ($value !== '') {
+                $result[$key] = $value;
+            }
+        }
+
+        $eventType = trim((string) ($filter['event_type'] ?? $query['event_type'] ?? ''));
+        if ($eventType !== '') {
+            $result['event_type'] = $eventType;
+        }
+
+        return $result;
     }
 }
