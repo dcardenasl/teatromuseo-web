@@ -216,6 +216,20 @@ abstract class AbstractBlockViewModel
      */
     protected function normalizeMediaReference(mixed $value): array
     {
+        if (is_int($value) || (is_string($value) && ctype_digit(trim($value)))) {
+            $value = [
+                'source_kind' => 'hub_file',
+                'file_id'     => (int) $value,
+                'url'         => '',
+            ];
+        } elseif (is_string($value) && trim($value) !== '') {
+            $value = [
+                'source_kind' => 'external_url',
+                'file_id'     => null,
+                'url'         => trim($value),
+            ];
+        }
+
         if (! is_array($value)) {
             return $this->emptyMediaReference();
         }
@@ -227,6 +241,20 @@ abstract class AbstractBlockViewModel
             ? (int) $value['file_id']
             : null;
         $url = is_string($value['url'] ?? null) ? trim($value['url']) : '';
+
+        // Older CMS payloads used `file` for the same Hub-owned media
+        // reference that is now called `hub_file`. Keep the alias at this
+        // boundary so views can consume either version without fabricating a
+        // `/files/{id}/view` URL.
+        if ($sourceKind === 'file') {
+            $sourceKind = 'hub_file';
+        }
+        if ($sourceKind === '' && $fileId !== null) {
+            $sourceKind = 'hub_file';
+        }
+        if ($sourceKind === 'hub_file' && preg_match('#(?:^|/)files/\d+/view(?:[/?]|$)#i', $url) === 1) {
+            $url = '';
+        }
 
         if (($sourceKind === 'hub_file' && $fileId === null)
             || ($sourceKind === 'external_url' && $url === '')
@@ -251,9 +279,32 @@ abstract class AbstractBlockViewModel
     {
         $value = $payload[$key] ?? null;
 
-        return is_array($value)
-            ? $this->normalizeMediaReference($value)
-            : $this->emptyMediaReference();
+        if ($value !== null) {
+            $normalized = $this->normalizeMediaReference($value);
+            if ($normalized['file_id'] !== null || $normalized['url'] !== '') {
+                return $normalized;
+            }
+        }
+
+        // Before media_reference became canonical, some public payloads
+        // exposed the relational fields beside the media field. Accept both
+        // the generic `{key}_*` spelling and the entry-era
+        // `featured_file_id`/`featured_image_url` spelling.
+        $legacyPrefix = str_ends_with($key, '_image')
+            ? substr($key, 0, -6)
+            : $key;
+        $fileId = $payload[$key . '_file_id'] ?? $payload[$legacyPrefix . '_file_id'] ?? null;
+        $url = $payload[$key . '_url'] ?? $payload[$legacyPrefix . '_image_url'] ?? null;
+
+        if ($fileId !== null || (is_string($url) && trim($url) !== '')) {
+            return $this->normalizeMediaReference([
+                'source_kind' => is_numeric($fileId) && (int) $fileId > 0 ? 'hub_file' : 'external_url',
+                'file_id'     => $fileId,
+                'url'         => is_scalar($url) ? trim((string) $url) : '',
+            ]);
+        }
+
+        return $this->emptyMediaReference();
     }
 
     /**

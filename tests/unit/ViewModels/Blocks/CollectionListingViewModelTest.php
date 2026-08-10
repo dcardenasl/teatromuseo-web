@@ -137,6 +137,29 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame('Ver más', $vars['viewAllLabel']);
     }
 
+    public function testResolvedCollectionNormalizesLegacyFeaturedImageFields(): void
+    {
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $this->context(
+                [self::COLLECTION],
+                ['data' => [[
+                    'title'              => 'Curso antiguo',
+                    'slug'               => 'curso-antiguo',
+                    'featured_file_id'   => 142,
+                    'featured_image_url' => 'https://cdn.example.com/course.webp',
+                ]], 'meta' => ['pagination' => ['total' => 1]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame('hub_file', $vars['entries'][0]['featured_image']['source_kind']);
+        $this->assertSame(142, $vars['entries'][0]['featured_image']['file_id']);
+        $this->assertSame('https://cdn.example.com/course.webp', $vars['entries'][0]['featured_image']['url']);
+    }
+
     public function testFallbackImageUrlIsNeverUsedEvenWhenConfigured(): void
     {
         // block_config can carry an admin-authored placeholder photo (a leftover from the
@@ -155,6 +178,22 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $vars = $vm->vars();
 
         $this->assertSame('', $vars['fallbackImageUrl']);
+    }
+
+    public function testRowsWithoutDisplayTitleAreNotRenderedAsPlaceholderCards(): void
+    {
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $this->context(
+                [self::COLLECTION],
+                ['data' => [['id' => 999]], 'meta' => ['pagination' => ['total' => 1]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame([], $vars['entries']);
     }
 
     public function testResolvedCollectionFallsBackToNameWhenListingTitleIsEmpty(): void
@@ -245,6 +284,7 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
             $this->context([self::COLLECTION], [
                 'data' => [[
                     'id' => 1,
+                    'title' => 'Post 1',
                     'listing_content' => [
                         'rich_text' => '<script>alert(1)</script><p>Seguro</p>',
                         'image' => ['url' => '/uploads/extra.jpg', 'alt' => 'Extra'],

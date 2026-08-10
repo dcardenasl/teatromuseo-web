@@ -140,6 +140,14 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $normalizedEntries,
         );
 
+        // A malformed upstream row must not become a misleading placeholder
+        // card. Published catalog/CMS entries always have a display title;
+        // discard empty rows so the view renders its explicit empty state.
+        $normalizedEntries = array_values(array_filter(
+            $normalizedEntries,
+            static fn (array $entry): bool => trim((string) ($entry['title'] ?? '')) !== '',
+        ));
+
         $pagination = $result->pagination;
         $currentPage = max(1, (int) ($pagination['current_page'] ?? $currentPage));
 

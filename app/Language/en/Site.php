@@ -133,6 +133,7 @@ return [
     'collection_listing_section' => 'Listing',
     'collection_listing_title'   => 'Collection',
     'collection_listing_count'   => 'Showing {count} items',
+    'collection_listing_empty'   => 'No collection items are currently available.',
     'collection_listing_item'    => 'Item',
     'collection_listing_featured' => 'Featured item',
     'museum_collection_section'  => 'Museum',

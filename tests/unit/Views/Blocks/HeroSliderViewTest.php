@@ -93,4 +93,53 @@ final class HeroSliderViewTest extends CIUnitTestCase
 
         $this->assertSame('', trim($html));
     }
+
+    public function testHeroSliderAcceptsLegacyFlatMediaFields(): void
+    {
+        $html = (new BlockRenderer())->render([
+            [
+                'block_key'    => 'hero_slider',
+                'block_config' => [],
+                'block_data'   => [],
+                'children'     => [
+                    [
+                        'block_key'    => 'slide_banner',
+                        'block_config' => [
+                            'image_file_id' => 142,
+                            'image_url'     => 'https://cdn.example.com/hero.webp',
+                        ],
+                        'block_data' => ['heading' => 'Legacy hero'],
+                    ],
+                ],
+            ],
+        ], 'es');
+
+        $this->assertStringContainsString('https://cdn.example.com/hero.webp', $html);
+        $this->assertStringNotContainsString('data:image/svg+xml', $html);
+    }
+
+    public function testHeroSliderDoesNotPublishPrivateFileRouteAsImage(): void
+    {
+        $html = (new BlockRenderer())->render([
+            [
+                'block_key'    => 'hero_slider',
+                'block_config' => [],
+                'block_data'   => [],
+                'children'     => [[
+                    'block_key'    => 'slide_banner',
+                    'block_config' => [
+                        'image' => [
+                            'source_kind' => 'file',
+                            'file_id'     => 142,
+                            'url'         => '/files/142/view',
+                        ],
+                    ],
+                    'block_data' => ['heading' => 'Private route'],
+                ]],
+            ],
+        ], 'es');
+
+        $this->assertStringNotContainsString('/files/142/view', $html);
+        $this->assertStringContainsString('data:image/svg+xml', $html);
+    }
 }

@@ -133,6 +133,7 @@ return [
     'collection_listing_section' => 'Listado',
     'collection_listing_title'   => 'Colección',
     'collection_listing_count'   => 'Mostrando {count} elementos',
+    'collection_listing_empty'   => 'No se encontraron obras disponibles.',
     'collection_listing_item'    => 'Elemento',
     'collection_listing_featured' => 'Elemento destacado',
     'museum_collection_section'  => 'Museo',

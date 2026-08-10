@@ -175,14 +175,50 @@ class CmsCollectionSource implements ListingSourceInterface
         $entry['categories'] = is_array($entry['categories'] ?? null) ? $entry['categories'] : [];
         $entry['tags'] = is_array($entry['tags'] ?? null) ? $entry['tags'] : [];
 
-        $featuredImage = $entry['cover_image'] ?? $entry['featured_image'] ?? $entry['main_image'] ?? null;
-        if (is_array($featuredImage)) {
+        $featuredImage = $entry['cover_image']
+            ?? $entry['featured_image']
+            ?? $entry['main_image']
+            ?? $listingContent['image']
+            ?? $this->legacyFeaturedImage($entry, $listingContent);
+        if (is_array($featuredImage) || is_string($featuredImage)) {
             $entry['featured_image'] = ($this->mediaNormalizer)($featuredImage);
         } else {
             $entry['featured_image'] = null;
         }
 
         return $entry;
+    }
+
+    /**
+     * Reconstruct the canonical media reference used by older CMS listing
+     * responses. The frontend may use the URL only when one is actually
+     * supplied; a file ID alone remains unresolved instead of becoming a
+     * guessed private file route.
+     *
+     * @param array<string, mixed> $entry
+     * @param array<string, mixed> $listingContent
+     * @return array{source_kind: string, file_id: int|null, url: string}|null
+     */
+    private function legacyFeaturedImage(array $entry, array $listingContent): ?array
+    {
+        $fileId = $entry['featured_file_id']
+            ?? $entry['featured_image_file_id']
+            ?? $listingContent['image_file_id']
+            ?? null;
+        $url = $entry['featured_image_url']
+            ?? $entry['featured_url']
+            ?? $listingContent['image_url']
+            ?? null;
+
+        if ($fileId === null && (! is_string($url) || trim($url) === '')) {
+            return null;
+        }
+
+        return [
+            'source_kind' => is_numeric($fileId) && (int) $fileId > 0 ? 'hub_file' : 'external_url',
+            'file_id'     => is_numeric($fileId) && (int) $fileId > 0 ? (int) $fileId : null,
+            'url'         => is_scalar($url) ? trim((string) $url) : '',
+        ];
     }
 
     /** @param list<mixed> $values */
