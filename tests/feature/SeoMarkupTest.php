@@ -128,6 +128,27 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         }
     }
 
+    public function testSitemapDoesNotPublishRedirectingHomepageAlias(): void
+    {
+        $locale = $this->locale();
+        $this->domainAdapter->fakeGet('public/' . $locale . '/pages', [[
+            'slug' => 'inicio',
+            'page_type' => 'home',
+            'is_in_sitemap' => true,
+            'updated_at' => '2026-08-10T00:00:00+00:00',
+        ]]);
+
+        $result = $this->get('/sitemap.xml');
+        $result->assertStatus(200);
+        $body = $result->response()->getBody();
+
+        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/') . '</loc>', $body);
+        $this->assertStringNotContainsString(
+            '<loc>' . base_url('/' . $locale . '/inicio') . '</loc>',
+            $body,
+        );
+    }
+
     /**
      * Test 4: Canonical URL format is correct.
      *
@@ -163,6 +184,57 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
 
         // Assert: Canonical has no query parameters
         $this->assertStringNotContainsString('?', $canonical, 'Canonical URL must not have query parameters');
+    }
+
+    public function testHomepageCanonicalAndHreflangUseTheLocalizedRoot(): void
+    {
+        $this->domainAdapter->fakeGet('public/' . $this->locale() . '/pages/home', [
+            'title' => 'Fixture homepage with legacy slug',
+            'slug' => 'inicio',
+            'page_type' => 'home',
+            'excerpt' => 'Homepage fixture.',
+            'meta_title' => 'Homepage fixture',
+            'meta_description' => 'Homepage fixture description.',
+            'canonical_url' => site_url('/' . $this->locale() . '/inicio'),
+            'localized_slugs' => array_fill_keys($this->locales(), 'inicio'),
+            'blocks' => [],
+        ]);
+
+        $result = $this->get('/' . $this->locale() . '/');
+        $result->assertStatus(200);
+        $body = $result->response()->getBody();
+
+        $this->assertStringContainsString(
+            '<link rel="canonical" href="' . site_url('/' . $this->locale()) . '">',
+            $body,
+        );
+        $this->assertStringContainsString(
+            'hreflang="' . $this->locale() . '" href="' . site_url('/' . $this->locale()) . '"',
+            $body,
+        );
+        $this->assertStringNotContainsString('/' . $this->locale() . '/inicio', $body);
+    }
+
+    public function testMainMenuDoesNotPublishRedirectingHomepageAlias(): void
+    {
+        $locale = $this->locale();
+        $this->domainAdapter->fakeGet('public/menus/main', [
+            'items' => [
+                ['label' => 'Inicio', 'custom_url' => '/' . $locale . '/inicio'],
+                ['label' => 'Destino editorial', 'custom_url' => '/custom-destination'],
+            ],
+        ]);
+
+        $result = $this->get('/' . $locale . '/');
+        $result->assertStatus(200);
+        $body = $result->response()->getBody();
+
+        $this->assertStringContainsString(
+            'href="' . site_url('/' . $locale) . '"',
+            $body,
+        );
+        $this->assertStringNotContainsString('/' . $locale . '/inicio', $body);
+        $this->assertStringContainsString('/' . $locale . '/custom-destination', $body);
     }
 
     /**

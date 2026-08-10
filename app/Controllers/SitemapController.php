@@ -10,6 +10,7 @@ use Config\Services;
 class SitemapController extends BasePublicWebController
 {
     private const CACHE_TTL = 3600;
+    private const CACHE_SCHEMA_VERSION = 2;
 
     /**
      * Generate XML sitemap.
@@ -20,7 +21,7 @@ class SitemapController extends BasePublicWebController
 
         // Try to get from cache
         $cache = service('cache');
-        $cacheKey = "sitemap_{$lang}";
+        $cacheKey = 'sitemap_v' . self::CACHE_SCHEMA_VERSION . "_{$lang}";
         $xml = $cache->get($cacheKey);
 
         if ($xml === null) {
@@ -63,8 +64,16 @@ class SitemapController extends BasePublicWebController
                 continue;
             }
 
+            // `home` and `inicio` are aliases for the localized root. Never
+            // publish a redirecting alias in the sitemap.
+            $slug = trim((string) $page['slug'], '/');
+            if (in_array(strtolower($slug), ['home', 'inicio'], true)
+                || (string) ($page['page_type'] ?? '') === 'home') {
+                continue;
+            }
+
             $urls[] = [
-                'loc'        => base_url('/' . $lang . '/' . ltrim($page['slug'], '/')),
+                'loc'        => base_url('/' . $lang . '/' . $slug),
                 'lastmod'    => $page['updated_at'] ?? date('c'),
                 'changefreq' => $page['sitemap_changefreq'] ?? 'monthly',
                 'priority'   => $page['sitemap_priority'] ?? '0.8',

@@ -48,6 +48,14 @@ class SiteMenuService extends BaseSiteService
             $routePath = PublicPaths::routePath((string) ($navigation['route_key'] ?? ''), $locale);
             if ($routePath !== null) {
                 $item['custom_url'] = '/' . $routePath;
+            } else {
+                $normalizedPath = PublicPaths::normalizeLocalizedPath(
+                    (string) ($item['custom_url'] ?? ''),
+                    $locale,
+                );
+                if ($normalizedPath !== null) {
+                    $item['custom_url'] = $normalizedPath;
+                }
             }
 
             if (is_array($item['children'] ?? null)) {

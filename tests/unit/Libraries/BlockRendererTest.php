@@ -143,4 +143,47 @@ final class BlockRendererTest extends CIUnitTestCase
 
         $this->assertStringContainsString('Prefetched event', $html);
     }
+
+    public function testNormalizesRedirectingHomepageAliasInBlockNavigation(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'page_header',
+                'block_config' => [],
+                'block_data' => [
+                    'heading' => 'Cartelera',
+                    'breadcrumb_label' => 'Inicio',
+                ],
+                'navigation' => ['url' => '/es/inicio'],
+                'children' => [],
+            ],
+        ], 'es');
+
+        $this->assertStringContainsString('href="' . site_url('/es/') . '"', $html);
+        $this->assertStringNotContainsString('/es/inicio', $html);
+    }
+
+    public function testNormalizesRedirectingHomepageAliasInNestedBlockNavigation(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'hero_slider',
+                'block_config' => [],
+                'block_data' => [],
+                'children' => [[
+                    'block_key' => 'hero_slide',
+                    'block_config' => ['navigation_mode' => 'internal'],
+                    'block_data' => [
+                        'heading' => 'Visítanos',
+                        'image_alt_text' => 'Visítanos',
+                    ],
+                    'navigation' => ['url' => '/es/inicio'],
+                    'children' => [],
+                ]],
+            ],
+        ], 'es');
+
+        $this->assertStringContainsString('href="' . site_url('/es/') . '"', $html);
+        $this->assertStringNotContainsString('/es/inicio', $html);
+    }
 }

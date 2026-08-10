@@ -175,10 +175,12 @@ abstract class BasePublicWebController extends BaseController
             ? (bool) $page['showPageHeading']
             : ! $this->pageHasHeroHeading($blocks);
 
+        $slug = trim((string) ($translation['slug'] ?? ''), '/');
+        $isHomepage = in_array(strtolower($slug), ['home', 'inicio'], true)
+            || (string) ($page['page_type'] ?? '') === 'home';
         $canonicalUrl = (string) ($translation['canonical_url'] ?? '');
         if ($canonicalUrl === '') {
-            $slug = trim((string) ($translation['slug'] ?? ''), '/');
-            if ($slug === '' || $slug === 'home') {
+            if ($isHomepage || $slug === '') {
                 $canonicalUrl = site_url('/' . $lang);
             } else {
                 $canonicalUrl = site_url('/' . $lang . '/' . $slug);
@@ -188,6 +190,11 @@ abstract class BasePublicWebController extends BaseController
         $routeKey = $this->domainRouteKey($page);
         if ($routeKey !== null) {
             $canonicalUrl = lang_url(\App\Support\PublicPaths::routePath($routeKey, $lang), $lang);
+        } elseif ($isHomepage) {
+            // `home`/`inicio` are aliases for the localized root. The CMS may
+            // retain an old canonical_url, but SEO links must not point at a
+            // URL that immediately redirects back to the root.
+            $canonicalUrl = site_url('/' . $lang);
         }
 
         $ogImage = $translation['og_image'] ?? null;
@@ -386,6 +393,7 @@ abstract class BasePublicWebController extends BaseController
         $localizedUrls = [];
         $localizedSlugs = is_array($page['localized_slugs'] ?? null) ? $page['localized_slugs'] : [];
         $translations = is_array($page['translations'] ?? null) ? $page['translations'] : [];
+        $isHomepage = (string) ($page['page_type'] ?? '') === 'home';
 
         foreach (config('App')->supportedLocales as $locale) {
             $slug = trim((string) ($localizedSlugs[$locale] ?? ''), '/');
@@ -405,7 +413,7 @@ abstract class BasePublicWebController extends BaseController
                 continue;
             }
 
-            if ($slug === 'home') {
+            if ($isHomepage || in_array(strtolower($slug), ['home', 'inicio'], true)) {
                 $localizedUrls[$locale] = site_url('/' . $locale);
                 continue;
             }

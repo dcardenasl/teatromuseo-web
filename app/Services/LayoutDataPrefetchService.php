@@ -117,6 +117,14 @@ class LayoutDataPrefetchService extends BaseSiteService
             $routePath = \App\Support\PublicPaths::routePath((string) ($navigation['route_key'] ?? ''), $locale);
             if ($routePath !== null) {
                 $item['custom_url'] = '/' . $routePath;
+            } else {
+                $normalizedPath = \App\Support\PublicPaths::normalizeLocalizedPath(
+                    (string) ($item['custom_url'] ?? ''),
+                    $locale,
+                );
+                if ($normalizedPath !== null) {
+                    $item['custom_url'] = $normalizedPath;
+                }
             }
 
             if (is_array($item['children'] ?? null)) {

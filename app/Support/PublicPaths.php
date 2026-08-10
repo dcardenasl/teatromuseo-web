@@ -99,6 +99,10 @@ class PublicPaths
             return '/';
         }
 
+        if (in_array(strtolower($normalized), ['home', 'inicio'], true)) {
+            return '/';
+        }
+
         $aliases = [
             'cartelera' => 'events',
             'events' => 'events',
@@ -128,6 +132,41 @@ class PublicPaths
         $routeKey = $aliases[$normalized] ?? null;
 
         return $routeKey !== null ? '/' . self::routePath($routeKey, $locale) : null;
+    }
+
+    /**
+     * Normalize a known internal URL to the locale-less path expected by
+     * lang_url(). Unknown paths and external URLs are deliberately ignored so
+     * editorial custom links retain their original destination.
+     */
+    public static function normalizeLocalizedPath(string $path, string $locale): ?string
+    {
+        $trimmed = trim($path);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $parsed = parse_url($trimmed);
+        if (! is_array($parsed) || ($parsed['scheme'] ?? '') !== '' || ($parsed['host'] ?? '') !== '') {
+            return null;
+        }
+
+        if (($parsed['query'] ?? '') !== '' || ($parsed['fragment'] ?? '') !== '') {
+            return null;
+        }
+
+        $normalized = trim((string) ($parsed['path'] ?? ''), '/');
+        $localeSegment = strtolower(trim($locale, '/'));
+        if (strtolower($normalized) === $localeSegment) {
+            return '/';
+        }
+
+        $localePrefix = $localeSegment . '/';
+        if (str_starts_with(strtolower($normalized), $localePrefix)) {
+            $normalized = substr($normalized, strlen($localePrefix));
+        }
+
+        return self::canonicalPath('/' . $normalized, $locale);
     }
 
     /** @return array<string, string> */

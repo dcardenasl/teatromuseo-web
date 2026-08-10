@@ -113,6 +113,7 @@ class BlockRenderer
 
         $html = '';
         foreach ($blocks as $index => $block) {
+            $block = $this->normalizeBlockNavigation($block, $lang);
             $html .= $this->renderBlock($block, $lang, $context, (string) $index);
         }
 
@@ -223,6 +224,41 @@ class BlockRenderer
         // request — a block field like "title" would otherwise leak into the
         // page template rendered afterwards. Disable it for isolation.
         return view($blockViewName, $viewData, ['saveData' => false]);
+    }
+
+    /**
+     * Normalize known internal navigation URLs before any block view consumes
+     * them. This keeps CMS-authored legacy homepage aliases out of rendered
+     * breadcrumbs and CTA links without altering unknown or external URLs.
+     *
+     * @param array<string, mixed> $block
+     * @return array<string, mixed>
+     */
+    private function normalizeBlockNavigation(array $block, string $lang): array
+    {
+        $navigation = is_array($block['navigation'] ?? null) ? $block['navigation'] : null;
+        if ($navigation !== null) {
+            $normalizedPath = \App\Support\PublicPaths::normalizeLocalizedPath(
+                (string) ($navigation['url'] ?? ''),
+                $lang,
+            );
+            if ($normalizedPath !== null) {
+                $navigation['url'] = lang_url($normalizedPath, $lang);
+                $block['navigation'] = $navigation;
+            }
+        }
+
+        if (is_array($block['children'] ?? null)) {
+            $children = [];
+            foreach ($block['children'] as $child) {
+                if (is_array($child)) {
+                    $children[] = $this->normalizeBlockNavigation($child, $lang);
+                }
+            }
+            $block['children'] = $children;
+        }
+
+        return $block;
     }
 
     /**

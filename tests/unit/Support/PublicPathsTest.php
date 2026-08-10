@@ -31,6 +31,17 @@ final class PublicPathsTest extends CIUnitTestCase
         $this->assertSame('/theaterschool', PublicPaths::canonicalPath('/cursos', 'en'));
         $this->assertSame('/contact', PublicPaths::canonicalPath('/contacto', 'en'));
         $this->assertSame('/', PublicPaths::canonicalPath('/', 'fr'));
+        $this->assertSame('/', PublicPaths::canonicalPath('/inicio', 'es'));
         $this->assertNull(PublicPaths::canonicalPath('/custom-destination', 'es'));
+    }
+
+    public function testNormalizesKnownLocalizedMenuPathsWithoutChangingCustomLinks(): void
+    {
+        $this->assertSame('/', PublicPaths::normalizeLocalizedPath('/es/inicio', 'es'));
+        $this->assertSame('/', PublicPaths::normalizeLocalizedPath('/es', 'es'));
+        $this->assertSame('/programming', PublicPaths::normalizeLocalizedPath('/en/cartelera', 'en'));
+        $this->assertNull(PublicPaths::normalizeLocalizedPath('/es/custom-destination', 'es'));
+        $this->assertNull(PublicPaths::normalizeLocalizedPath('https://example.com/inicio', 'es'));
+        $this->assertNull(PublicPaths::normalizeLocalizedPath('/es/cartelera?page=2', 'es'));
     }
 }
