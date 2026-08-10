@@ -106,8 +106,12 @@ POST /cache/invalidate
 X-Invalidate-Key: <CACHE_INVALIDATE_KEY>
 Content-Type: application/json
 
-{"scopes":["pages","entries","events","collection_items","categories","techniques"]}
+{"scopes":["pages","entries","events","collection_items","categories","techniques"],"locales":["es"],"routes":["home"]}
 ```
+
+`locales` and `routes` are optional narrowing filters for public snapshot
+invalidation. Invalidation marks the active snapshot stale; it does not delete
+the last good pointer before a replacement is built.
 
 ## Block Rendering
 

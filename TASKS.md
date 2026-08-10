@@ -9,7 +9,15 @@
 
 ## 🔴 En progreso
 
-*(vacío)*
+- [ ] **CACHE-01 — Snapshots públicos: verificación de despliegue pendiente.**
+  CACHE-02, CACHE-03 y CACHE-04 están completadas en código y pruebas; falta
+  verificar filesystem compartido con dos workers y QA-03 antes de activar.
+  La implementación secuencial de backend compartido, almacenamiento atómico,
+  invalidación segura y warm-up quedó realizada en esta sesión:
+  `FileSnapshotStore`, `SnapshotBuilder`, lock recuperable, invalidación por
+  scope/locale/ruta y `PublicSnapshotManifest`. Falta la verificación externa de
+  filesystem compartido con dos workers y la medición QA-03; la activación
+  pública sigue bloqueada por esos criterios.
 
 ---
 
@@ -25,10 +33,20 @@ con los criterios de aceptación de la sección 8 del plan.
   métricas del hosting (PHP-FPM, MySQL, caché y upstream 508) en el tracker raíz.
 - [x] **PUB-01/PUB-02** — Contratos, gobierno, observabilidad y budgets completados
   en el tracker raíz antes de modificar el camino público.
-- [ ] **CACHE-01** — Backend compartido y política de caché.
-- [ ] **CACHE-02** — Builder y almacenamiento atómico.
-- [ ] **CACHE-03** — Invalidación y regeneración asíncrona.
-- [ ] **CACHE-04** — Manifest y warm-up controlado.
+- [ ] **CACHE-01** — Backend compartido y política de caché. Código y política
+  implementados; requiere configurar `WEB_PAGE_SNAPSHOT_DIR` compartido,
+  `WEB_PAGE_SNAPSHOT_SHARED=true` y probar dos workers en el hosting.
+- [x] **CACHE-02** — Builder y almacenamiento atómico. Código implementado con
+  envelope validado, source/snapshot revisions, puntero activo, límites,
+  retención y single-flight; depende de la verificación de CACHE-01.
+- [x] **CACHE-03** — Invalidación y regeneración asíncrona. Web usa markers stale,
+  webhook por scope/locale/ruta y warm-up fuera del request; CMS, Catalog y
+  Events registran outbox posterior al commit y disponen de dispatcher con
+  lease/reintentos. La operación productiva requiere programar el comando cron.
+- [x] **CACHE-04** — Manifest y warm-up controlado. Manifest explícito de locales
+  y rutas, ejecución serial idempotente y reporte atómico implementados; la
+  corrida contra upstream real queda dentro de la verificación operativa de
+  CACHE-01/QA-03.
 - [ ] **QA-01/QA-03/QA-04** — Contratos, carga y paridad cross-repo.
 - [ ] **REL-01/REL-02/CLEAN-01** — Cutover progresivo y retirada del camino
   anterior.
