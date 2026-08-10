@@ -198,6 +198,16 @@ class App extends BaseConfig
     public int $webPageCacheTtl = ENVIRONMENT === 'production' ? 300 : 0;
 
     /**
+     * PageDelivery remains opt-in until the shared snapshot backend and load
+     * budget have been verified. When enabled, snapshot mode is snapshot-first.
+     */
+    public bool $pageDeliveryEnabled = false;
+    public string $pageDeliveryMode = 'snapshot';
+    public bool $pageDeliveryAllowSynchronousFallback = false;
+    public string $pageSnapshotDirectory = '';
+    public int $pageSnapshotStaleTtl = 86400;
+
+    /**
      * --------------------------------------------------------------------------
      * Force Global Secure Requests
      * --------------------------------------------------------------------------
@@ -348,6 +358,24 @@ class App extends BaseConfig
             $this->webPageCacheTtl = (int) $webPageCacheTtl;
         }
 
+        $this->pageDeliveryEnabled = $this->parseBoolean(env('WEB_PAGE_DELIVERY_ENABLED'), false);
+        $pageDeliveryMode = strtolower(trim((string) (env('WEB_PAGE_DELIVERY_MODE') ?? '')));
+        if (in_array($pageDeliveryMode, ['snapshot', 'sync'], true)) {
+            $this->pageDeliveryMode = $pageDeliveryMode;
+        }
+        $this->pageDeliveryAllowSynchronousFallback = $this->parseBoolean(
+            env('WEB_PAGE_DELIVERY_ALLOW_SYNC_FALLBACK'),
+            false,
+        );
+        $pageSnapshotDirectory = env('WEB_PAGE_SNAPSHOT_DIR');
+        if (is_string($pageSnapshotDirectory) && trim($pageSnapshotDirectory) !== '') {
+            $this->pageSnapshotDirectory = rtrim(trim($pageSnapshotDirectory), DIRECTORY_SEPARATOR);
+        }
+        $pageSnapshotStaleTtl = env('WEB_PAGE_SNAPSHOT_STALE_TTL');
+        if (is_numeric($pageSnapshotStaleTtl) && (int) $pageSnapshotStaleTtl >= 0) {
+            $this->pageSnapshotStaleTtl = (int) $pageSnapshotStaleTtl;
+        }
+
         $this->cspObjectSrc = $this->parseCspSources(env('CSP_OBJECT_SRC'), $this->cspObjectSrc);
         $this->cspImageSrc  = $this->parseCspSources(env('CSP_IMAGE_SRC'), $this->cspImageSrc);
         $this->cspFrameSrc  = $this->parseCspSources(env('CSP_FRAME_SRC'), $this->cspFrameSrc);
@@ -370,5 +398,22 @@ class App extends BaseConfig
         $sources = preg_split('/[\s,]+/', trim($raw)) ?: [];
 
         return $sources !== [] ? $sources : $default;
+    }
+
+    private function parseBoolean(mixed $raw, bool $default): bool
+    {
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        if (! is_string($raw)) {
+            return $default;
+        }
+
+        return match (strtolower(trim($raw))) {
+            '1', 'true', 'yes', 'on' => true,
+            '0', 'false', 'no', 'off' => false,
+            default => $default,
+        };
     }
 }

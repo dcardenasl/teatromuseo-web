@@ -7,6 +7,7 @@ parameters:
         - app/Controllers
         - app/Libraries
         - app/Services
+        - app/PageDelivery
         - app/Filters
         - app/ViewModels
         - app/Common.php
