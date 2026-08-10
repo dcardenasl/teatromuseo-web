@@ -76,6 +76,33 @@ final class SnapshotBuilderTest extends TestCase
         self::assertSame(0, $adapter->calls);
     }
 
+    public function testStaleCompositionIsNotPublishedAsAFreshSnapshot(): void
+    {
+        $request = PageDeliveryRequest::home('es');
+        $store = new FileSnapshotStore($this->directory, 1_048_576, 2, 'none');
+        $adapter = new FixedDelivery(PageDeliveryResponse::success(
+            ['title' => 'Stale homepage'],
+            ['settings' => []],
+            ['block_prefetch' => []],
+            ['locale' => 'es', 'route' => 'home', 'query' => []],
+            ['state' => 'stale', 'stale' => true],
+        ));
+        $builder = new SnapshotBuilder(
+            synchronous: $adapter,
+            publisher: $store,
+            lock: new FileRegenerationLock($this->directory . '/locks', 900),
+            clock: new FixedClock(new DateTimeImmutable('2026-08-09T12:00:00+00:00')),
+            ttl: 300,
+            scopes: ['pages'],
+        );
+
+        $result = $builder->build($request);
+
+        self::assertSame('failed', $result->state);
+        self::assertStringContainsString('stale upstream data', (string) $result->message);
+        self::assertNull($store->read($request->cacheKey()));
+    }
+
     private function removeDirectory(string $directory): void
     {
         if (! is_dir($directory)) {

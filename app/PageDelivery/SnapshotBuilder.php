@@ -70,6 +70,13 @@ final class SnapshotBuilder implements SnapshotBuilderInterface
             if (! $this->matchesRequest($response, $request)) {
                 return SnapshotBuildResult::failed('Synchronous composition returned a different snapshot identity.');
             }
+            if (($response->source['stale'] ?? false) === true
+                || ($response->source['state'] ?? null) === 'stale') {
+                return SnapshotBuildResult::failed(
+                    'Synchronous composition used stale upstream data; the public snapshot was not published.',
+                    $response,
+                );
+            }
             $sourceRevision = hash('sha256', $this->canonical([
                 'page' => $response->page,
                 'layout' => $response->layout,
