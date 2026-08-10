@@ -43,6 +43,17 @@ final class PageDeliveryService implements PageDeliveryInterface
                 return $build->response;
             }
 
+            // A different worker may have published the snapshot while this
+            // builder was acquiring the single-flight lock. Re-read once after
+            // a skipped build so this request observes the newly active pointer
+            // instead of returning the miss that preceded the race.
+            if ($build->state === 'skipped') {
+                $published = $this->snapshot->deliver($request);
+                if ($published->isAvailable()) {
+                    return $published;
+                }
+            }
+
             return $snapshot;
         }
 

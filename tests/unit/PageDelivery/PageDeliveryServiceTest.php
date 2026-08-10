@@ -9,6 +9,8 @@ use App\PageDelivery\PageDeliveryRequest;
 use App\PageDelivery\PageDeliveryResponse;
 use App\PageDelivery\PageDeliveryService;
 use App\PageDelivery\RegenerationLockInterface;
+use App\PageDelivery\SnapshotBuilderInterface;
+use App\PageDelivery\SnapshotBuildResult;
 use PHPUnit\Framework\TestCase;
 
 final class PageDeliveryServiceTest extends TestCase
@@ -69,6 +71,34 @@ final class PageDeliveryServiceTest extends TestCase
         $this->assertSame('Preview', $result->page['title']);
         $this->assertSame(0, $snapshot->calls);
     }
+
+    public function testSkippedBuildReReadsSnapshotPublishedByAnotherWorker(): void
+    {
+        $synchronous = new RecordingDelivery(PageDeliveryResponse::failure(503, ['must not be called']));
+        $snapshot = new SequenceDelivery([
+            PageDeliveryResponse::failure(503, ['initial miss']),
+            PageDeliveryResponse::success(
+                ['title' => 'Published by another worker'],
+                [],
+                [],
+                ['locale' => 'es', 'route' => 'home'],
+            ),
+        ]);
+        $service = new PageDeliveryService(
+            synchronous: $synchronous,
+            snapshot: $snapshot,
+            lock: new RecordingLock(),
+            mode: 'snapshot',
+            allowSynchronousFallback: true,
+            builder: new FixedBuilder(SnapshotBuildResult::skipped('revision-2')),
+        );
+
+        $result = $service->deliver(PageDeliveryRequest::home('es'));
+
+        $this->assertSame('Published by another worker', $result->page['title']);
+        $this->assertSame(2, $snapshot->calls);
+        $this->assertSame(0, $synchronous->calls);
+    }
 }
 
 final class RecordingDelivery implements PageDeliveryInterface
@@ -85,6 +115,39 @@ final class RecordingDelivery implements PageDeliveryInterface
         $this->calls++;
 
         return $this->response;
+    }
+}
+
+final class SequenceDelivery implements PageDeliveryInterface
+{
+    public int $calls = 0;
+
+    /** @param list<PageDeliveryResponse> $responses */
+    public function __construct(private array $responses)
+    {
+    }
+
+    public function deliver(PageDeliveryRequest $request): PageDeliveryResponse
+    {
+        unset($request);
+        $this->calls++;
+
+        return array_shift($this->responses)
+            ?? PageDeliveryResponse::failure(503, ['No scripted snapshot response.']);
+    }
+}
+
+final class FixedBuilder implements SnapshotBuilderInterface
+{
+    public function __construct(private readonly SnapshotBuildResult $result)
+    {
+    }
+
+    public function build(PageDeliveryRequest $request, bool $force = false): SnapshotBuildResult
+    {
+        unset($request, $force);
+
+        return $this->result;
     }
 }
 
