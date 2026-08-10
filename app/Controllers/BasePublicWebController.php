@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\PageDelivery\PageDeliveryResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
 abstract class BasePublicWebController extends BaseController
@@ -26,23 +27,33 @@ abstract class BasePublicWebController extends BaseController
             $data['canonicalUrl'] = site_url($this->request->getPath());
         }
 
-        // Pre-load global layout data: menus and settings (parallelized via multiGet)
-        try {
-            $layoutData = \Config\Services::layoutDataPrefetchService()->prefetchLayoutData($data);
-            $data = array_merge($data, $layoutData);
-        } catch (\Throwable) {
-            // Fallback to empty data if prefetch fails
-            if (! isset($data['mainMenu'])) {
-                $data['mainMenu'] = ['items' => []];
-            }
-            if (! isset($data['footerMenu'])) {
-                $data['footerMenu'] = ['items' => []];
-            }
-            if (! isset($data['legalMenu'])) {
-                $data['legalMenu'] = ['items' => []];
-            }
-            if (! isset($data['settings'])) {
-                $data['settings'] = [];
+        // PageDelivery supplies layout data before rendering. Other legacy
+        // controllers keep the same pre-render layout fallback.
+        $prefetchedLayout = $data['__layout_data'] ?? null;
+        unset($data['__layout_data']);
+        if (is_array($prefetchedLayout)) {
+            $data = array_merge($data, $prefetchedLayout);
+        } else {
+            try {
+                $layoutData = \Config\Services::layoutDataPrefetchService()->prefetchLayoutData($data);
+                $data = array_merge($data, $layoutData);
+            } catch (\Throwable) {
+                // Fallback to empty data if prefetch fails
+                if (! isset($data['mainMenu'])) {
+                    $data['mainMenu'] = ['items' => []];
+                }
+                if (! isset($data['footerMenu'])) {
+                    $data['footerMenu'] = ['items' => []];
+                }
+                if (! isset($data['legalMenu'])) {
+                    $data['legalMenu'] = ['items' => []];
+                }
+                if (! isset($data['settings'])) {
+                    $data['settings'] = [];
+                }
+                if (! isset($data['socialLinks'])) {
+                    $data['socialLinks'] = [];
+                }
             }
         }
 
@@ -117,13 +128,49 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function renderCmsPage(array $page, string $lang, array $context = []): ResponseInterface
     {
-        $translation = $this->resolvePageTranslation($page, $lang);
-        $blocks = is_array($page['blocks'] ?? null)
-            ? array_values(array_filter(
-                $page['blocks'],
-                static fn (mixed $block): bool => is_array($block)
-            ))
+        $context = array_merge($context, $this->prefetchBlockContext($this->pageBlocks($page), $lang));
+        $data = $this->cmsPageData($page, $lang, $context);
+
+        return $this->render('page', $data);
+    }
+
+    /**
+     * Render a page already composed by PageDelivery. No API or cache reads are
+     * performed between this method and the view renderer.
+     */
+    protected function renderDeliveredPage(PageDeliveryResponse $delivery, string $lang): ResponseInterface
+    {
+        if (! $delivery->isAvailable() || $delivery->page === null) {
+            if ($delivery->status === 404) {
+                return $this->notFound('Página de inicio no encontrada');
+            }
+
+            return $this->response
+                ->setStatusCode($delivery->status >= 500 ? $delivery->status : 503)
+                ->setHeader('Cache-Control', 'no-store, private')
+                ->setBody('Public page delivery is temporarily unavailable.');
+        }
+
+        $renderContext = $delivery->blockContext;
+        $renderContext['settings'] = is_array($delivery->layout['settings'] ?? null)
+            ? $delivery->layout['settings']
             : [];
+        $data = $this->cmsPageData($delivery->page, $lang, $renderContext);
+        $data['__layout_data'] = $delivery->layout;
+        $data['pageDelivery'] = $delivery->meta;
+
+        return $this->render('page', $data);
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function cmsPageData(array $page, string $lang, array $context): array
+    {
+        $translation = $this->resolvePageTranslation($page, $lang);
+        $blocks = $this->pageBlocks($page);
         $showPageHeading = array_key_exists('showPageHeading', $page)
             ? (bool) $page['showPageHeading']
             : ! $this->pageHasHeroHeading($blocks);
@@ -153,10 +200,7 @@ abstract class BasePublicWebController extends BaseController
             $schemaData = null;
         }
 
-        // Resolve all dynamic block data through one page-level prefetch pass.
-        $renderContext = array_merge($context, $this->prefetchBlockContext($blocks, $lang));
-
-        $data = [
+        return [
             'title' => (string) ($translation['title'] ?? ''),
             'excerpt' => (string) ($translation['excerpt'] ?? ''),
             'showPageHeading' => $showPageHeading,
@@ -172,11 +216,23 @@ abstract class BasePublicWebController extends BaseController
                 ? (string) $translation['robots']
                 : 'index, follow',
             'schemaData' => $schemaData,
-            'renderedBlocks' => \Config\Services::blockRenderer()->render($blocks, $lang, $renderContext),
+            'renderedBlocks' => \Config\Services::blockRenderer()->render($blocks, $lang, $context),
             'localized_urls' => $this->resolveLocalizedPageUrls($page, $lang),
         ];
+    }
 
-        return $this->render('page', $data);
+    /**
+     * @param array<string, mixed> $page
+     * @return list<array<string, mixed>>
+     */
+    private function pageBlocks(array $page): array
+    {
+        return is_array($page['blocks'] ?? null)
+            ? array_values(array_filter(
+                $page['blocks'],
+                static fn (mixed $block): bool => is_array($block),
+            ))
+            : [];
     }
 
     /**

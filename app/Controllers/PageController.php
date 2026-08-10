@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\PageDelivery\PageDeliveryRequest;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
 
@@ -52,6 +53,23 @@ class PageController extends BasePublicWebController
 
         $lang = service('request')->getLocale();
         [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
+
+        $pageDeliveryEnabled = config('App')->pageDeliveryEnabled || $preview;
+        if ($pageDeliveryEnabled) {
+            $query = $this->request->getGet();
+            $query = is_array($query) ? $query : [];
+
+            return $this->renderDeliveredPage(
+                Services::pageDelivery()->deliver(PageDeliveryRequest::home(
+                    locale: $lang,
+                    preview: $preview,
+                    previewExpires: $previewExpires,
+                    previewSignature: $previewSig,
+                    query: $query,
+                )),
+                $lang,
+            );
+        }
 
         $pageService = Services::sitePageService();
 
