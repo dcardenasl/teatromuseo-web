@@ -206,6 +206,32 @@ class App extends BaseConfig
     public bool $pageDeliveryAllowSynchronousFallback = false;
     public string $pageSnapshotDirectory = '';
     public int $pageSnapshotStaleTtl = 86400;
+    public int $pageSnapshotTtl = 300;
+    public int $pageSnapshotMaxBytes = 5242880;
+    public int $pageSnapshotRetention = 3;
+    public int $pageSnapshotLockTtl = 900;
+    public string $pageSnapshotCompression = 'gzip';
+    public bool $pageSnapshotShared = false;
+
+    /** @var list<string> */
+    public array $pageSnapshotManifestRoutes = ['home'];
+
+    /** @var list<string> */
+    public array $pageSnapshotScopes = [
+        'settings',
+        'menus',
+        'pages',
+        'collections',
+        'entries',
+        'taxonomies',
+        'events',
+        'event_types',
+        'categories',
+        'techniques',
+        'collection_items',
+        'redirects',
+        'forms',
+    ];
 
     /**
      * --------------------------------------------------------------------------
@@ -374,6 +400,38 @@ class App extends BaseConfig
         $pageSnapshotStaleTtl = env('WEB_PAGE_SNAPSHOT_STALE_TTL');
         if (is_numeric($pageSnapshotStaleTtl) && (int) $pageSnapshotStaleTtl >= 0) {
             $this->pageSnapshotStaleTtl = (int) $pageSnapshotStaleTtl;
+        }
+        $pageSnapshotTtl = env('WEB_PAGE_SNAPSHOT_TTL');
+        if (is_numeric($pageSnapshotTtl) && (int) $pageSnapshotTtl > 0) {
+            $this->pageSnapshotTtl = (int) $pageSnapshotTtl;
+        }
+        $pageSnapshotMaxBytes = env('WEB_PAGE_SNAPSHOT_MAX_BYTES');
+        if (is_numeric($pageSnapshotMaxBytes) && (int) $pageSnapshotMaxBytes >= 131072) {
+            $this->pageSnapshotMaxBytes = min(50 * 1024 * 1024, (int) $pageSnapshotMaxBytes);
+        }
+        $pageSnapshotRetention = env('WEB_PAGE_SNAPSHOT_RETENTION');
+        if (is_numeric($pageSnapshotRetention) && (int) $pageSnapshotRetention > 0) {
+            $this->pageSnapshotRetention = min(10, (int) $pageSnapshotRetention);
+        }
+        $pageSnapshotLockTtl = env('WEB_PAGE_SNAPSHOT_LOCK_TTL');
+        if (is_numeric($pageSnapshotLockTtl) && (int) $pageSnapshotLockTtl > 0) {
+            $this->pageSnapshotLockTtl = min(3600, (int) $pageSnapshotLockTtl);
+        }
+        $pageSnapshotCompression = strtolower(trim((string) (env('WEB_PAGE_SNAPSHOT_COMPRESSION') ?? '')));
+        if (in_array($pageSnapshotCompression, ['gzip', 'none'], true)) {
+            $this->pageSnapshotCompression = $pageSnapshotCompression;
+        }
+        $this->pageSnapshotShared = $this->parseBoolean(env('WEB_PAGE_SNAPSHOT_SHARED'), false);
+
+        $manifestRoutes = env('WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES');
+        if (is_string($manifestRoutes) && trim($manifestRoutes) !== '') {
+            $routes = array_values(array_filter(
+                array_map(static fn (string $route): string => trim($route, " /\t\n\r\0\x0B"), explode(',', $manifestRoutes)),
+                static fn (string $route): bool => $route !== '',
+            ));
+            if ($routes !== []) {
+                $this->pageSnapshotManifestRoutes = $routes;
+            }
         }
 
         $this->cspObjectSrc = $this->parseCspSources(env('CSP_OBJECT_SRC'), $this->cspObjectSrc);

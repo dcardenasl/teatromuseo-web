@@ -8,13 +8,19 @@ use DateTimeImmutable;
 
 final readonly class PageSnapshot
 {
-    /** @param array<string, mixed> $envelope */
+    /**
+     * @param array<string, mixed> $envelope
+     * @param list<string>          $scopes
+     */
     public function __construct(
         public string $key,
         public array $envelope,
         public DateTimeImmutable $generatedAt,
         public DateTimeImmutable $expiresAt,
         public ?string $revision = null,
+        public ?string $etag = null,
+        public array $scopes = [],
+        public ?DateTimeImmutable $invalidatedAt = null,
     ) {
     }
 }

@@ -24,7 +24,10 @@ class Cache extends BaseConfig
      * The name of the preferred handler that should be used. If for some reason
      * it is not available, the $backupHandler will be used in its place.
      */
-    public string $handler = 'apcu';
+    // APCu is process-local and can never be authoritative for public data on
+    // a multi-worker deployment. File is the safe shared-hosting default;
+    // Redis/Memcached may be selected explicitly when provided by hosting.
+    public string $handler = 'file';
 
     /**
      * --------------------------------------------------------------------------
@@ -35,7 +38,7 @@ class Cache extends BaseConfig
      * unreachable. Often, 'file' is used here since the filesystem is
      * always available, though that's not always practical for the app.
      */
-    public string $backupHandler = 'file';
+    public string $backupHandler = 'dummy';
 
     /**
      * --------------------------------------------------------------------------
