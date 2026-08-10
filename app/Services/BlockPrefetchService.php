@@ -50,9 +50,12 @@ final class BlockPrefetchService
      */
     public function prefetchContext(array $blocks, string $locale = 'es'): array
     {
+        $formDefinitions = $this->prefetchFormDefinitions($blocks, $locale);
+
         return [
             'block_prefetch' => $this->prefetch($blocks, $locale),
             'block_prefetch_complete' => true,
+            'form_definitions' => $formDefinitions,
         ];
     }
 
@@ -436,6 +439,81 @@ final class BlockPrefetchService
         }
 
         $plan['result'] = $result;
+    }
+
+    /**
+     * Form definitions are supporting data for rendering, not a lazy view
+     * dependency. Fetch each unique form once before BlockRenderer starts.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @return array<string, array<string, mixed>|null>
+     */
+    private function prefetchFormDefinitions(array $blocks, string $locale): array
+    {
+        $client = $this->clients['cms'] ?? null;
+        if (! $client instanceof WebApiClientInterface) {
+            return [];
+        }
+
+        $keys = [];
+        $collect = function (array $nested) use (&$collect, &$keys): void {
+            foreach ($nested as $block) {
+                if (! is_array($block)) {
+                    continue;
+                }
+
+                if (($block['block_key'] ?? '') === 'form_embed') {
+                    $config = is_array($block['block_config'] ?? null) ? $block['block_config'] : [];
+                    $formKey = trim((string) ($config['form_key'] ?? 'contact'));
+                    if ($formKey !== '') {
+                        $keys[$formKey] = true;
+                    }
+                }
+
+                $children = $block['children'] ?? [];
+                if (is_array($children)) {
+                    $collect($children);
+                }
+            }
+        };
+        $collect($blocks);
+
+        if ($keys === []) {
+            return [];
+        }
+
+        $keys = array_keys($keys);
+        $requests = array_map(
+            static fn (string $formKey): array => [
+                'path' => 'public/' . rawurlencode($locale) . '/forms/' . rawurlencode($formKey),
+                'cacheTtl' => 300,
+                'scope' => 'forms',
+            ],
+            $keys,
+        );
+        $definitions = [];
+        try {
+            $responses = $client->multiGet($requests);
+        } catch (\Throwable $exception) {
+            log_message('warning', 'Form definition prefetch failed: {message}', [
+                'message' => $exception->getMessage(),
+                'locale' => $locale,
+            ]);
+
+            return [];
+        }
+
+        foreach ($responses as $index => $response) {
+            $formKey = $keys[$index] ?? null;
+            if ($formKey === null) {
+                continue;
+            }
+            $definitions[$formKey] = is_array($response) && ($response['ok'] ?? false) && is_array($response['data'] ?? null)
+                ? $response['data']
+                : null;
+        }
+
+        return $definitions;
     }
 
     /**

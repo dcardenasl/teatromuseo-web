@@ -100,7 +100,16 @@ class BlockRenderer
     {
         $this->imageCount = 0;
         $this->imagePreloads = [];
-        $this->preloadFormDefinitions($blocks, $lang);
+        if (array_key_exists('form_definitions', $context) && is_array($context['form_definitions'])) {
+            $this->formDefinitions = array_filter(
+                $context['form_definitions'],
+                static fn (mixed $definition): bool => $definition === null || is_array($definition),
+            );
+        } else {
+            // Legacy callers still receive the safe pre-render fallback. The
+            // PageDelivery path always supplies this context before rendering.
+            $this->preloadFormDefinitions($blocks, $lang);
+        }
 
         $html = '';
         foreach ($blocks as $index => $block) {

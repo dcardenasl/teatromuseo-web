@@ -65,6 +65,13 @@ class FormEmbedViewModel extends AbstractBlockViewModel
 
     private function recaptchaSiteKey(): string
     {
+        $settings = $this->context['settings'] ?? null;
+        if (is_array($settings) && array_key_exists('recaptcha_site_key', $settings)) {
+            $key = $settings['recaptcha_site_key'];
+
+            return is_scalar($key) ? (string) $key : '';
+        }
+
         try {
             $key = \Config\Services::siteSettingsService()
                 ->get('recaptcha_site_key', env('RECAPTCHA_SITE_KEY', ''));
