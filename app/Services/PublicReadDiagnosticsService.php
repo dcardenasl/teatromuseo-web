@@ -68,7 +68,10 @@ final class PublicReadDiagnosticsService
         if ($status === 'healthy') {
             $database = is_array($data['database'] ?? null) ? $data['database'] : [];
             $cache = is_array($data['cache'] ?? null) ? $data['cache'] : [];
-            if (($database['status'] ?? null) === 'degraded' || ($cache['probe'] ?? null) === 'failed') {
+            $content = is_array($data['content'] ?? null) ? $data['content'] : [];
+            if (in_array($database['status'] ?? null, ['critical', 'degraded'], true)
+                || ($cache['probe'] ?? null) === 'failed'
+                || ($content['status'] ?? null) === 'empty') {
                 $status = 'degraded';
             }
         }
