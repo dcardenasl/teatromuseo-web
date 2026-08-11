@@ -105,36 +105,3 @@
         <?php endif; ?>
     </div>
 </section>
-
-<style <?= csp_style_nonce() ?>>
-[data-layout="alternating"] .timeline-item:nth-child(even) {
-    flex-direction: row-reverse;
-}
-
-[data-layout="alternating"] .timeline-item:nth-child(even) .timeline-left-col {
-    padding-right: 0;
-    padding-left: 3rem;
-    text-align: left;
-}
-
-[data-layout="alternating"] .timeline-item:nth-child(even) .timeline-right-col {
-    padding-left: 0;
-    padding-right: 3rem;
-}
-
-@media (max-width: 767px) {
-    [data-layout="alternating"] .timeline-item,
-    [data-layout="alternating"] .timeline-item:nth-child(even) {
-        flex-direction: row;
-    }
-}
-
-[data-layout="left_aligned"] .timeline-left-col {
-    display: none !important;
-}
-
-[data-layout="left_aligned"] .timeline-right-col {
-    width: 100% !important;
-    padding-left: 3rem !important;
-}
-</style>

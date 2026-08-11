@@ -41,8 +41,8 @@ $ratioClass = match ($aspectRatio) {
                 title="<?= esc($title !== '' ? $title : 'Mapa embebido') ?>"
                 width="100%"
                 height="100%"
-                class="<?= esc($ratioClass) ?> w-full block"
-                style="border:0; min-height: <?= esc((string) $height) ?>px;"
+                class="<?= esc($ratioClass) ?> w-full block border-0"
+                style="min-height: <?= esc((string) $height) ?>px;"
                 allowfullscreen=""
                 loading="lazy"
                 referrerpolicy="no-referrer-when-downgrade"></iframe>
@@ -68,8 +68,8 @@ $ratioClass = match ($aspectRatio) {
                     title="<?= esc($title !== '' ? $title : 'Mapa embebido') ?>"
                     width="100%"
                     height="100%"
-                    class="<?= esc($ratioClass) ?> w-full block"
-                    style="border:0; min-height: <?= esc((string) $height) ?>px;"
+                    class="<?= esc($ratioClass) ?> w-full block border-0"
+                    style="min-height: <?= esc((string) $height) ?>px;"
                     allowfullscreen=""
                     loading="lazy"
                     referrerpolicy="no-referrer-when-downgrade"></iframe>

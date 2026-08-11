@@ -88,24 +88,22 @@ class ContentSecurityPolicy extends BaseConfig
     /**
      * Specifies valid sources for stylesheets <link> elements.
      *
-     * Nonces are used instead of `'unsafe-inline'` for block-local/portable
-     * `<style>` blocks (e.g., hero_slider, timeline, pricing_plan, etc.).
-     * The templates use `csp_style_nonce()` to inject the nonce attribute,
-     * which CodeIgniter automatically replaces in the final response body.
+     * Public block styles are compiled into the external CSS bundle so they
+     * remain compatible with full-page caching and deployment-level CSP
+     * headers. Error/debug templates may still use the framework nonce helper.
      *
      * @var list<string>|string
      */
     public array|string $styleSrcElem = 'self';
 
     /**
-     * Specifies valid sources for stylesheets inline
-     * style attributes and `<style>` elements.
+     * Specifies valid sources for inline style attributes.
      *
-     * `'unsafe-inline'` is required: many blocks render CMS-editor-controlled
-     * values (overlay/text colors, computed heights, animation delays) as
-     * inline `style="..."` attributes — values only known at render time, so
-     * they can't be pre-compiled into static CSS classes. Nonces don't cover
-     * style attributes at all (only `<style>`/`<script>` elements).
+     * `'unsafe-inline'` is required for the remaining CMS-editor-controlled
+     * values (overlay/text colors, computed heights, animation delays) emitted
+     * as inline `style="..."` attributes — values only known at render time,
+     * so they cannot be pre-compiled into static CSS classes. Nonces do not
+     * cover style attributes at all (only `<style>`/`<script>` elements).
      *
      * @var list<string>|string
      */

@@ -1,32 +1,4 @@
 <footer class="custom-footer border-t py-16 mt-20">
-    <style <?= csp_style_nonce() ?>>
-        .custom-footer {
-            background-color: #f8fafc;
-            color: #475569;
-            border-color: #e2e8f0;
-        }
-        .custom-footer a {
-            color: #475569;
-            opacity: 0.85;
-            transition: all 0.15s ease-in-out;
-        }
-        .custom-footer a:hover {
-            color: var(--color-primary, #0369a1) !important;
-            opacity: 1;
-        }
-        .custom-footer .section-eyebrow,
-        .custom-footer .section-copy,
-        .custom-footer p {
-            color: #475569;
-        }
-        .custom-footer .section-eyebrow {
-            opacity: 0.6;
-        }
-        .custom-footer .border-t,
-        .custom-footer .border-b {
-            border-color: #e2e8f0;
-        }
-    </style>
     <?php
     $siteFooterLogoUrl = is_array($settings['site_logo'] ?? null)
         ? (string) ($settings['site_logo']['url'] ?? '')

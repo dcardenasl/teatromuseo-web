@@ -52,14 +52,15 @@ final class SecurityHeadersTest extends HermeticFeatureTestCase
         // Verify X-Powered-By is NOT present
         $this->assertFalse($result->response()->hasHeader('X-Powered-By'), 'X-Powered-By header should be removed');
 
-        // Verify the response uses the nonce-based CSP configuration.
+        // Verify the response uses the strict CSP configuration and does not
+        // reintroduce a cache-sensitive inline style block.
         $cspHeader = $result->response()->getHeaderLine('Content-Security-Policy');
         $this->assertNotSame('', $cspHeader);
         $this->assertStringContainsString('base-uri \'self\'', $cspHeader);
         $this->assertStringContainsString('frame-ancestors \'none\'', $cspHeader);
         $this->assertStringNotContainsString("style-src-elem 'self' 'unsafe-inline'", $cspHeader);
         $this->assertStringNotContainsString("script-src-elem 'self' 'unsafe-inline'", $cspHeader);
-        $this->assertMatchesRegularExpression('/<style\s+nonce="[^"]+"/', $result->response()->getBody());
+        $this->assertStringNotContainsString('<style', $result->response()->getBody());
     }
 
     public function testHstsHeaderIsPresentInProduction(): void
@@ -110,5 +111,19 @@ final class SecurityHeadersTest extends HermeticFeatureTestCase
 
         $result->assertStatus(200);
         $result->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+
+    public function testPublicBlockViewsDoNotContainInlineStyleElements(): void
+    {
+        $files = glob(APPPATH . 'Views/blocks/*.php') ?: [];
+
+        $this->assertNotEmpty($files);
+
+        foreach ($files as $file) {
+            $contents = file_get_contents($file);
+
+            $this->assertIsString($contents);
+            $this->assertStringNotContainsString('<style', $contents, $file);
+        }
     }
 }

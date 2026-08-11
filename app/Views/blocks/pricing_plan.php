@@ -50,26 +50,3 @@ $featured = (bool) ($config['featured'] ?? false);
         </div>
     </div>
 </div>
-
-<style <?= csp_style_nonce() ?>>
-.pricing-features ul {
-    list-style-type: none !important;
-    padding-left: 0 !important;
-}
-.pricing-features li {
-    position: relative !important;
-    padding-left: 1.75rem !important;
-    margin-bottom: 0.5rem !important;
-}
-.pricing-features li::before {
-    content: "" !important;
-    position: absolute !important;
-    left: 0.25rem !important;
-    top: 0.35rem !important;
-    width: 0.85rem !important;
-    height: 0.5rem !important;
-    border-left: 2px solid #8b5cf6 !important;
-    border-bottom: 2px solid #8b5cf6 !important;
-    transform: rotate(-45deg) !important;
-}
-</style>

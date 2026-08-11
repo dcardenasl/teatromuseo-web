@@ -44,11 +44,6 @@ if ($imageUrl === '') {
     ], ['saveData' => false]) ?>
 
     <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-        <style <?= csp_style_nonce() ?>>
-            .gallery-item-text {
-                text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-            }
-        </style>
         <div class="min-w-0 text-white gallery-item-text">
             <?php if ($caption !== ''): ?>
                 <p class="truncate text-sm font-bold leading-tight text-white"><?= esc($caption) ?></p>

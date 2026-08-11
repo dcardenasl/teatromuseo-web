@@ -115,8 +115,8 @@
     </nav>
 
     <!-- Mobile Navigation Drawer (Hidden on Desktop) -->
-    <div id="mobile-drawer" data-mobile-drawer class="site-drawer fixed left-0 top-[48px] z-40 flex h-[calc(100dvh-48px)] w-full flex-col overflow-hidden bg-white opacity-0 pointer-events-none translate-y-4 transition duration-200 ease-in-out xl:hidden" style="max-height:calc(100dvh - 48px);">
-        <div class="flex-1 min-h-0 space-y-6 overflow-y-auto overscroll-contain px-6 py-6 touch-pan-y" style="-webkit-overflow-scrolling: touch; touch-action: pan-y;">
+    <div id="mobile-drawer" data-mobile-drawer class="site-drawer fixed top-[48px] z-40 flex h-[calc(100dvh-48px)] w-full flex-col overflow-hidden bg-white opacity-0 pointer-events-none translate-y-4 transition duration-200 ease-in-out xl:hidden">
+        <div class="site-drawer-scroll flex-1 min-h-0 space-y-6 overflow-y-auto overscroll-contain px-6 py-6 touch-pan-y">
             <ul class="space-y-4">
                 <?php foreach (($menu['items'] ?? []) as $item): ?>
                     <li class="border-b border-slate-100/50 pb-3 last:border-0 last:pb-0">

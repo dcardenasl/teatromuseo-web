@@ -240,6 +240,158 @@
 
 .site-drawer {
   border-top: 1px solid #e2e8f0;
+  max-height: calc(100dvh - 48px);
+}
+
+.site-drawer-scroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.custom-footer {
+  background-color: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.custom-footer a {
+  color: #475569;
+  opacity: 0.85;
+  transition: all 0.15s ease-in-out;
+}
+
+.custom-footer a:hover {
+  color: var(--color-primary, #0369a1) !important;
+  opacity: 1;
+}
+
+.custom-footer .section-eyebrow,
+.custom-footer .section-copy,
+.custom-footer p {
+  color: #475569;
+}
+
+.custom-footer .section-eyebrow {
+  opacity: 0.6;
+}
+
+.custom-footer .border-t,
+.custom-footer .border-b {
+  border-color: #e2e8f0;
+}
+
+.image-load-hidden {
+  display: none;
+}
+
+.image-load-failed {
+  object-fit: contain;
+  opacity: 0.5;
+}
+
+/* Shared block styles */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.gallery-item-text {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.pricing-features ul {
+  list-style-type: none !important;
+  padding-left: 0 !important;
+}
+
+.pricing-features li {
+  position: relative !important;
+  padding-left: 1.75rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.pricing-features li::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0.25rem !important;
+  top: 0.35rem !important;
+  width: 0.85rem !important;
+  height: 0.5rem !important;
+  border-left: 2px solid #8b5cf6 !important;
+  border-bottom: 2px solid #8b5cf6 !important;
+  transform: rotate(-45deg) !important;
+}
+
+[data-layout="alternating"] .timeline-item:nth-child(even) {
+  flex-direction: row-reverse;
+}
+
+[data-layout="alternating"] .timeline-item:nth-child(even) .timeline-left-col {
+  padding-right: 0;
+  padding-left: 3rem;
+  text-align: left;
+}
+
+[data-layout="alternating"] .timeline-item:nth-child(even) .timeline-right-col {
+  padding-left: 0;
+  padding-right: 3rem;
+}
+
+[data-layout="left_aligned"] .timeline-left-col {
+  display: none !important;
+}
+
+[data-layout="left_aligned"] .timeline-right-col {
+  width: 100% !important;
+  padding-left: 3rem !important;
+}
+
+[data-layout="left_aligned"] .timeline-dot-wrapper {
+  left: 1rem !important;
+  transform: none !important;
+}
+
+[data-layout="left_aligned"] .timeline-date-desktop-left {
+  display: inline-block !important;
+}
+
+@media (max-width: 767px) {
+  [data-layout="alternating"] .timeline-item,
+  [data-layout="alternating"] .timeline-item:nth-child(even) {
+    flex-direction: row;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 25s linear infinite;
+}
+
+[data-marquee-speed="slow"] .marquee-track {
+  animation-duration: 40s;
+}
+
+[data-marquee-speed="fast"] .marquee-track {
+  animation-duration: 12s;
+}
+
+.marquee-track:hover {
+  animation-play-state: paused;
 }
 
 /* Cards */
@@ -430,6 +582,9 @@
  * block-local <style> elements. The image itself is absolutely positioned, so
  * this shell owns the reserved height before the first asset paints. */
 [data-hero-carousel] .hero-shell {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
   min-height: clamp(16rem, 46vw, 24rem);
 }
 

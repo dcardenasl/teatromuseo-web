@@ -99,14 +99,3 @@ if ($anchors === []) {
     targets.forEach(t => observer.observe(t.element));
 })();
 </script>
-
-<style <?= csp_style_nonce() ?>>
-/* Hide default scrollbar on horizontal nav scroll list */
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-.no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-}
-</style>

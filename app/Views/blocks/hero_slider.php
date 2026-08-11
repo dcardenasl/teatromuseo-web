@@ -50,7 +50,6 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
     >
         <div
             class="hero-shell relative overflow-hidden bg-transparent"
-            style="width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);"
         >
             <?= view('components/responsive-image', [
                 'src'        => $slides[0]['image']['url'] ?? '',
@@ -112,7 +111,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                                     aria-label="<?= esc(lang('Site.carousel_go_to_slide', [$index + 1])) ?>"
                                 >
                                     <span data-hero-dot-visual class="flex h-2 w-2 items-stretch overflow-hidden rounded-full border border-slate-300 <?= $index === 0 ? 'bg-slate-100' : 'bg-slate-200' ?>">
-                                        <span data-hero-dot-fill class="block h-full w-full bg-slate-900" style="transform-origin:left center;"></span>
+                                        <span data-hero-dot-fill class="block h-full w-full bg-slate-900"></span>
                                     </span>
                                 </button>
                             <?php endforeach; ?>
@@ -165,7 +164,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                                             aria-label="<?= esc(lang('Site.carousel_go_to_slide', [$index + 1])) ?>"
                                         >
                                             <span data-hero-dot-visual class="flex h-2 w-2 items-stretch overflow-hidden rounded-full border border-slate-300 <?= $index === 0 ? 'bg-slate-100' : 'bg-slate-200' ?>">
-                                                <span data-hero-dot-fill class="block h-full w-full bg-slate-900" style="transform-origin:left center;"></span>
+                                                <span data-hero-dot-fill class="block h-full w-full bg-slate-900"></span>
                                             </span>
                                         </button>
                                     <?php endforeach; ?>

@@ -102,7 +102,6 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
             aria-modal="true"
             aria-hidden="true"
             class="fixed inset-0 hidden flex-col bg-black/95 p-2 text-white select-none sm:p-4 md:p-8"
-            style="z-index: 9999; background-color: rgba(0, 0, 0, 0.95);"
         >
             <!-- Close button (top-right) -->
             <div class="flex justify-end flex-shrink-0">
@@ -141,9 +140,9 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
                         src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
                         alt=""
                         class="max-h-[90vh] max-w-[90vw] object-contain rounded shadow-2xl transition-all duration-300"
-                        style="max-height: 90vh; max-width: 90vw;"
+                        data-image-fallback="fail"
+                        data-image-fallback-alt="<?= esc(lang('Site.image_failed_to_load'), 'attr') ?>"
                         decoding="async"
-                        onerror="this.classList.add('opacity-50'); this.alt='<?= esc(lang('Site.image_failed_to_load')) ?>';"
                     >
                 </div>
 
