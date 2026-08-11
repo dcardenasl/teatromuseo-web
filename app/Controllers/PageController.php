@@ -73,16 +73,7 @@ class PageController extends BasePublicWebController
 
         $pageService = Services::sitePageService();
 
-        // Priority order for homepage lookup: 'home', 'inicio', byType('home')
-        $page = $pageService->getBySlug($lang, 'home', $preview, $previewExpires, $previewSig);
-
-        if (! $page) {
-            $page = $pageService->getBySlug($lang, 'inicio', $preview, $previewExpires, $previewSig);
-        }
-
-        if (! $page) {
-            $page = $pageService->getByType($lang, 'home');
-        }
+        $page = $pageService->getHomepage($lang, $preview, $previewExpires, $previewSig);
 
         if (! $page) {
             return $this->notFound('Página de inicio no encontrada');

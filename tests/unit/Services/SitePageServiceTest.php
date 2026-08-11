@@ -48,6 +48,33 @@ final class SitePageServiceTest extends CIUnitTestCase
         $this->assertNull($result);
     }
 
+    public function testGetHomepageResolvesLocalizedSlugFromPageListing(): void
+    {
+        $homepage = ['id' => 1, 'page_type' => 'home', 'title' => 'Accueil', 'slug' => 'accueil'];
+        $apiClient = $this->createMock(WebApiClient::class);
+        $apiClient->method('get')->willReturnCallback(static function (string $path): array {
+            return match ($path) {
+                'public-read/fr/pages/home',
+                'public-read/fr/pages/inicio' => ['ok' => false, 'data' => null],
+                'public-read/fr/pages' => ['ok' => true, 'data' => [[
+                    'page_type' => 'home',
+                    'slug' => 'accueil',
+                ]]],
+                'public-read/fr/pages/accueil' => ['ok' => true, 'data' => [
+                    'id' => 1,
+                    'page_type' => 'home',
+                    'title' => 'Accueil',
+                    'slug' => 'accueil',
+                ]],
+                default => ['ok' => false, 'data' => null],
+            };
+        });
+
+        $service = new SitePageService($apiClient);
+
+        $this->assertSame($homepage, $service->getHomepage('fr'));
+    }
+
     public function testListAllReturnsPagesOnSuccess(): void
     {
         $pages = [
@@ -76,7 +103,7 @@ final class SitePageServiceTest extends CIUnitTestCase
         $apiClient
             ->expects($this->once())
             ->method('get')
-            ->with('public/es/pages/contact', [], 300)
+            ->with('public-read/es/pages/contact', [], 300)
             ->willReturn(['ok' => true, 'data' => ['slug' => 'contact']]);
 
         $service = new SitePageService($apiClient);
@@ -89,7 +116,7 @@ final class SitePageServiceTest extends CIUnitTestCase
         $apiClient
             ->expects($this->once())
             ->method('get')
-            ->with('public/en/pages', [], 600)
+            ->with('public-read/en/pages', [], 600)
             ->willReturn(['ok' => true, 'data' => []]);
 
         $service = new SitePageService($apiClient);

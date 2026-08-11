@@ -31,7 +31,52 @@ class SitePageService extends BaseSiteService
         }
         $ttl = $preview ? 0 : self::CACHE_TTL_DETAIL;
 
-        return $this->fetchData("public/{$lang}/pages/{$slug}", $query, $ttl, 'pages');
+        return $this->fetchData("public-read/{$lang}/pages/{$slug}", $query, $ttl, 'pages');
+    }
+
+    /**
+     * Resolve the homepage even when its public slug is localized.
+     *
+     * The CMS owns the translated slug, so the homepage is not guaranteed to
+     * be reachable through the legacy `home`/`inicio` aliases. The public-read
+     * page index exposes the stable page_type together with the current slug;
+     * use that slug to fetch the complete page payload.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getHomepage(
+        string $lang,
+        bool $preview = false,
+        ?string $previewExpires = null,
+        ?string $previewSig = null
+    ): ?array {
+        foreach (['home', 'inicio'] as $slug) {
+            $page = $this->getBySlug($lang, $slug, $preview, $previewExpires, $previewSig);
+            if ($page !== null) {
+                return $page;
+            }
+        }
+
+        foreach ($this->listAll($lang) as $candidate) {
+            if (($candidate['page_type'] ?? null) !== 'home') {
+                continue;
+            }
+
+            $slug = trim((string) ($candidate['slug'] ?? ''));
+            if ($slug === '' || in_array(strtolower($slug), ['home', 'inicio'], true)) {
+                continue;
+            }
+
+            $page = $this->getBySlug($lang, $slug, $preview, $previewExpires, $previewSig);
+            if ($page !== null) {
+                return $page;
+            }
+        }
+
+        // Keep the existing template endpoint as a compatibility fallback for
+        // older domain deployments; current CMS versions reserve by-type for
+        // catalog/event templates and resolve home through the page index.
+        return $this->getByType($lang, 'home');
     }
 
     /**
@@ -41,7 +86,7 @@ class SitePageService extends BaseSiteService
      */
     public function listAll(string $lang): array
     {
-        return $this->fetchData("public/{$lang}/pages", [], self::CACHE_TTL_LIST, 'pages') ?? [];
+        return $this->fetchData("public-read/{$lang}/pages", [], self::CACHE_TTL_LIST, 'pages') ?? [];
     }
 
     /**

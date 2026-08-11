@@ -32,7 +32,7 @@ class PageResolverService extends BaseSiteService
 
         $results = $this->apiClient->multiGet([
             ['path' => "public/redirects/{$path}", 'cacheTtl' => 3600, 'scope' => 'redirects'],
-            ['path' => "public/{$lang}/pages/{$path}", 'query' => $query, 'cacheTtl' => $preview ? 0 : 300, 'scope' => 'pages'],
+            ['path' => "public-read/{$lang}/pages/{$path}", 'query' => $query, 'cacheTtl' => $preview ? 0 : 300, 'scope' => 'pages'],
         ]);
 
         $redirect = null;

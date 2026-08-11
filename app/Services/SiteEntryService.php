@@ -19,7 +19,7 @@ class SiteEntryService extends BaseSiteService
     public function list(string $lang, string $collectionKey, array $query = []): array
     {
         $response = $this->apiClient->get(
-            "public/{$lang}/entries/{$collectionKey}",
+            "public-read/{$lang}/entries/{$collectionKey}",
             $query,
             self::CACHE_TTL_LIST,
             'entries'
@@ -64,7 +64,7 @@ class SiteEntryService extends BaseSiteService
         $ttl = $preview ? 0 : self::CACHE_TTL_DETAIL;
 
         return $this->fetchData(
-            "public/{$lang}/entries/{$collectionKey}/{$slug}",
+            "public-read/{$lang}/entries/{$collectionKey}/{$slug}",
             $query,
             $ttl,
             'entries'

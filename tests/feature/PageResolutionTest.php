@@ -48,6 +48,30 @@ final class PageResolutionTest extends HermeticFeatureTestCase
         }
     }
 
+    public function testHomepageResolvesLocalizedHomeSlugFromPublicReadListing(): void
+    {
+        $locale = $this->locale();
+        $slug = 'accueil';
+        $title = 'Fixture localized homepage ' . $locale;
+
+        $this->domainAdapter->fakeGetFailure('public-read/' . $locale . '/pages/home');
+        $this->domainAdapter->fakeGetFailure('public-read/' . $locale . '/pages/inicio');
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/pages', [[
+            'page_type' => 'home',
+            'slug' => $slug,
+        ]]);
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/pages/' . $slug, $this->page(
+            $slug,
+            $title,
+            ['page_type' => 'home'],
+        ));
+
+        $result = $this->get($locale . '/');
+
+        $result->assertStatus(200);
+        $result->assertSee($title);
+    }
+
     public function testResolvesLocalizedPageInEachConfiguredLanguage(): void
     {
         foreach ($this->locales() as $position => $locale) {
@@ -300,7 +324,8 @@ final class PageResolutionTest extends HermeticFeatureTestCase
 
     private function domainPath(string $path, int $localePosition = 0): string
     {
-        return 'public/' . $this->locale($localePosition) . '/' . $path;
+        $prefix = (str_starts_with($path, 'entries') || str_starts_with($path, 'pages')) ? 'public-read/' : 'public/';
+        return $prefix . $this->locale($localePosition) . '/' . $path;
     }
 
     private function slug(string $role, int $localePosition = 0): string
