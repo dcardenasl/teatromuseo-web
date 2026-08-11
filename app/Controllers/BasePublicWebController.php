@@ -88,6 +88,13 @@ abstract class BasePublicWebController extends BaseController
             : 'no-store, private';
 
         return $this->response
+            // cachePage() and PHP/session defaults may have already added
+            // cache headers. Remove them before setting the single policy for
+            // this response; concatenating `no-store` with `public` makes the
+            // resulting header contradictory and defeats public caching.
+            ->removeHeader('Cache-Control')
+            ->removeHeader('Pragma')
+            ->removeHeader('Expires')
             ->setHeader('Cache-Control', $cacheControl)
             ->setHeader('ETag', $etag)
             ->setHeader('Vary', 'Accept-Language')
@@ -192,6 +199,7 @@ abstract class BasePublicWebController extends BaseController
             }
 
             return $this->response
+                ->removeHeader('Cache-Control')
                 ->setStatusCode($delivery->status >= 500 ? $delivery->status : 503)
                 ->setHeader('Cache-Control', 'no-store, private')
                 ->setBody('Public page delivery is temporarily unavailable.');

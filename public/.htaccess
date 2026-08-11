@@ -57,4 +57,10 @@ ServerSignature Off
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=()"
     Header always unset X-Powered-By
     Header unset X-Powered-By
+
+    # Assets are content-hashed/versioned by the build. Cache them for a year
+    # so repeat visits and browser cold starts do not re-download the shell.
+    <FilesMatch "\.(?:css|js|map|avif|webp|png|jpe?g|gif|svg|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
 </IfModule>
