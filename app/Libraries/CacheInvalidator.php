@@ -118,6 +118,7 @@ class CacheInvalidator
 
             $paths[] = '/' . $locale;
             $paths[] = '/' . $locale . '/' . trim(PublicPaths::homepageSegment($locale), '/');
+            $paths[] = '/' . $locale . '/public/' . $locale;
         }
 
         foreach (array_values(array_unique($paths)) as $path) {

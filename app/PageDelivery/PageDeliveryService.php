@@ -30,6 +30,32 @@ final class PageDeliveryService implements PageDeliveryInterface
 
         $snapshot = $this->snapshot->deliver($request);
         if ($snapshot->isAvailable()) {
+            // Invalidation keeps the previous snapshot readable as a
+            // resilience fallback. It must not be treated as a fresh hit
+            // forever, otherwise a content invalidation can leave the public
+            // site serving stale HTML until the stale TTL expires.
+            if ($this->isFreshSnapshot($snapshot)) {
+                return $snapshot;
+            }
+
+            if ($this->builder !== null) {
+                $build = $this->builder->build($request);
+                if ($build->state === 'built' && $build->response !== null) {
+                    return $build->response;
+                }
+
+                // Another worker may have completed the rebuild while this
+                // request was waiting for the single-flight lock.
+                if ($build->state === 'skipped') {
+                    $published = $this->snapshot->deliver($request);
+                    if ($published->isAvailable() && $this->isFreshSnapshot($published)) {
+                        return $published;
+                    }
+                }
+            }
+
+            // Preserve the stale snapshot when regeneration is unavailable or
+            // fails, keeping the site renderable during an upstream outage.
             return $snapshot;
         }
 
@@ -68,5 +94,12 @@ final class PageDeliveryService implements PageDeliveryInterface
         } finally {
             $this->lock->release($key, $token);
         }
+    }
+
+    private function isFreshSnapshot(PageDeliveryResponse $response): bool
+    {
+        return ($response->source['state'] ?? null) !== 'stale'
+            && ($response->source['stale'] ?? false) !== true
+            && ($response->meta['cache'] ?? null) !== 'stale';
     }
 }

@@ -109,6 +109,15 @@ class PageController extends BasePublicWebController
             return $this->home();
         }
 
+        // Older beta deployments leaked the internal `public/{locale}` base
+        // path into cached homepage redirects. Keep those stale URLs
+        // recoverable for visitors whose browser still has the redirect.
+        if (strcasecmp($path, 'public/' . $lang) === 0) {
+            return redirect()
+                ->to(lang_url(\App\Support\PublicPaths::homepagePath($lang), $lang))
+                ->setStatusCode(301);
+        }
+
         // Keep legacy homepage aliases working while exposing the locale's
         // public homepage slug as the canonical URL.
         if (\App\Support\PublicPaths::isHomepageSlug($path, $lang)) {

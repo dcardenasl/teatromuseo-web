@@ -64,12 +64,14 @@ final class CacheInvalidatorTest extends CIUnitTestCase
     {
         $this->cache->save(md5('GET:/es'), 'root page', 900);
         $this->cache->save(md5('GET:/es/inicio'), 'localized page', 900);
+        $this->cache->save(md5('GET:/es/public/es'), 'legacy leaked page', 900);
 
         $result = $this->invalidator->invalidate(['pages'], 'remote', ['es'], ['home']);
 
-        $this->assertSame(2, $result['response_cache_deleted']);
+        $this->assertSame(3, $result['response_cache_deleted']);
         $this->assertNull($this->cache->get(md5('GET:/es')));
         $this->assertNull($this->cache->get(md5('GET:/es/inicio')));
+        $this->assertNull($this->cache->get(md5('GET:/es/public/es')));
     }
 
     public function testInvalidateDoesNotClearSitemapsOnNonContentScopes(): void

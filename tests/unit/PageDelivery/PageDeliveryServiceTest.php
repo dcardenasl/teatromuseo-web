@@ -55,6 +55,61 @@ final class PageDeliveryServiceTest extends TestCase
         $this->assertSame($lock->key, $lock->releasedKey);
     }
 
+    public function testInvalidatedSnapshotIsRegeneratedEvenWithoutSynchronousFallback(): void
+    {
+        $stale = PageDeliveryResponse::success(
+            ['title' => 'Stale snapshot'],
+            [],
+            [],
+            ['locale' => 'es', 'route' => 'home', 'cache' => 'stale'],
+            ['domain' => 'web', 'state' => 'stale', 'stale' => true],
+        );
+        $fresh = PageDeliveryResponse::success(
+            ['title' => 'Fresh composition'],
+            [],
+            [],
+            ['locale' => 'es', 'route' => 'home', 'cache' => 'fresh'],
+            ['domain' => 'web', 'state' => 'fresh', 'stale' => false],
+        );
+        $builder = new FixedBuilder(SnapshotBuildResult::built($fresh, 'revision-fresh'));
+        $service = new PageDeliveryService(
+            synchronous: new RecordingDelivery(PageDeliveryResponse::failure(503, ['must not be called'])),
+            snapshot: new RecordingDelivery($stale),
+            lock: new RecordingLock(),
+            mode: 'snapshot',
+            allowSynchronousFallback: false,
+            builder: $builder,
+        );
+
+        $result = $service->deliver(PageDeliveryRequest::home('es'));
+
+        $this->assertSame('Fresh composition', $result->page['title']);
+        $this->assertSame(1, $builder->calls);
+    }
+
+    public function testStaleSnapshotRemainsAvailableWhenRegenerationFails(): void
+    {
+        $stale = PageDeliveryResponse::success(
+            ['title' => 'Stale snapshot'],
+            [],
+            [],
+            ['locale' => 'es', 'route' => 'home', 'cache' => 'stale'],
+            ['domain' => 'web', 'state' => 'stale', 'stale' => true],
+        );
+        $service = new PageDeliveryService(
+            synchronous: new RecordingDelivery(PageDeliveryResponse::failure(503, ['must not be called'])),
+            snapshot: new RecordingDelivery($stale),
+            lock: new RecordingLock(),
+            mode: 'snapshot',
+            allowSynchronousFallback: false,
+            builder: new FixedBuilder(SnapshotBuildResult::failed('CMS unavailable')),
+        );
+
+        $result = $service->deliver(PageDeliveryRequest::home('es'));
+
+        $this->assertSame('Stale snapshot', $result->page['title']);
+    }
+
     public function testPreviewBypassesSnapshotEvenWhenSnapshotModeIsConfigured(): void
     {
         $synchronous = new RecordingDelivery(PageDeliveryResponse::success(
@@ -139,12 +194,15 @@ final class SequenceDelivery implements PageDeliveryInterface
 
 final class FixedBuilder implements SnapshotBuilderInterface
 {
+    public int $calls = 0;
+
     public function __construct(private readonly SnapshotBuildResult $result)
     {
     }
 
     public function build(PageDeliveryRequest $request, bool $force = false): SnapshotBuildResult
     {
+        $this->calls++;
         unset($request, $force);
 
         return $this->result;

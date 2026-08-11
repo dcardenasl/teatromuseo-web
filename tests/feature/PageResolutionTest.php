@@ -65,6 +65,16 @@ final class PageResolutionTest extends HermeticFeatureTestCase
         $result->assertHeader('Location', lang_url('/inicio', $locale));
     }
 
+    public function testLegacyPublicLocaleHomepageRedirectIsRecovered(): void
+    {
+        $locale = $this->locale();
+
+        $result = $this->get($locale . '/public/' . $locale);
+
+        $result->assertStatus(301);
+        $result->assertHeader('Location', lang_url('/inicio', $locale));
+    }
+
     public function testHomepageResolvesLocalizedHomeSlugFromPublicReadListing(): void
     {
         $locale = $this->locale();
