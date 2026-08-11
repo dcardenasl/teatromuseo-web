@@ -36,6 +36,25 @@ final class PageResolutionTest extends HermeticFeatureTestCase
         $result->assertSee($title);
     }
 
+    public function testResolvesPublicReadPageUsingLocalizedSlugMap(): void
+    {
+        $locale = $this->locale();
+        $slug = $this->slug('public-read-page');
+        $title = $this->text('public-read-title');
+        $page = $this->page($slug, $title);
+        unset($page['slug']);
+        $page['localized_slugs'] = array_fill_keys($this->locales(), $slug);
+
+        $this->fakeEmptyCollections($locale);
+        $this->domainAdapter->fakeGet($this->domainPath('pages/' . $slug), $page);
+
+        $result = $this->get($locale . '/' . $slug);
+
+        $result->assertStatus(200);
+        $result->assertSee($title);
+        $result->assertSee(site_url('/' . $locale . '/' . $slug));
+    }
+
     public function testLegacyHomepageSlugsRedirectToLocalizedRoot(): void
     {
         $locale = $this->locale();

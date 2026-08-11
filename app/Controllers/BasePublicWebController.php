@@ -359,16 +359,45 @@ abstract class BasePublicWebController extends BaseController
                 }
             }
 
-            return $translation;
+            return $this->withLocalizedSlug($translation, $page, $lang);
         }
 
         foreach ($translations as $trans) {
             if (is_array($trans) && $this->translationMatchesLocale($trans, $lang)) {
-                return $trans;
+                return $this->withLocalizedSlug($trans, $page, $lang);
             }
         }
 
-        return is_array($translations[0] ?? null) ? $translations[0] : [];
+        $fallback = is_array($translations[0] ?? null) ? $translations[0] : [];
+
+        return $this->withLocalizedSlug($fallback, $page, $lang);
+    }
+
+    /**
+     * Public-read page payloads expose localized slugs separately from the
+     * translated content. Normalize that compact contract for renderers and
+     * the dynamic resolver, which both consume a translation-shaped `slug`.
+     *
+     * @param array<string, mixed> $translation
+     * @param array<string, mixed> $page
+     * @return array<string, mixed>
+     */
+    private function withLocalizedSlug(array $translation, array $page, string $lang): array
+    {
+        if (trim((string) ($translation['slug'] ?? '')) !== '') {
+            return $translation;
+        }
+
+        $localizedSlugs = is_array($translation['localized_slugs'] ?? null)
+            ? $translation['localized_slugs']
+            : (is_array($page['localized_slugs'] ?? null) ? $page['localized_slugs'] : []);
+        $localizedSlug = trim((string) ($localizedSlugs[$lang] ?? ''));
+
+        if ($localizedSlug !== '') {
+            $translation['slug'] = $localizedSlug;
+        }
+
+        return $translation;
     }
 
     /**
