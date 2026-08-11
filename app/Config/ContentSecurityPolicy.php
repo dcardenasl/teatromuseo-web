@@ -83,21 +83,19 @@ class ContentSecurityPolicy extends BaseConfig
      *
      * @var list<string>|string
      */
-    public $styleSrc = ['self', 'unsafe-inline'];
+    public $styleSrc = 'self';
 
     /**
      * Specifies valid sources for stylesheets <link> elements.
      *
-     * `'unsafe-inline'` is required: block partials (hero_slider, hero_banner,
-     * timeline, gallery_item, pricing_plan, footer, ...) each ship their own
-     * `<style>` block by design — a block-local/portable styling pattern used
-     * throughout app/Views/blocks. Nonces don't fit here: blocks are rendered
-     * independently and cached, with no single per-request nonce to thread
-     * through them.
+     * Nonces are used instead of `'unsafe-inline'` for block-local/portable
+     * `<style>` blocks (e.g., hero_slider, timeline, pricing_plan, etc.).
+     * The templates use `csp_style_nonce()` to inject the nonce attribute,
+     * which CodeIgniter automatically replaces in the final response body.
      *
      * @var list<string>|string
      */
-    public array|string $styleSrcElem = ['self', 'unsafe-inline'];
+    public array|string $styleSrcElem = 'self';
 
     /**
      * Specifies valid sources for stylesheets inline
@@ -127,7 +125,7 @@ class ContentSecurityPolicy extends BaseConfig
      *
      * @var list<string>|string|null
      */
-    public $baseURI;
+    public $baseURI = 'self';
 
     /**
      * Lists the URLs for workers and embedded frame contents
@@ -166,7 +164,7 @@ class ContentSecurityPolicy extends BaseConfig
      *
      * @var list<string>|string|null
      */
-    public $frameAncestors;
+    public $frameAncestors = 'none';
 
     /**
      * The frame-src directive restricts the URLs which may
@@ -237,6 +235,9 @@ class ContentSecurityPolicy extends BaseConfig
         $this->frameSrc = $this->directiveFromEnv('CSP_FRAME_SRC', ['self', 'http:', 'https:']);
         $this->mediaSrc = $this->directiveFromEnv('CSP_MEDIA_SRC', ['self', 'http:', 'https:']);
         $this->objectSrc = $this->directiveFromEnv('CSP_OBJECT_SRC', ['self', 'http:', 'https:']);
+        $this->scriptSrc = $this->directiveFromEnv('CSP_SCRIPT_SRC', ['self']);
+        $this->scriptSrcElem = $this->directiveFromEnv('CSP_SCRIPT_SRC_ELEM', ['self']);
+        $this->connectSrc = $this->directiveFromEnv('CSP_CONNECT_SRC', ['self']);
     }
 
     /**

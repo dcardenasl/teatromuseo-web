@@ -556,3 +556,19 @@ if (! function_exists('cms_block_preview_sample')) {
         return cms_block_preview_samples()[$blockKey] ?? [];
     }
 }
+
+if (! function_exists('csp_style_nonce')) {
+    /**
+     * Generates a nonce attribute for style tag.
+     */
+    function csp_style_nonce(): string
+    {
+        $csp = service('csp');
+
+        if (! $csp->enabled()) {
+            return '';
+        }
+
+        return 'nonce="' . $csp->getStyleNonce() . '"';
+    }
+}

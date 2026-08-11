@@ -38,7 +38,7 @@ $cssClass = esc(trim($config['css_class'] ?? ''));
     </div>
 </section>
 
-<style>
+<style <?= csp_style_nonce() ?>>
 /* CSS layout shifts based on the timeline parent settings */
 [data-layout="alternating"] .timeline-item:nth-child(even) {
     flex-direction: row-reverse;

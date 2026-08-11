@@ -33,7 +33,7 @@ if ($anchors === []) {
     </div>
 </div>
 
-<script>
+<script <?= csp_script_nonce() ?>>
 (function() {
     const root = document.getElementById('<?= $navId ?>');
     if (!root) return;
@@ -100,7 +100,7 @@ if ($anchors === []) {
 })();
 </script>
 
-<style>
+<style <?= csp_style_nonce() ?>>
 /* Hide default scrollbar on horizontal nav scroll list */
 .no-scrollbar::-webkit-scrollbar {
     display: none;

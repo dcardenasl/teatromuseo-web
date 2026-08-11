@@ -50,7 +50,7 @@ class SecurityHeadersFilter implements FilterInterface
         ]);
         $response->setHeader('Content-Security-Policy', $csp);
 
-        if (ENVIRONMENT === 'production') {
+        if (ENVIRONMENT === 'production' || env('CI_ENVIRONMENT') === 'production') {
             $response->setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
 

@@ -219,7 +219,7 @@ $isChild = $context['is_child'] ?? false;
                 </div>
 
                 <?php if ($hasCaptcha && $recaptchaSiteKey !== ''): ?>
-                    <script>
+                    <script <?= csp_script_nonce() ?>>
                     document.addEventListener('DOMContentLoaded', function () {
                         var form = document.getElementById('form-<?= esc($formKey) ?>');
                         if (!form) return;
@@ -243,7 +243,7 @@ $isChild = $context['is_child'] ?? false;
                     </script>
                     <?php if (! defined('RECAPTCHA_SCRIPT_LOADED')): ?>
                         <?php define('RECAPTCHA_SCRIPT_LOADED', true); ?>
-                        <script src="https://www.google.com/recaptcha/api.js?render=<?= esc($recaptchaSiteKey) ?>" async defer></script>
+                        <script <?= csp_script_nonce() ?> src="https://www.google.com/recaptcha/api.js?render=<?= esc($recaptchaSiteKey) ?>" async defer></script>
                     <?php endif; ?>
                 <?php endif; ?>
             <?php endif; ?>

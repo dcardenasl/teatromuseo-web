@@ -93,7 +93,7 @@ foreach ($faqs as $faq) {
     <?php endif; ?>
 </section>
 
-<script>
+<script <?= csp_script_nonce() ?>>
 (function() {
     const root = document.querySelector('[data-faq-id="<?= $faqId ?>"]');
     if (!root) return;

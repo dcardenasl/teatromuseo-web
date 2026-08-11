@@ -51,7 +51,7 @@ $featured = (bool) ($config['featured'] ?? false);
     </div>
 </div>
 
-<style>
+<style <?= csp_style_nonce() ?>>
 .pricing-features ul {
     list-style-type: none !important;
     padding-left: 0 !important;

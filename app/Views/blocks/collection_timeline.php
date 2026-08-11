@@ -106,7 +106,7 @@
     </div>
 </section>
 
-<style>
+<style <?= csp_style_nonce() ?>>
 [data-layout="alternating"] .timeline-item:nth-child(even) {
     flex-direction: row-reverse;
 }

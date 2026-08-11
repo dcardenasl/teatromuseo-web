@@ -1,5 +1,7 @@
 <?php
 
+header_remove('X-Powered-By');
+
 use CodeIgniter\Boot;
 use Config\Paths;
 

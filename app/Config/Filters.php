@@ -67,6 +67,7 @@ class Filters extends BaseFilters
             'pagecache',  // Web Page Caching
         ],
         'after' => [
+            'securityheaders',
             'pagecache',   // Web Page Caching
             'requestTelemetry',
             'correlationid',
@@ -83,6 +84,8 @@ class Filters extends BaseFilters
      *     before: array<string, array{except: list<string>|string}>|list<string>,
      *     after: array<string, array{except: list<string>|string}>|list<string>
      * }
+     *
+     * @see https://codeigniter.com/user_guide/incoming/filters.html#globals
      */
     public array $globals = [
         'before' => [
@@ -90,7 +93,6 @@ class Filters extends BaseFilters
         ],
         'after' => [
             'secureheaders',   // CI4 native: emits headers from Config\Security::$secureHeaders
-            'securityheaders', // App-defined: X-Frame-Options, X-CTO, Referrer-Policy, Permissions-Policy, HSTS in prod
             'tracking',        // First-party page-view tracking (fire-and-forget to Domain CMS)
         ],
     ];

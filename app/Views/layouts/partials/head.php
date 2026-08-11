@@ -115,12 +115,12 @@ $analyticsId       = $settings['analytics_id'] ?? '';
 <?php endif; ?>
 
 <?php if ($analyticsProvider === 'ga4' && $analyticsId !== ''): ?>
-    <script async src="https://www.googletagmanager.com/gtag/js?id=<?= esc($analyticsId) ?>"></script>
-    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<?= esc($analyticsId, 'js') ?>');</script>
+    <script <?= csp_script_nonce() ?> async src="https://www.googletagmanager.com/gtag/js?id=<?= esc($analyticsId) ?>"></script>
+    <script <?= csp_script_nonce() ?>>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<?= esc($analyticsId, 'js') ?>');</script>
 <?php elseif ($analyticsProvider === 'plausible' && $analyticsId !== ''): ?>
-    <script defer data-domain="<?= esc($analyticsId) ?>" src="https://plausible.io/js/script.js"></script>
+    <script <?= csp_script_nonce() ?> defer data-domain="<?= esc($analyticsId) ?>" src="https://plausible.io/js/script.js"></script>
 <?php elseif ($analyticsProvider === 'fathom' && $analyticsId !== ''): ?>
-    <script src="https://cdn.usefathom.com/script.js" data-site="<?= esc($analyticsId) ?>" defer></script>
+    <script <?= csp_script_nonce() ?> src="https://cdn.usefathom.com/script.js" data-site="<?= esc($analyticsId) ?>" defer></script>
 <?php endif; ?>
 
 <?php
