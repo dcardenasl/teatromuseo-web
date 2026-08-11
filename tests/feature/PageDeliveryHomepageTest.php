@@ -29,7 +29,7 @@ final class PageDeliveryHomepageTest extends HermeticFeatureTestCase
         $paths = $this->domainAdapter->requestedPaths();
         $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => $path === 'public-read/aa/settings')));
         $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => $path === 'public-read/aa/navigation')));
-        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => str_ends_with($path, '/pages/home'))));
+        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => str_ends_with($path, '/pages/inicio'))));
         $this->assertNotContains('public/aa/forms/contact', $paths);
     }
 }

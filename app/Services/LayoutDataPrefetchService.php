@@ -139,7 +139,9 @@ class LayoutDataPrefetchService extends BaseSiteService
                 $candidateUrl = (string) ($item['custom_url'] ?? $item['url'] ?? '');
                 if (($navigation['route_key'] ?? null) === 'pages') {
                     if ($entrySlug !== '') {
-                        $candidateUrl = $entrySlug === 'home' ? '/' : '/' . $entrySlug;
+                        $candidateUrl = \App\Support\PublicPaths::isHomepageSlug($entrySlug, $locale)
+                            ? \App\Support\PublicPaths::homepagePath($locale)
+                            : '/' . $entrySlug;
                     }
                 }
 

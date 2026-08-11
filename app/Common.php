@@ -70,6 +70,16 @@ if (! function_exists('current_lang_url')) {
         $supportedLocales = config('App')->supportedLocales;
 
         if (!empty($segments) && in_array($segments[0], $supportedLocales, true)) {
+            $currentPath = implode('/', array_slice($segments, 1));
+            if ($currentPath === '' || \App\Support\PublicPaths::isHomepageSlug($currentPath)) {
+                $query = $uri->getQuery();
+
+                return base_url(
+                    '/' . $locale . \App\Support\PublicPaths::homepagePath($locale)
+                    . ($query !== '' ? '?' . $query : ''),
+                );
+            }
+
             $segments[0] = $locale;
         } else {
             array_unshift($segments, $locale);

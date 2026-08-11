@@ -7,6 +7,7 @@ namespace App\PageDelivery;
 use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\SitePageService;
+use App\Support\PublicPaths;
 use DateTimeInterface;
 
 /**
@@ -69,18 +70,7 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         $query = $request->previewQuery();
         $page = $this->pageService->getBySlug(
             $request->locale,
-            'home',
-            $request->preview,
-            $query['preview_expires'] ?? null,
-            $query['preview_sig'] ?? null,
-        );
-        if ($page !== null) {
-            return $page;
-        }
-
-        $page = $this->pageService->getBySlug(
-            $request->locale,
-            'inicio',
+            PublicPaths::homepageSegment($request->locale),
             $request->preview,
             $query['preview_expires'] ?? null,
             $query['preview_sig'] ?? null,

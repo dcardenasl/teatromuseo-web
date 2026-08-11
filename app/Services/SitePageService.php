@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\PublicPaths;
+
 class SitePageService extends BaseSiteService
 {
     private const CACHE_TTL_DETAIL = 300; // 5 minutes for single page
@@ -35,12 +37,12 @@ class SitePageService extends BaseSiteService
     }
 
     /**
-     * Resolve the homepage even when its public slug is localized.
+     * Resolve the homepage using the locale's public slug.
      *
-     * The CMS owns the translated slug, so the homepage is not guaranteed to
-     * be reachable through the legacy `home`/`inicio` aliases. The public-read
-     * page index exposes the stable page_type together with the current slug;
-     * use that slug to fetch the complete page payload.
+     * `home` is the CMS page type and the English public slug. It is not the
+     * Spanish homepage slug: Spanish publishes the page at `inicio`. Resolve
+     * the canonical locale slug first, then use the public page index to find
+     * a translated slug on older or less conventional deployments.
      *
      * @return array<string, mixed>|null
      */
@@ -50,11 +52,15 @@ class SitePageService extends BaseSiteService
         ?string $previewExpires = null,
         ?string $previewSig = null
     ): ?array {
-        foreach (['home', 'inicio'] as $slug) {
-            $page = $this->getBySlug($lang, $slug, $preview, $previewExpires, $previewSig);
-            if ($page !== null) {
-                return $page;
-            }
+        $page = $this->getBySlug(
+            $lang,
+            PublicPaths::homepageSegment($lang),
+            $preview,
+            $previewExpires,
+            $previewSig,
+        );
+        if ($page !== null) {
+            return $page;
         }
 
         foreach ($this->listAll($lang) as $candidate) {
@@ -63,7 +69,7 @@ class SitePageService extends BaseSiteService
             }
 
             $slug = trim((string) ($candidate['slug'] ?? ''));
-            if ($slug === '' || in_array(strtolower($slug), ['home', 'inicio'], true)) {
+            if ($slug === '') {
                 continue;
             }
 

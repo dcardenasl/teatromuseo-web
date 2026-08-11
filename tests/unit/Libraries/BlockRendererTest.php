@@ -144,7 +144,7 @@ final class BlockRendererTest extends CIUnitTestCase
         $this->assertStringContainsString('Prefetched event', $html);
     }
 
-    public function testNormalizesRedirectingHomepageAliasInBlockNavigation(): void
+    public function testNormalizesHomepageNavigationToTheLocalizedPublicSlug(): void
     {
         $html = $this->renderer->render([
             [
@@ -159,11 +159,10 @@ final class BlockRendererTest extends CIUnitTestCase
             ],
         ], 'es');
 
-        $this->assertStringContainsString('href="' . site_url('/es/') . '"', $html);
-        $this->assertStringNotContainsString('/es/inicio', $html);
+        $this->assertStringContainsString('href="' . site_url('/es/inicio') . '"', $html);
     }
 
-    public function testNormalizesRedirectingHomepageAliasInNestedBlockNavigation(): void
+    public function testNormalizesNestedHomepageNavigationToTheLocalizedPublicSlug(): void
     {
         $html = $this->renderer->render([
             [
@@ -183,7 +182,6 @@ final class BlockRendererTest extends CIUnitTestCase
             ],
         ], 'es');
 
-        $this->assertStringContainsString('href="' . site_url('/es/') . '"', $html);
-        $this->assertStringNotContainsString('/es/inicio', $html);
+        $this->assertStringContainsString('href="' . site_url('/es/inicio') . '"', $html);
     }
 }

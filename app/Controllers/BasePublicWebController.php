@@ -57,6 +57,16 @@ abstract class BasePublicWebController extends BaseController
             }
         }
 
+        // Snapshots may contain menu URLs normalized by an older runtime (for
+        // example `/` for the Spanish homepage). Re-apply the current public
+        // slug policy at the render boundary so a stale layout cannot publish
+        // a redirecting homepage link.
+        foreach (['mainMenu', 'footerMenu', 'legalMenu'] as $menuKey) {
+            if (is_array($data[$menuKey] ?? null)) {
+                $data[$menuKey] = $this->normalizeMenuUrls($data[$menuKey], (string) $this->request->getLocale());
+            }
+        }
+
         if (! array_key_exists('schemaData', $data)) {
             $data['schemaData'] = null;
         }
@@ -82,6 +92,42 @@ abstract class BasePublicWebController extends BaseController
             ->setHeader('ETag', $etag)
             ->setHeader('Vary', 'Accept-Language')
             ->setBody($body);
+    }
+
+    /**
+     * Normalize cached menu URLs without touching external editorial links.
+     *
+     * @param array<string, mixed> $menu
+     * @return array<string, mixed>
+     */
+    private function normalizeMenuUrls(array $menu, string $locale): array
+    {
+        $items = is_array($menu['items'] ?? null) ? $menu['items'] : [];
+        foreach ($items as &$item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $candidate = is_scalar($item['custom_url'] ?? null)
+                ? (string) $item['custom_url']
+                : '';
+            $normalized = \App\Support\PublicPaths::normalizeLocalizedPath($candidate, $locale);
+            if ($normalized !== null) {
+                $item['custom_url'] = $normalized;
+            }
+
+            if (is_array($item['children'] ?? null)) {
+                $item['children'] = $this->normalizeMenuUrls(
+                    ['items' => $item['children']],
+                    $locale,
+                )['items'];
+            }
+        }
+        unset($item);
+
+        $menu['items'] = $items;
+
+        return $menu;
     }
 
     /**
@@ -176,12 +222,12 @@ abstract class BasePublicWebController extends BaseController
             : ! $this->pageHasHeroHeading($blocks);
 
         $slug = trim((string) ($translation['slug'] ?? ''), '/');
-        $isHomepage = in_array(strtolower($slug), ['home', 'inicio'], true)
+        $isHomepage = \App\Support\PublicPaths::isHomepageSlug($slug, $lang)
             || (string) ($page['page_type'] ?? '') === 'home';
         $canonicalUrl = (string) ($translation['canonical_url'] ?? '');
         if ($canonicalUrl === '') {
             if ($isHomepage || $slug === '') {
-                $canonicalUrl = site_url('/' . $lang);
+                $canonicalUrl = site_url('/' . $lang . \App\Support\PublicPaths::homepagePath($lang));
             } else {
                 $canonicalUrl = site_url('/' . $lang . '/' . $slug);
             }
@@ -191,10 +237,9 @@ abstract class BasePublicWebController extends BaseController
         if ($routeKey !== null) {
             $canonicalUrl = lang_url(\App\Support\PublicPaths::routePath($routeKey, $lang), $lang);
         } elseif ($isHomepage) {
-            // `home`/`inicio` are aliases for the localized root. The CMS may
-            // retain an old canonical_url, but SEO links must not point at a
-            // URL that immediately redirects back to the root.
-            $canonicalUrl = site_url('/' . $lang);
+            // The CMS page type is internally `home`, but the public slug is
+            // locale-specific and must remain visible in canonical URLs.
+            $canonicalUrl = site_url('/' . $lang . \App\Support\PublicPaths::homepagePath($lang));
         }
 
         $ogImage = $translation['og_image'] ?? null;
@@ -442,8 +487,8 @@ abstract class BasePublicWebController extends BaseController
                 continue;
             }
 
-            if ($isHomepage || in_array(strtolower($slug), ['home', 'inicio'], true)) {
-                $localizedUrls[$locale] = site_url('/' . $locale);
+            if ($isHomepage || \App\Support\PublicPaths::isHomepageSlug($slug, $locale)) {
+                $localizedUrls[$locale] = site_url('/' . $locale . \App\Support\PublicPaths::homepagePath($locale));
                 continue;
             }
 

@@ -17,7 +17,7 @@ class MuseumController extends BasePublicWebController
         $lang = $this->request->getLocale();
         return $this->renderCmsPageOrFallbackListing(
             $lang,
-            \App\Support\PublicPaths::CATALOG,
+            \App\Support\PublicPaths::catalogSegment($lang),
             static fn (string $language): array => Services::publicListingPageBuilder()->museum($language)
         );
     }

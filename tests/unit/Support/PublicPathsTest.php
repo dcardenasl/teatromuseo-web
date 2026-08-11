@@ -22,6 +22,15 @@ final class PublicPathsTest extends CIUnitTestCase
         $this->assertNull(PublicPaths::routePath('unknown', 'es'));
     }
 
+    public function testResolvesLocalizedHomepageSegments(): void
+    {
+        $this->assertSame('inicio', PublicPaths::homepageSegment('es'));
+        $this->assertSame('home', PublicPaths::homepageSegment('en'));
+        $this->assertSame('accueil', PublicPaths::homepageSegment('fr'));
+        $this->assertSame('inicio', PublicPaths::homepageSegment('pt'));
+        $this->assertSame('/inicio', PublicPaths::homepagePath('es'));
+    }
+
     public function testCanonicalizesLegacyHeroPathsPerLocale(): void
     {
         $this->assertSame('/cartelera', PublicPaths::canonicalPath('/cartelera', 'es'));
@@ -31,14 +40,18 @@ final class PublicPathsTest extends CIUnitTestCase
         $this->assertSame('/theaterschool', PublicPaths::canonicalPath('/cursos', 'en'));
         $this->assertSame('/contact', PublicPaths::canonicalPath('/contacto', 'en'));
         $this->assertSame('/', PublicPaths::canonicalPath('/', 'fr'));
-        $this->assertSame('/', PublicPaths::canonicalPath('/inicio', 'es'));
+        $this->assertSame('/inicio', PublicPaths::canonicalPath('/inicio', 'es'));
+        $this->assertSame('/inicio', PublicPaths::canonicalPath('/home', 'es'));
+        $this->assertSame('/home', PublicPaths::canonicalPath('/home', 'en'));
+        $this->assertSame('/accueil', PublicPaths::canonicalPath('/home', 'fr'));
         $this->assertNull(PublicPaths::canonicalPath('/custom-destination', 'es'));
     }
 
     public function testNormalizesKnownLocalizedMenuPathsWithoutChangingCustomLinks(): void
     {
-        $this->assertSame('/', PublicPaths::normalizeLocalizedPath('/es/inicio', 'es'));
-        $this->assertSame('/', PublicPaths::normalizeLocalizedPath('/es', 'es'));
+        $this->assertSame('/inicio', PublicPaths::normalizeLocalizedPath('/es/inicio', 'es'));
+        $this->assertSame('/inicio', PublicPaths::normalizeLocalizedPath('/es', 'es'));
+        $this->assertSame('/home', PublicPaths::normalizeLocalizedPath('/en/home', 'en'));
         $this->assertSame('/programming', PublicPaths::normalizeLocalizedPath('/en/cartelera', 'en'));
         $this->assertNull(PublicPaths::normalizeLocalizedPath('/es/custom-destination', 'es'));
         $this->assertNull(PublicPaths::normalizeLocalizedPath('https://example.com/inicio', 'es'));

@@ -54,6 +54,16 @@ class PageController extends BasePublicWebController
         $lang = service('request')->getLocale();
         [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
 
+        return $this->renderHomepage($lang, $preview, $previewExpires, $previewSig);
+    }
+
+    private function renderHomepage(
+        string $lang,
+        bool $preview,
+        ?string $previewExpires,
+        ?string $previewSig,
+    ): ResponseInterface {
+
         $pageDeliveryEnabled = config('App')->pageDeliveryEnabled || $preview;
         if ($pageDeliveryEnabled) {
             $query = $this->request->getGet();
@@ -99,10 +109,15 @@ class PageController extends BasePublicWebController
             return $this->home();
         }
 
-        // Keep legacy homepage slugs working while exposing the localized root
-        // as the single canonical homepage URL.
-        if (in_array($path, ['home', 'inicio'], true)) {
-            return redirect()->to(lang_url('/', $lang))->setStatusCode(301);
+        // Keep legacy homepage aliases working while exposing the locale's
+        // public homepage slug as the canonical URL.
+        if (\App\Support\PublicPaths::isHomepageSlug($path, $lang)) {
+            $canonicalPath = \App\Support\PublicPaths::homepagePath($lang);
+            if (trim($path, '/') !== trim($canonicalPath, '/')) {
+                return redirect()->to(lang_url($canonicalPath, $lang))->setStatusCode(301);
+            }
+
+            return $this->renderHomepage($lang, $preview, $previewExpires, $previewSig);
         }
 
         // Steps 1 & 2: Resolve redirects and fetch page in parallel (independent calls).
@@ -126,7 +141,22 @@ class PageController extends BasePublicWebController
                 default => 301,
             };
 
-            return redirect()->to(lang_url((string) $redirect['new_url'], $lang))->setStatusCode($statusCode);
+            // Redirect destinations in the CMS are locale-less. Normalize
+            // known canonical routes before adding the current locale so a
+            // legacy `/pt/obras` request lands on `/pt/programacao`, not on
+            // the Spanish fallback `/pt/cartelera`.
+            $redirectPath = (string) ($redirect['new_url'] ?? '');
+            $parsedRedirect = parse_url(trim($redirectPath));
+            $isExternalRedirect = is_array($parsedRedirect)
+                && (($parsedRedirect['scheme'] ?? '') !== '' || ($parsedRedirect['host'] ?? '') !== '');
+            if (! $isExternalRedirect) {
+                $localizedCanonicalPath = \App\Support\PublicPaths::canonicalPath($redirectPath, $lang);
+                if ($localizedCanonicalPath !== null) {
+                    $redirectPath = $localizedCanonicalPath;
+                }
+            }
+
+            return redirect()->to(lang_url($redirectPath, $lang))->setStatusCode($statusCode);
         }
 
         if ($page && ! $this->isExactPageSlugMatch($page, $path, $lang)) {

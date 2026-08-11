@@ -68,7 +68,9 @@ class SiteMenuService extends BaseSiteService
                 $candidateUrl = (string) ($item['custom_url'] ?? $item['url'] ?? '');
                 if (($navigation['route_key'] ?? null) === 'pages') {
                     if ($entrySlug !== '') {
-                        $candidateUrl = $entrySlug === 'home' ? '/' : '/' . $entrySlug;
+                        $candidateUrl = PublicPaths::isHomepageSlug($entrySlug, $locale)
+                            ? PublicPaths::homepagePath($locale)
+                            : '/' . $entrySlug;
                     }
                 }
 

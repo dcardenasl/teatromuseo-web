@@ -17,7 +17,7 @@ class EventController extends BasePublicWebController
         $lang = $this->request->getLocale();
         return $this->renderCmsPageOrFallbackListing(
             $lang,
-            \App\Support\PublicPaths::EVENTS,
+            \App\Support\PublicPaths::eventsSegment($lang),
             static fn (string $language): array => Services::publicListingPageBuilder()->event($language)
         );
     }

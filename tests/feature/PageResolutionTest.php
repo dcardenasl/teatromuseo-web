@@ -55,16 +55,14 @@ final class PageResolutionTest extends HermeticFeatureTestCase
         $result->assertSee(site_url('/' . $locale . '/' . $slug));
     }
 
-    public function testLegacyHomepageSlugsRedirectToLocalizedRoot(): void
+    public function testLegacyHomepageAliasRedirectsToLocalizedHomepageSlug(): void
     {
         $locale = $this->locale();
 
-        foreach (['home', 'inicio'] as $slug) {
-            $result = $this->get($locale . '/' . $slug);
+        $result = $this->get($locale . '/home');
 
-            $result->assertStatus(301);
-            $result->assertHeader('Location', lang_url('/', $locale));
-        }
+        $result->assertStatus(301);
+        $result->assertHeader('Location', lang_url('/inicio', $locale));
     }
 
     public function testHomepageResolvesLocalizedHomeSlugFromPublicReadListing(): void
@@ -145,6 +143,38 @@ final class PageResolutionTest extends HermeticFeatureTestCase
 
         $result->assertStatus(301);
         $result->assertHeader('Location', site_url('/' . $locale . '/cartelera'));
+    }
+
+    public function testLegacyWorksRedirectUsesTheCurrentLocaleCanonicalEventsPath(): void
+    {
+        $this->configureLocales(['es', 'en', 'fr', 'pt']);
+        $locale = 'pt';
+
+        $this->domainAdapter->fakeGet('public/redirects/works', [
+            'new_url' => '/cartelera',
+            'redirect_type' => 'permanent',
+        ]);
+
+        $result = $this->get($locale . '/works');
+
+        $result->assertStatus(301);
+        $result->assertHeader('Location', site_url('/pt/programacao'));
+    }
+
+    public function testExternalRedirectDestinationRemainsExternal(): void
+    {
+        $locale = $this->locale();
+        $externalUrl = 'https://example.com/cartelera';
+
+        $this->domainAdapter->fakeGet('public/redirects/external', [
+            'new_url' => $externalUrl,
+            'redirect_type' => 'permanent',
+        ]);
+
+        $result = $this->get($locale . '/external');
+
+        $result->assertStatus(301);
+        $result->assertHeader('Location', $externalUrl);
     }
 
     public function testResolvesCollectionEntry(): void

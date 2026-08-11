@@ -189,6 +189,58 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
         $this->assertStringContainsString('/es/cartelera/festival-uno', $body);
     }
 
+    public function testEventListingUsesTheLocalizedCmsSlug(): void
+    {
+        $this->configureLocales(['es', 'en']);
+        $this->seedEventListing('en');
+        $this->domainAdapter->fakeGet('public-read/en/pages/programming', $this->page('programming', 'Programming CMS', [
+            'localized_slugs' => [
+                'es' => 'cartelera',
+                'en' => 'programming',
+            ],
+            'blocks' => [[
+                'block_key' => 'collection_listing',
+                'block_config' => [
+                    'source_type' => 'event_items',
+                    'per_page' => 12,
+                    'order_by' => 'start_time',
+                    'order_direction' => 'asc',
+                    'layout_variant' => 'cards',
+                    'image_aspect_ratio' => '3/4',
+                    'show_search' => false,
+                    'show_categories' => false,
+                    'show_tags' => false,
+                    'show_excerpt' => true,
+                    'show_date' => true,
+                    'show_button' => true,
+                    'show_item_categories' => true,
+                ],
+                'block_data' => [
+                    'intro_title' => 'Programming CMS',
+                    'intro_text' => '<p>Localized CMS listing.</p>',
+                    'section_label' => 'Events',
+                    'count_label' => 'Showing {count} events',
+                    'empty_message' => 'No events are available yet.',
+                ],
+                'navigation' => [
+                    'status' => 'resolved',
+                    'target_type' => 'events',
+                    'target_id' => 1,
+                    'url' => null,
+                ],
+                'children' => [],
+            ]],
+        ]));
+
+        $result = $this->get('en/programming');
+
+        $result->assertStatus(200);
+        $body = $result->response()->getBody();
+        $this->assertStringContainsString('Programming CMS', $body);
+        $this->assertStringContainsString('aspect-[3/4]', $body);
+        $this->assertStringNotContainsString('Schedule', $body);
+    }
+
     private function seedMuseumCatalog(): void
     {
         $this->domainAdapter->fakeGet('public/catalog/categories', [
@@ -228,9 +280,9 @@ final class PublicListingPagesTest extends HermeticFeatureTestCase
         ], ['total' => 13, 'page' => 1, 'per_page' => 12]);
     }
 
-    private function seedEventListing(): void
+    private function seedEventListing(string $locale = 'es'): void
     {
-        $this->domainAdapter->fakeGet('public-read/es/events', [
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/events', [
             [
                 'id' => 201,
                 'uuid' => 'evt-201',

@@ -110,7 +110,7 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             return $this->response(['items' => []]);
         }
 
-        if (preg_match('#^public/([^/]+)/pages/home$#', $path, $matches) === 1 || preg_match('#^public-read/([^/]+)/pages/home$#', $path, $matches) === 1) {
+        if (preg_match('#^public(?:-read)?/([^/]+)/pages/(?:home|inicio)$#', $path, $matches) === 1) {
             return $this->response($this->homePage($matches[1]));
         }
 

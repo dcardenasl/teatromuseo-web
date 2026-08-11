@@ -128,7 +128,7 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         }
     }
 
-    public function testSitemapDoesNotPublishRedirectingHomepageAlias(): void
+    public function testSitemapPublishesTheLocalizedHomepageSlugOnce(): void
     {
         $locale = $this->locale();
         $this->domainAdapter->fakeGet('public/' . $locale . '/pages', [[
@@ -142,11 +142,7 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $result->assertStatus(200);
         $body = $result->response()->getBody();
 
-        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/') . '</loc>', $body);
-        $this->assertStringNotContainsString(
-            '<loc>' . base_url('/' . $locale . '/inicio') . '</loc>',
-            $body,
-        );
+        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/inicio') . '</loc>', $body);
     }
 
     /**
@@ -186,7 +182,7 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $this->assertStringNotContainsString('?', $canonical, 'Canonical URL must not have query parameters');
     }
 
-    public function testHomepageCanonicalAndHreflangUseTheLocalizedRoot(): void
+    public function testHomepageCanonicalAndHreflangUseTheLocalizedSlug(): void
     {
         $this->domainAdapter->fakeGet('public/' . $this->locale() . '/pages/home', [
             'title' => 'Fixture homepage with legacy slug',
@@ -205,17 +201,17 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $body = $result->response()->getBody();
 
         $this->assertStringContainsString(
-            '<link rel="canonical" href="' . site_url('/' . $this->locale()) . '">',
+            '<link rel="canonical" href="' . site_url('/' . $this->locale() . '/inicio') . '">',
             $body,
         );
         $this->assertStringContainsString(
-            'hreflang="' . $this->locale() . '" href="' . site_url('/' . $this->locale()) . '"',
+            'hreflang="' . $this->locale() . '" href="' . site_url('/' . $this->locale() . '/inicio') . '"',
             $body,
         );
-        $this->assertStringNotContainsString('/' . $this->locale() . '/inicio', $body);
+        $this->assertStringContainsString('/' . $this->locale() . '/inicio', $body);
     }
 
-    public function testMainMenuDoesNotPublishRedirectingHomepageAlias(): void
+    public function testMainMenuPublishesTheLocalizedHomepageSlug(): void
     {
         $locale = $this->locale();
         $this->domainAdapter->fakeGet('public/menus/main', [
@@ -230,10 +226,10 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $body = $result->response()->getBody();
 
         $this->assertStringContainsString(
-            'href="' . site_url('/' . $locale) . '"',
+            'href="' . site_url('/' . $locale . '/inicio') . '"',
             $body,
         );
-        $this->assertStringNotContainsString('/' . $locale . '/inicio', $body);
+        $this->assertStringContainsString('/' . $locale . '/inicio', $body);
         $this->assertStringContainsString('/' . $locale . '/custom-destination', $body);
     }
 

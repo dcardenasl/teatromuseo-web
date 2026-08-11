@@ -23,6 +23,14 @@ class PublicPaths
     public const CATALOG = 'museo/coleccion';
 
     /** @var array<string, string> */
+    private const HOMEPAGE_SEGMENTS = [
+        'es' => 'inicio',
+        'en' => 'home',
+        'fr' => 'accueil',
+        'pt' => 'inicio',
+    ];
+
+    /** @var array<string, string> */
     private const EVENTS_SEGMENTS = [
         'es' => self::EVENTS,
         'en' => 'programming',
@@ -72,6 +80,31 @@ class PublicPaths
         return self::CATALOG_SEGMENTS[$locale] ?? self::CATALOG;
     }
 
+    public static function homepageSegment(string $locale): string
+    {
+        return self::HOMEPAGE_SEGMENTS[strtolower(trim($locale))] ?? 'inicio';
+    }
+
+    public static function homepagePath(string $locale): string
+    {
+        return '/' . self::homepageSegment($locale);
+    }
+
+    public static function isHomepageSlug(string $slug, ?string $locale = null): bool
+    {
+        $normalized = strtolower(trim($slug, '/'));
+        if ($normalized === '') {
+            return false;
+        }
+
+        $aliases = ['home', 'inicio', 'accueil'];
+        if ($locale !== null) {
+            $aliases[] = self::homepageSegment($locale);
+        }
+
+        return in_array($normalized, array_values(array_unique($aliases)), true);
+    }
+
     public static function routePath(string $routeKey, string $locale): ?string
     {
         return match ($routeKey) {
@@ -99,8 +132,8 @@ class PublicPaths
             return '/';
         }
 
-        if (in_array(strtolower($normalized), ['home', 'inicio'], true)) {
-            return '/';
+        if (self::isHomepageSlug($normalized, $locale)) {
+            return self::homepagePath($locale);
         }
 
         $aliases = [
@@ -156,9 +189,13 @@ class PublicPaths
         }
 
         $normalized = trim((string) ($parsed['path'] ?? ''), '/');
+        if ($normalized === '') {
+            return self::homepagePath($locale);
+        }
+
         $localeSegment = strtolower(trim($locale, '/'));
         if (strtolower($normalized) === $localeSegment) {
-            return '/';
+            return self::homepagePath($locale);
         }
 
         $localePrefix = $localeSegment . '/';

@@ -51,7 +51,7 @@ class SitemapController extends BasePublicWebController
 
         // Add homepage
         $urls[] = [
-            'loc'        => base_url('/' . $lang . '/'),
+            'loc'        => base_url('/' . $lang . \App\Support\PublicPaths::homepagePath($lang)),
             'lastmod'    => date('c'),
             'changefreq' => 'weekly',
             'priority'   => '1.0',
@@ -64,10 +64,10 @@ class SitemapController extends BasePublicWebController
                 continue;
             }
 
-            // `home` and `inicio` are aliases for the localized root. Never
-            // publish a redirecting alias in the sitemap.
+            // The CMS page type is `home`, but its public slug is localized.
+            // The homepage is emitted once above using that canonical slug.
             $slug = trim((string) $page['slug'], '/');
-            if (in_array(strtolower($slug), ['home', 'inicio'], true)
+            if (\App\Support\PublicPaths::isHomepageSlug($slug, $lang)
                 || (string) ($page['page_type'] ?? '') === 'home') {
                 continue;
             }
