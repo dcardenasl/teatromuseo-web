@@ -27,7 +27,8 @@ final class PageDeliveryHomepageTest extends HermeticFeatureTestCase
         $result->assertSee('Fixture homepage aa');
 
         $paths = $this->domainAdapter->requestedPaths();
-        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => $path === 'public/settings')));
+        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => $path === 'public-read/aa/settings')));
+        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => $path === 'public-read/aa/navigation')));
         $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => str_ends_with($path, '/pages/home'))));
         $this->assertNotContains('public/aa/forms/contact', $paths);
     }

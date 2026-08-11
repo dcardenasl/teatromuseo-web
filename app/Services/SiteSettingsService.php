@@ -15,7 +15,8 @@ class SiteSettingsService extends BaseSiteService
      */
     public function getAll(): array
     {
-        return $this->fetchData('public/settings', [], self::CACHE_TTL, 'settings') ?? [];
+        $locale = (string) service('request')->getLocale();
+        return $this->fetchData("public-read/{$locale}/settings", [], self::CACHE_TTL, 'settings') ?? [];
     }
 
     /**

@@ -17,25 +17,25 @@ class LayoutDataPrefetchService extends BaseSiteService
     {
         $requests = [];
         $keys = [];
+        $locale = (string) service('request')->getLocale();
+        $menuKeys = [
+            'main'   => 'mainMenu',
+            'footer' => 'footerMenu',
+            'legal'  => 'legalMenu',
+        ];
+        $missingMenuKeys = array_values(array_filter(
+            $menuKeys,
+            static fn (string $key): bool => ! isset($data[$key]),
+        ));
 
-        if (! isset($data['mainMenu'])) {
-            $keys[] = 'mainMenu';
-            $requests[] = ['path' => 'public/menus/main', 'cacheTtl' => 600, 'scope' => 'menus'];
-        }
-
-        if (! isset($data['footerMenu'])) {
-            $keys[] = 'footerMenu';
-            $requests[] = ['path' => 'public/menus/footer', 'cacheTtl' => 600, 'scope' => 'menus'];
-        }
-
-        if (! isset($data['legalMenu'])) {
-            $keys[] = 'legalMenu';
-            $requests[] = ['path' => 'public/menus/legal', 'cacheTtl' => 600, 'scope' => 'menus'];
+        if ($missingMenuKeys !== []) {
+            $keys[] = 'navigation';
+            $requests[] = ['path' => "public-read/{$locale}/navigation", 'cacheTtl' => 600, 'scope' => 'menus'];
         }
 
         if (! isset($data['settings'])) {
             $keys[] = 'settings';
-            $requests[] = ['path' => 'public/settings', 'cacheTtl' => 3600, 'scope' => 'settings'];
+            $requests[] = ['path' => "public-read/{$locale}/settings", 'cacheTtl' => 3600, 'scope' => 'settings'];
         }
 
         if ($requests === []) {
@@ -52,16 +52,29 @@ class LayoutDataPrefetchService extends BaseSiteService
             }
 
             if ($result['ok'] === false || ! is_array($result['data'])) {
-                // Fallback to empty data on failure
-                $output[$key] = $key === 'settings' ? [] : ['items' => []];
+                if ($key === 'settings') {
+                    $output['settings'] = [];
+                } elseif ($key === 'navigation') {
+                    foreach ($missingMenuKeys as $missingMenuKey) {
+                        $output[$missingMenuKey] = ['items' => []];
+                    }
+                }
                 continue;
             }
 
             if ($key === 'settings') {
                 $output[$key] = $result['data'];
-            } else {
-                // Menus need normalization (normalize items and route keys)
-                $output[$key] = $this->normalizeMenuPayload($result['data']);
+            } elseif ($key === 'navigation') {
+                $navData = $result['data'];
+                foreach ($menuKeys as $location => $menuKey) {
+                    if (! in_array($menuKey, $missingMenuKeys, true)) {
+                        continue;
+                    }
+
+                    $output[$menuKey] = isset($navData[$location]) && is_array($navData[$location])
+                        ? $this->normalizeMenuPayload($navData[$location])
+                        : ['items' => []];
+                }
             }
         }
 
@@ -115,15 +128,31 @@ class LayoutDataPrefetchService extends BaseSiteService
 
             $navigation = is_array($item['navigation'] ?? null) ? $item['navigation'] : [];
             $routePath = \App\Support\PublicPaths::routePath((string) ($navigation['route_key'] ?? ''), $locale);
-            if ($routePath !== null) {
+            $targetType = (string) ($navigation['target_type'] ?? '');
+            $collectionSlug = $this->resolveCollectionSlug($locale, $navigation);
+            $entrySlug = trim((string) ($navigation['slug'] ?? ''), '/');
+            if (in_array($targetType, ['collection_listing', 'entry'], true) && $collectionSlug !== '') {
+                $item['custom_url'] = '/' . $collectionSlug . ($targetType === 'entry' && $entrySlug !== '' ? '/' . $entrySlug : '');
+            } elseif ($routePath !== null) {
                 $item['custom_url'] = '/' . $routePath;
             } else {
+                $candidateUrl = (string) ($item['custom_url'] ?? $item['url'] ?? '');
+                if (($navigation['route_key'] ?? null) === 'pages') {
+                    if ($entrySlug !== '') {
+                        $candidateUrl = $entrySlug === 'home' ? '/' : '/' . $entrySlug;
+                    }
+                }
+
                 $normalizedPath = \App\Support\PublicPaths::normalizeLocalizedPath(
-                    (string) ($item['custom_url'] ?? ''),
+                    $candidateUrl,
                     $locale,
                 );
                 if ($normalizedPath !== null) {
                     $item['custom_url'] = $normalizedPath;
+                } elseif ($candidateUrl !== '') {
+                    // Preserve external editorial URLs and internal page slugs
+                    // that are not one of the known semantic aliases.
+                    $item['custom_url'] = $candidateUrl;
                 }
             }
 

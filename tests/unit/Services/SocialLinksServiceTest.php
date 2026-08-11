@@ -7,6 +7,7 @@ namespace Tests\Unit\Services;
 use App\Libraries\WebApiClient;
 use App\Services\SocialLinksService;
 use CodeIgniter\Test\CIUnitTestCase;
+use Config\Services;
 
 /**
  * @internal
@@ -43,6 +44,21 @@ final class SocialLinksServiceTest extends CIUnitTestCase
             ],
             $service->getActiveLinks()
         );
+    }
+
+    public function testActiveLinksUseLocalizedPublicReadSettings(): void
+    {
+        $apiClient = $this->createMock(WebApiClient::class);
+        $apiClient
+            ->expects($this->once())
+            ->method('get')
+            ->with('public-read/es/settings', [], 3600, 'settings')
+            ->willReturn(['ok' => true, 'data' => []]);
+
+        Services::reset(true);
+        service('request')->setLocale('es');
+
+        $this->assertSame([], (new SocialLinksService($apiClient))->getActiveLinks());
     }
 
     public function testAllNetworksContainsOnlyCanonicalNetworkDefinitions(): void

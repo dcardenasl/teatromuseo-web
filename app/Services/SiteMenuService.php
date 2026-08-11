@@ -17,8 +17,19 @@ class SiteMenuService extends BaseSiteService
      */
     public function getMenu(string $menuKey): array
     {
-        $menu = $this->fetchData("public/menus/{$menuKey}", [], self::CACHE_TTL, 'menus') ?? ['items' => []];
         $locale = (string) service('request')->getLocale();
+        $nav = $this->fetchData("public-read/{$locale}/navigation", [], self::CACHE_TTL, 'menus') ?? [];
+
+        $location = match ($menuKey) {
+            'main', 'header' => 'main',
+            'footer'          => 'footer',
+            'legal'           => 'legal',
+            default           => $menuKey,
+        };
+
+        $menu = isset($nav[$location]) && is_array($nav[$location])
+            ? $nav[$location]
+            : ['items' => []];
 
         if (is_array($menu['items'] ?? null)) {
             $items = [];
@@ -46,15 +57,29 @@ class SiteMenuService extends BaseSiteService
 
             $navigation = is_array($item['navigation'] ?? null) ? $item['navigation'] : [];
             $routePath = PublicPaths::routePath((string) ($navigation['route_key'] ?? ''), $locale);
-            if ($routePath !== null) {
+            $targetType = (string) ($navigation['target_type'] ?? '');
+            $collectionSlug = $this->resolveCollectionSlug($locale, $navigation);
+            $entrySlug = trim((string) ($navigation['slug'] ?? ''), '/');
+            if (in_array($targetType, ['collection_listing', 'entry'], true) && $collectionSlug !== '') {
+                $item['custom_url'] = '/' . $collectionSlug . ($targetType === 'entry' && $entrySlug !== '' ? '/' . $entrySlug : '');
+            } elseif ($routePath !== null) {
                 $item['custom_url'] = '/' . $routePath;
             } else {
+                $candidateUrl = (string) ($item['custom_url'] ?? $item['url'] ?? '');
+                if (($navigation['route_key'] ?? null) === 'pages') {
+                    if ($entrySlug !== '') {
+                        $candidateUrl = $entrySlug === 'home' ? '/' : '/' . $entrySlug;
+                    }
+                }
+
                 $normalizedPath = PublicPaths::normalizeLocalizedPath(
-                    (string) ($item['custom_url'] ?? ''),
+                    $candidateUrl,
                     $locale,
                 );
                 if ($normalizedPath !== null) {
                     $item['custom_url'] = $normalizedPath;
+                } elseif ($candidateUrl !== '') {
+                    $item['custom_url'] = $candidateUrl;
                 }
             }
 

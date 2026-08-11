@@ -27,7 +27,7 @@ class SocialLinksService extends BaseSiteService
      */
     public function getActiveLinks(): array
     {
-        $settings = $this->fetchData('public/settings', [], self::CACHE_TTL, 'settings') ?? [];
+        $settings = $this->fetchData($this->settingsPath(), [], self::CACHE_TTL, 'settings') ?? [];
 
         return $this->getActiveLinksFromSettings($settings);
     }
@@ -70,7 +70,7 @@ class SocialLinksService extends BaseSiteService
      */
     public function getAllNetworks(): array
     {
-        $settings = $this->fetchData('public/settings', [], self::CACHE_TTL, 'settings') ?? [];
+        $settings = $this->fetchData($this->settingsPath(), [], self::CACHE_TTL, 'settings') ?? [];
         $networks = [];
 
         foreach (self::SOCIAL_NETWORKS as $network) {
@@ -86,6 +86,11 @@ class SocialLinksService extends BaseSiteService
         }
 
         return $networks;
+    }
+
+    private function settingsPath(): string
+    {
+        return 'public-read/' . rawurlencode((string) service('request')->getLocale()) . '/settings';
     }
 
     /**

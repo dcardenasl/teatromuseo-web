@@ -65,7 +65,16 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             return $this->responses[$path];
         }
 
-        if ($path === 'public/settings') {
+        $normalizedPath = preg_replace('#^public-read/#', 'public/', $path);
+        if (isset($this->responses[$normalizedPath])) {
+            return $this->responses[$normalizedPath];
+        }
+
+        if ($path === 'public/settings' || preg_match('#^public-read/([^/]+)/settings$#', $path) === 1) {
+            $settingsPath = preg_match('#^public-read/#', $path) === 1 ? 'public/settings' : $path;
+            if (isset($this->responses[$settingsPath])) {
+                return $this->responses[$settingsPath];
+            }
             return $this->response([
                 'site_name' => 'Deterministic Fixture Site',
                 'site_description' => 'Synthetic settings for hermetic feature tests.',
@@ -85,15 +94,27 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             ));
         }
 
+        if (preg_match('#^public-read/([^/]+)/navigation$#', $path, $matches) === 1) {
+            $mainMenu = isset($this->responses["public/menus/main"]) ? $this->responses["public/menus/main"]['data'] : ['items' => []];
+            $footerMenu = isset($this->responses["public/menus/footer"]) ? $this->responses["public/menus/footer"]['data'] : ['items' => []];
+            $legalMenu = isset($this->responses["public/menus/legal"]) ? $this->responses["public/menus/legal"]['data'] : ['items' => []];
+
+            return $this->response([
+                'main' => $mainMenu,
+                'footer' => $footerMenu,
+                'legal' => $legalMenu,
+            ]);
+        }
+
         if (str_starts_with($path, 'public/menus/')) {
             return $this->response(['items' => []]);
         }
 
-        if (preg_match('#^public/([^/]+)/pages/home$#', $path, $matches) === 1) {
+        if (preg_match('#^public/([^/]+)/pages/home$#', $path, $matches) === 1 || preg_match('#^public-read/([^/]+)/pages/home$#', $path, $matches) === 1) {
             return $this->response($this->homePage($matches[1]));
         }
 
-        if (preg_match('#^public/([^/]+)/pages$#', $path, $matches) === 1) {
+        if (preg_match('#^public/([^/]+)/pages$#', $path, $matches) === 1 || preg_match('#^public-read/([^/]+)/pages$#', $path, $matches) === 1) {
             return $this->response([$this->homePage($matches[1])]);
         }
 
@@ -162,6 +183,7 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
         $localizedSlugs[$locale] = 'home';
 
         return [
+            'page_type' => 'home',
             'title' => 'Fixture homepage ' . $locale,
             'slug' => 'home',
             'excerpt' => 'Synthetic content for hermetic public markup tests in ' . $locale . '.',
