@@ -7,6 +7,31 @@ const parseSlides = (root) => {
   }
 };
 
+const imageSource = (slide) => {
+  const image = slide?.image || {};
+  const variants = image.variants && typeof image.variants === 'object'
+    ? image.variants
+    : {};
+  const candidates = Object.values(variants)
+    .filter((variant) => variant && typeof variant === 'object' && typeof variant.url === 'string' && variant.url !== '')
+    .map((variant) => ({
+      url: variant.url,
+      width: Number(variant.width || 0),
+    }))
+    .filter((variant) => variant.width > 0)
+    .sort((left, right) => left.width - right.width)
+    .filter((variant, index, sorted) => index === 0 || variant.width !== sorted[index - 1].width);
+  const preferred = ['lg', 'md', 'sd', 'sm', 'thumb']
+    .map((key) => variants[key])
+    .find((variant) => variant && typeof variant.url === 'string' && variant.url !== '');
+  const fallback = preferred?.url || image.url || image.external_url || '';
+
+  return {
+    src: fallback,
+    srcset: candidates.map((variant) => `${variant.url} ${variant.width}w`).join(', '),
+  };
+};
+
 const initHeroCarousel = (root) => {
   const slides = parseSlides(root);
   if (!slides.length) return;
@@ -159,13 +184,18 @@ const initHeroCarousel = (root) => {
     if (!slide) return;
 
     if (image) {
-      const imageUrl = slide.image?.url || slide.image?.external_url || '';
-      const shouldAnimate = hasRendered && image.getAttribute('src') !== imageUrl;
+      const source = imageSource(slide);
+      const shouldAnimate = hasRendered && image.getAttribute('src') !== source.src;
 
       image.classList.remove('opacity-50');
-      image.removeAttribute('srcset');
-      image.removeAttribute('sizes');
-      image.src = imageUrl;
+      if (source.srcset !== '') {
+        image.srcset = source.srcset;
+        image.sizes = '100vw';
+      } else {
+        image.removeAttribute('srcset');
+        image.removeAttribute('sizes');
+      }
+      image.src = source.src;
       image.alt = slide.image_alt_text || slide.heading || '';
 
       transitionClassList.forEach((className) => image.classList.remove(className));

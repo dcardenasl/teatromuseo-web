@@ -39,7 +39,7 @@ $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $fe
 <div class="bg-white border-b border-slate-100">
     <div class="container-narrow py-3">
         <nav class="flex items-center gap-2 text-sm text-text-muted" aria-label="Breadcrumb">
-            <a href="<?= lang_url('/') ?>" class="hover:text-primary transition-colors">
+            <a href="<?= lang_url(\App\Support\PublicPaths::homepagePath(service('request')->getLocale())) ?>" class="hover:text-primary transition-colors">
                 <?= esc($homeLabel) ?>
             </a>
             <span aria-hidden="true">/</span>
@@ -99,6 +99,8 @@ $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $fe
                     'alt'           => $title,
                     'class'         => 'w-full aspect-video object-cover',
                     'variants'      => $featuredImage['variants'] ?? null,
+                    'preferredVariant' => 'lg',
+                    'sizes'         => '(max-width: 639px) 100vw, (max-width: 1023px) calc(100vw - 2rem), 1024px',
                     'loading'       => 'eager',
                     'fetchPriority' => 'high',
                 ], ['saveData' => false]) ?>

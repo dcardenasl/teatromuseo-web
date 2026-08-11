@@ -159,6 +159,46 @@ final class ResponsiveImageTest extends CIUnitTestCase
 
         $this->assertStringContainsString('srcset="https://example.test/image_lg.webp 1200w, https://example.test/image_sm.webp 480w"', $html);
         $this->assertStringContainsString('sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 1200px"', $html);
+        $this->assertStringContainsString('src="https://example.test/image.jpg"', $html);
+    }
+
+    public function testUsesThePreferredOptimizedVariantAsFallbackSource(): void
+    {
+        $html = view('components/responsive-image', [
+            'src' => 'https://example.test/image-original.jpg',
+            'alt' => 'Optimized variant',
+            'preferredVariant' => 'sd',
+            'variants' => [
+                'sm' => ['url' => 'https://example.test/image_sm.webp', 'width' => 400, 'height' => 267],
+                'md' => ['url' => 'https://example.test/image_md.webp', 'width' => 800, 'height' => 533],
+            ],
+        ]);
+
+        // `sd` is supported for deployments that expose it; this checkout's
+        // equivalent generated variant is `sm`, which must be selected safely.
+        $this->assertStringContainsString('src="https://example.test/image_sm.webp"', $html);
+        $this->assertStringNotContainsString('src="https://example.test/image-original.jpg"', $html);
+        $this->assertStringContainsString('srcset="https://example.test/image_sm.webp 400w, https://example.test/image_md.webp 800w"', $html);
+    }
+
+    public function testBoundsResponsiveCandidatesForAThumbnailSlot(): void
+    {
+        $html = view('components/responsive-image', [
+            'src' => 'https://example.test/image-original.jpg',
+            'alt' => 'Bounded card image',
+            'preferredVariant' => 'sd',
+            'maxVariantWidth' => 640,
+            'sizes' => '(max-width: 767px) 100vw, 33vw',
+            'variants' => [
+                'sm' => ['url' => 'https://example.test/image_sm.webp', 'width' => 400, 'height' => 533],
+                'md' => ['url' => 'https://example.test/image_md.webp', 'width' => 750, 'height' => 1000],
+            ],
+        ]);
+
+        $this->assertStringContainsString('src="https://example.test/image_sm.webp"', $html);
+        $this->assertStringContainsString('srcset="https://example.test/image_sm.webp 400w"', $html);
+        $this->assertStringNotContainsString('image_md.webp', $html);
+        $this->assertStringContainsString('sizes="(max-width: 767px) 100vw, 33vw"', $html);
     }
 
     public function testRegistersPreloadInBlockRenderer(): void

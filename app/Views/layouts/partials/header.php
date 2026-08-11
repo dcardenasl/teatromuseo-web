@@ -6,16 +6,39 @@
     if ($siteLogoUrl === '') {
         $siteLogoUrl = (string) ($settings['site_logo_url'] ?? '');
     }
+    $publicLocale = (string) service('request')->getLocale();
+    $localizedMenuUrl = static function (mixed $value) use ($publicLocale): string {
+        $candidate = is_scalar($value) ? (string) $value : '#';
+        $parsed = parse_url($candidate);
+        if (is_array($parsed) && is_string($parsed['host'] ?? null)) {
+            $currentHost = service('request')->getUri()->getHost();
+            if (strcasecmp($parsed['host'], $currentHost) === 0) {
+                $candidate = is_string($parsed['path'] ?? null) ? $parsed['path'] : '/';
+            }
+        }
+
+        $trimmed = trim($candidate, '/');
+        if ($trimmed === '' || strcasecmp($trimmed, $publicLocale) === 0) {
+            return lang_url(\App\Support\PublicPaths::homepagePath($publicLocale), $publicLocale);
+        }
+
+        $normalized = \App\Support\PublicPaths::normalizeLocalizedPath($candidate, $publicLocale);
+
+        return lang_url($normalized ?? $candidate, $publicLocale);
+    };
     ?>
     <nav class="container-base flex items-center justify-between py-2.5 sm:py-4">
         <!-- Logo / Site Title -->
-        <a href="<?= esc(lang_url('/')) ?>" class="flex items-center gap-3 text-slate-900 transition-colors hover:text-primary">
+        <a href="<?= esc(lang_url(\App\Support\PublicPaths::homepagePath(service('request')->getLocale()))) ?>" class="flex items-center gap-3 text-slate-900 transition-colors hover:text-primary">
             <?php if ($siteLogoUrl !== ''): ?>
                 <?= view('components/responsive-image', [
                     'src'      => $siteLogoUrl,
                     'alt'      => $settings['site_name'] ?? lang('Site.site_logo_alt'),
                     'class'    => 'h-8 w-auto sm:h-10',
                     'variants' => $settings['site_logo']['variants'] ?? null,
+                    'preferredVariant' => 'thumb',
+                    'sizes'    => '10rem',
+                    'maxVariantWidth' => 200,
                 ], ['saveData' => false]) ?>
                 <span class="text-xl font-bold text-primary"><?= esc($settings['site_name'] ?? lang('Site.site_default_name')) ?></span>
             <?php else: ?>
@@ -29,7 +52,7 @@
             <ul class="flex gap-1.5 items-center">
                 <?php foreach (($menu['items'] ?? []) as $item): ?>
                     <li class="relative group">
-                        <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" 
+                        <a href="<?= esc($localizedMenuUrl($item['custom_url'] ?? '#')) ?>"
                            class="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-slate-600 hover:text-primary hover:bg-slate-50/80 rounded-lg transition-all duration-200">
                             <?= esc($item['label'] ?? '') ?>
                             <?php if (!empty($item['children'])): ?>
@@ -43,7 +66,7 @@
                         <?php if (!empty($item['children'])): ?>
                             <div class="absolute left-0 mt-1.5 w-52 bg-white/95 backdrop-blur-md border border-slate-100 rounded-xl shadow-xl shadow-slate-100/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-1 group-hover:translate-y-0 transition-all duration-300 py-1.5 z-50">
                                 <?php foreach ($item['children'] as $subitem): ?>
-                                    <a href="<?= esc(lang_url($subitem['custom_url'] ?? '#')) ?>" 
+                                    <a href="<?= esc($localizedMenuUrl($subitem['custom_url'] ?? '#')) ?>"
                                        class="block px-4 py-2 text-sm font-medium text-slate-600 hover:text-primary hover:bg-slate-50 transition-colors">
                                         <?= esc($subitem['label'] ?? '') ?>
                                     </a>
@@ -112,7 +135,7 @@
                         <?php else: ?>
                             <!-- Standard Link for Leaf Items -->
                             <div class="flex justify-between items-center py-1">
-                                <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" class="text-base font-semibold text-slate-800 hover:text-primary transition-colors w-full">
+                                <a href="<?= esc($localizedMenuUrl($item['custom_url'] ?? '#')) ?>" class="text-base font-semibold text-slate-800 hover:text-primary transition-colors w-full">
                                     <?= esc($item['label'] ?? '') ?>
                                 </a>
                             </div>
@@ -122,7 +145,7 @@
                             <ul id="submenu-<?= $item['id'] ?>" class="hidden mt-2 pl-4 border-l border-slate-100 space-y-3">
                                 <?php foreach ($item['children'] as $subitem): ?>
                                     <li>
-                                        <a href="<?= esc(lang_url($subitem['custom_url'] ?? '#')) ?>" class="block text-sm font-medium text-slate-500 hover:text-primary transition-colors">
+                                        <a href="<?= esc($localizedMenuUrl($subitem['custom_url'] ?? '#')) ?>" class="block text-sm font-medium text-slate-500 hover:text-primary transition-colors">
                                             <?= esc($subitem['label'] ?? '') ?>
                                         </a>
                                     </li>

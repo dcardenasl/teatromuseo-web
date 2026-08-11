@@ -27,13 +27,15 @@ class CatalogItemHeaderViewModel extends AbstractBlockViewModel
         // showing a generic stock photo as if it belonged to a specific piece was misleading.
         // The view already hides the <figure> entirely when imageUrl is empty.
         $image = $item['cover_image'] ?? $item['featured_image'] ?? null;
-        $imageUrl = is_array($image) ? ($image['url'] ?? '') : (is_string($image) ? $image : '');
+        $imageReference = $this->normalizeMediaReference($image);
+        $imageUrl = $imageReference['url'];
 
         return [
             'hasItem' => true,
             'title' => $title,
             'summary' => $summary,
             'categoryName' => $categoryName,
+            'image' => $imageReference,
             'imageUrl' => $imageUrl,
             'homeLabel' => lang('Site.breadcrumb_home'),
             'breadcrumbUrl' => lang_url(\App\Support\PublicPaths::catalogSegment($this->lang), $this->lang),

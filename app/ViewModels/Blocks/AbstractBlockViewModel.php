@@ -195,7 +195,7 @@ abstract class AbstractBlockViewModel
     }
 
     /**
-     * @return array{source_kind: string, file_id: int|null, url: string}
+     * @return array{source_kind: string, file_id: int|null, url: string, variants: array<string, array<string, mixed>>|null}
      */
     protected function configMediaReference(string $key): array
     {
@@ -212,7 +212,7 @@ abstract class AbstractBlockViewModel
 
     /**
      * @param mixed $value
-     * @return array{source_kind: string, file_id: int|null, url: string}
+     * @return array{source_kind: string, file_id: int|null, url: string, variants: array<string, array<string, mixed>>|null}
      */
     protected function normalizeMediaReference(mixed $value): array
     {
@@ -241,6 +241,7 @@ abstract class AbstractBlockViewModel
             ? (int) $value['file_id']
             : null;
         $url = is_string($value['url'] ?? null) ? trim($value['url']) : '';
+        $variants = $this->normalizeMediaVariants($value['variants'] ?? null);
 
         // Older CMS payloads used `file` for the same Hub-owned media
         // reference that is now called `hub_file`. Keep the alias at this
@@ -251,6 +252,9 @@ abstract class AbstractBlockViewModel
         }
         if ($sourceKind === '' && $fileId !== null) {
             $sourceKind = 'hub_file';
+        }
+        if ($sourceKind === '' && $url !== '') {
+            $sourceKind = 'external_url';
         }
         if ($sourceKind === 'hub_file' && preg_match('#(?:^|/)files/\d+/view(?:[/?]|$)#i', $url) === 1) {
             $url = '';
@@ -266,6 +270,7 @@ abstract class AbstractBlockViewModel
             'source_kind' => $sourceKind,
             'file_id' => $fileId,
             'url' => $url,
+            'variants' => $variants,
         ];
     }
 
@@ -273,7 +278,7 @@ abstract class AbstractBlockViewModel
      * Resolve a canonical nested media reference from a payload.
      *
      * @param array<string, mixed> $payload
-     * @return array{source_kind: string, file_id: int|null, url: string}
+     * @return array{source_kind: string, file_id: int|null, url: string, variants: array<string, array<string, mixed>>|null}
      */
     protected function mediaReferenceFromPayload(array $payload, string $key): array
     {
@@ -308,7 +313,7 @@ abstract class AbstractBlockViewModel
     }
 
     /**
-     * @return array{source_kind: string, file_id: null, url: string}
+     * @return array{source_kind: string, file_id: null, url: string, variants: null}
      */
     private function emptyMediaReference(): array
     {
@@ -316,7 +321,51 @@ abstract class AbstractBlockViewModel
             'source_kind' => 'external_url',
             'file_id'     => null,
             'url'         => '',
+            'variants'    => null,
         ];
+    }
+
+    /**
+     * Keep only usable variant metadata already supplied by the public source.
+     * The Web app never derives a variant URL from a file ID or an original URL.
+     *
+     * @return array<string, array<string, mixed>>|null
+     */
+    private function normalizeMediaVariants(mixed $value): ?array
+    {
+        if (is_string($value) && trim($value) !== '') {
+            $decoded = json_decode($value, true);
+            $value = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $variants = [];
+        foreach ($value as $key => $variant) {
+            if (is_string($variant)) {
+                $variant = ['url' => $variant];
+            }
+            if (! is_array($variant)) {
+                continue;
+            }
+
+            $variantUrl = is_scalar($variant['url'] ?? null) ? trim((string) $variant['url']) : '';
+            if ($variantUrl === '' || preg_match('#(?:^|/)files/\d+/view(?:[/?]|$)#i', $variantUrl) === 1) {
+                continue;
+            }
+
+            $variant['url'] = $variantUrl;
+            foreach (['width', 'height'] as $dimension) {
+                if (is_numeric($variant[$dimension] ?? null) && (int) $variant[$dimension] > 0) {
+                    $variant[$dimension] = (int) $variant[$dimension];
+                }
+            }
+            $variants[strtolower(trim((string) $key))] = $variant;
+        }
+
+        return $variants !== [] ? $variants : null;
     }
 
     /**

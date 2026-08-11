@@ -11,11 +11,12 @@ if (!($hasItem ?? false)):
     <h2 class="text-xl font-bold text-slate-500"><?= esc($fallbackTitle) ?> (<?= esc(lang('Site.preview_label')) ?>)</h2>
 </div>
 <?php else: ?>
+<?php $image = is_array($image ?? null) ? $image : []; ?>
 <!-- ── Breadcrumb ─────────────────────────────────────────────────── -->
 <div class="bg-white border-b border-slate-100">
     <div class="container-narrow py-3">
         <nav class="flex items-center gap-2 text-sm text-text-muted" aria-label="Breadcrumb">
-            <a href="<?= lang_url('/') ?>" class="hover:text-primary transition-colors">
+            <a href="<?= lang_url(\App\Support\PublicPaths::homepagePath(service('request')->getLocale())) ?>" class="hover:text-primary transition-colors">
                 <?= esc($homeLabel ?? '') ?>
             </a>
             <span aria-hidden="true">/</span>
@@ -54,18 +55,16 @@ if (!($hasItem ?? false)):
         <!-- Featured image -->
         <?php if (($imageUrl ?? '') !== ''): ?>
             <figure class="mb-12 -mx-4 sm:mx-0 overflow-hidden sm:rounded-xl">
-                <?php if (str_starts_with($imageUrl, 'http')): ?>
-                    <img src="<?= esc($imageUrl) ?>" alt="<?= esc($title ?? '') ?>" class="w-full aspect-video object-cover" loading="eager" fetchpriority="high">
-                <?php else: ?>
-                    <?= view('components/responsive-image', [
-                        'src'           => $imageUrl,
-                        'alt'           => $title ?? '',
-                        'class'         => 'w-full aspect-video object-cover shadow-sm',
-                        'variants'      => null,
-                        'loading'       => 'eager',
-                        'fetchPriority' => 'high',
-                    ], ['saveData' => false]) ?>
-                <?php endif; ?>
+                <?= view('components/responsive-image', [
+                    'src'           => $imageUrl,
+                    'alt'           => $title ?? '',
+                    'class'         => 'w-full aspect-video object-cover shadow-sm',
+                    'variants'      => $image['variants'] ?? null,
+                    'preferredVariant' => 'lg',
+                    'sizes'         => '(max-width: 639px) 100vw, (max-width: 1023px) calc(100vw - 2rem), 1024px',
+                    'loading'       => 'eager',
+                    'fetchPriority' => 'high',
+                ], ['saveData' => false]) ?>
             </figure>
         <?php endif; ?>
     </div>

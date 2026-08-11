@@ -16,6 +16,7 @@ foreach ($block['children'] ?? [] as $child) {
             'source_kind' => (string) ($image['source_kind'] ?? 'external_url'),
             'file_id'     => is_numeric($image['file_id'] ?? null) ? (int) $image['file_id'] : null,
             'url'         => (string) ($image['url'] ?? ''),
+            'variants'    => $image['variants'] ?? null,
         ],
         'title'      => (string) ($childData['title'] ?? ''),
         'description'=> (string) ($childData['description'] ?? ''),
@@ -63,6 +64,9 @@ if ($variant === 'bordered') {
                             'alt'      => $card['title'],
                             'class'    => 'h-full w-full object-contain',
                             'variants' => $card['image']['variants'] ?? null,
+                            'preferredVariant' => 'thumb',
+                            'sizes'    => '3rem',
+                            'maxVariantWidth' => 160,
                         ], ['saveData' => false]) ?>
                     </div>
                 <?php endif; ?>

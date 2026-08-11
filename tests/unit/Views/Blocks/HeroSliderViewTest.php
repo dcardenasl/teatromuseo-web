@@ -118,6 +118,38 @@ final class HeroSliderViewTest extends CIUnitTestCase
         $this->assertStringNotContainsString('data:image/svg+xml', $html);
     }
 
+    public function testHeroSliderUsesResponsivePublicImageVariants(): void
+    {
+        $html = (new BlockRenderer())->render([
+            [
+                'block_key'    => 'hero_slider',
+                'block_config' => [],
+                'block_data'   => [],
+                'children'     => [[
+                    'block_key'    => 'slide_banner',
+                    'block_config' => [
+                        'image' => [
+                            'source_kind' => 'hub_file',
+                            'file_id'     => 142,
+                            'url'         => 'https://cdn.example.com/hero-original.jpg',
+                            'variants'    => [
+                                'sd' => ['url' => 'https://cdn.example.com/hero_sd.webp', 'width' => 640],
+                                'lg' => ['url' => 'https://cdn.example.com/hero_lg.webp', 'width' => 1200],
+                            ],
+                        ],
+                    ],
+                    'block_data' => ['heading' => 'Responsive hero'],
+                ]],
+            ],
+        ], 'es');
+
+        $this->assertStringContainsString('src="https://cdn.example.com/hero_lg.webp"', $html);
+        $this->assertStringContainsString('https://cdn.example.com/hero_sd.webp 640w', $html);
+        $this->assertStringContainsString('https://cdn.example.com/hero_lg.webp 1200w', $html);
+        $this->assertStringContainsString('sizes="100vw"', $html);
+        $this->assertStringNotContainsString('src="https://cdn.example.com/hero-original.jpg"', $html);
+    }
+
     public function testHeroSliderDoesNotPublishPrivateFileRouteAsImage(): void
     {
         $html = (new BlockRenderer())->render([

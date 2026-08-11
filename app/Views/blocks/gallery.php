@@ -179,7 +179,7 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
     <?php endif; ?>
 </section>
 
-<script>
+<script <?= csp_script_nonce() ?>>
 (function () {
     const root = document.querySelector('[data-gallery-id="<?= esc($galleryId) ?>"]');
     if (!root || root.dataset.galleryInitialized === '1') {
@@ -208,6 +208,9 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
 
         return {
             url: item.dataset.galleryUrl || '',
+            previewUrl: item.dataset.galleryPreviewUrl || item.dataset.galleryUrl || '',
+            previewSrcset: item.dataset.galleryPreviewSrcset || '',
+            previewSizes: item.dataset.galleryPreviewSizes || '',
             alt: item.dataset.galleryAlt || '',
             caption: item.dataset.galleryCaption || '',
             linkUrl: item.dataset.galleryLinkUrl || '',
@@ -289,7 +292,16 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
             previewActiveClasses.forEach((className) => item.classList.toggle(className, itemIndex === index));
         });
 
-        previewImage.src = data.url;
+        if (data.previewSrcset) {
+            previewImage.srcset = data.previewSrcset;
+            if (data.previewSizes) {
+                previewImage.sizes = data.previewSizes;
+            }
+        } else {
+            previewImage.removeAttribute('srcset');
+            previewImage.removeAttribute('sizes');
+        }
+        previewImage.src = data.previewUrl;
         previewImage.alt = data.alt || '';
         previewImage.classList.remove('hidden');
         previewEmpty.classList.add('hidden');

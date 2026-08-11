@@ -30,7 +30,8 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
         // showing a generic stock photo as if it belonged to a specific event was misleading.
         // The view already hides the <figure> entirely when imageUrl is empty.
         $image = $event['cover_image'] ?? $event['featured_image'] ?? null;
-        $imageUrl = is_array($image) ? ($image['url'] ?? '') : (is_string($image) ? $image : '');
+        $imageReference = $this->normalizeMediaReference($image);
+        $imageUrl = $imageReference['url'];
 
         $occurrence = $this->selectOccurrence($event['occurrences'] ?? null);
         $timezone = (string) ($occurrence['timezone'] ?? 'America/Santiago');
@@ -55,6 +56,7 @@ class EventItemHeaderViewModel extends AbstractBlockViewModel
             'hasEvent' => true,
             'title' => $title,
             'summary' => $summary,
+            'image' => $imageReference,
             'imageUrl' => $imageUrl,
             'startTime' => $startTimeLabel,
             'endTime' => $endTimeLabel,

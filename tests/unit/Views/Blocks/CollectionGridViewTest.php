@@ -31,7 +31,10 @@ final class CollectionGridViewTest extends CIUnitTestCase
                 'slug' => 'entrada-de-prueba',
                 'featured_image' => [
                     'url' => 'https://example.com/entrada.jpg',
-                    'variants' => [],
+                    'variants' => [
+                        'sd' => ['url' => 'https://example.com/entrada_sd.webp', 'width' => 640, 'height' => 480],
+                        'md' => ['url' => 'https://example.com/entrada_md.webp', 'width' => 750, 'height' => 1000],
+                    ],
                 ],
             ]],
             'sectionClass' => 'section',
@@ -42,5 +45,8 @@ final class CollectionGridViewTest extends CIUnitTestCase
 
         $this->assertStringContainsString('aspect-[3/4]', $html);
         $this->assertStringNotContainsString('aspect-video', $html);
+        $this->assertStringContainsString('src="https://example.com/entrada_sd.webp"', $html);
+        $this->assertStringNotContainsString('entrada_md.webp', $html);
+        $this->assertStringNotContainsString('src="https://example.com/entrada.jpg"', $html);
     }
 }

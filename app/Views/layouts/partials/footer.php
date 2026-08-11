@@ -1,5 +1,5 @@
 <footer class="custom-footer border-t py-16 mt-20">
-    <style>
+    <style <?= csp_style_nonce() ?>>
         .custom-footer {
             background-color: #f8fafc;
             color: #475569;
@@ -101,6 +101,9 @@
                             'alt'      => $settings['site_name'] ?? lang('Site.site_logo_alt'),
                             'class'    => 'h-10 w-auto',
                             'variants' => ($settings['site_logo']['variants'] ?? null),
+                            'preferredVariant' => 'thumb',
+                            'sizes'    => '10rem',
+                            'maxVariantWidth' => 200,
                         ], ['saveData' => false]) ?>
                     <?php else: ?>
                         <span class="text-lg font-bold text-primary"><?= esc($settings['site_name'] ?? lang('Site.site_default_name')) ?></span>

@@ -106,4 +106,22 @@ final class CollectionListingCtaLabelTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Ver proyecto', $html);
         $this->assertStringNotContainsString('Leer artículo', $html);
     }
+
+    public function testListingCardsUseAnOptimizedVariantForAbsoluteImageUrls(): void
+    {
+        $vars = $this->baseVars([
+            'collection_type' => 'catalog',
+        ]);
+        $vars['entries'][0]['featured_image'] = [
+            'url' => 'https://cdn.example.com/cover-original.jpg',
+            'variants' => [
+                'sm' => ['url' => 'https://cdn.example.com/cover_sm.webp', 'width' => 400, 'height' => 300],
+            ],
+        ];
+
+        $html = view('blocks/collection_listing', $vars);
+
+        $this->assertStringContainsString('src="https://cdn.example.com/cover_sm.webp"', $html);
+        $this->assertStringNotContainsString('src="https://cdn.example.com/cover-original.jpg"', $html);
+    }
 }

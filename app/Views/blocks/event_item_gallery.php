@@ -15,11 +15,12 @@ if (!($hasEvent ?? false)):
     if (!empty($gallery)):
         $renderedChildren = '';
         foreach ($gallery as $image) {
-            $url = is_array($image) ? ($image['url'] ?? '') : (is_string($image) ? $image : '');
+            $imageReference = is_array($image) ? $image : ['url' => is_string($image) ? $image : ''];
+            $url = (string) ($imageReference['url'] ?? '');
             if ($url === '') continue;
             
             $renderedChildren .= view('blocks/gallery_item', [
-                'config' => ['image' => ['url' => $url]],
+                'config' => ['image' => $imageReference],
                 'data'   => ['alt' => '']
             ], ['saveData' => false]);
         }

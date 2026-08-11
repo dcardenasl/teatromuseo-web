@@ -119,6 +119,12 @@ $imageClass = match ($layoutVariant) {
     'list' => $imageRatioClass . ' md:aspect-auto md:w-80 md:shrink-0',
     default => $imageRatioClass,
 };
+$cardImageSizes = match ($layoutVariant) {
+    'list' => '(max-width: 767px) 100vw, 20rem',
+    'compact' => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 25vw',
+    'portfolio' => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw',
+    default => '(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 33vw',
+};
 $bodyClass = $layoutVariant === 'portfolio' ? 'p-7' : 'p-5';
 $sectionClass = trim($cssClass . ' section');
 ?>
@@ -346,14 +352,15 @@ $sectionClass = trim($cssClass . ' section');
                                          class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                                          loading="lazy"
                                          decoding="async">
-                                <?php elseif (str_starts_with($entryImage, 'http')): ?>
-                                    <img src="<?= esc($entryImage, 'attr') ?>" alt="<?= esc($entryTitle, 'attr') ?>" class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105" loading="lazy" decoding="async">
                                 <?php else: ?>
                                     <?= view('components/responsive-image', [
                                         'src'      => $entryImage,
                                         'alt'      => $entryTitle,
                                         'class'    => 'h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105',
                                         'variants' => $imageArr['variants'] ?? null,
+                                        'preferredVariant' => 'sd',
+                                        'sizes' => $cardImageSizes,
+                                        'maxVariantWidth' => 640,
                                     ], ['saveData' => false]) ?>
                                 <?php endif; ?>
                                 <?php if ($isPlayableVideo): ?>
@@ -435,6 +442,9 @@ $sectionClass = trim($cssClass . ' section');
                                         'alt'      => (string) ($extraImage['alt'] ?: $entryTitle),
                                         'class'    => 'h-32 w-full object-cover',
                                         'variants' => $extraImage['variants'] ?? null,
+                                        'preferredVariant' => 'sd',
+                                        'sizes' => $cardImageSizes,
+                                        'maxVariantWidth' => 640,
                                     ], ['saveData' => false]) ?>
                                 </div>
                             <?php endif; ?>

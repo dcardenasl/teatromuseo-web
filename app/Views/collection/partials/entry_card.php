@@ -25,16 +25,15 @@ $readMore   = lang('Site.read_more');
 
     <?php if ($imageUrl): ?>
         <a href="<?= esc($entryUrl) ?>" class="block overflow-hidden aspect-video" tabindex="-1" aria-hidden="true">
-            <?php if (str_starts_with($imageUrl, 'http')): ?>
-                <img src="<?= esc($imageUrl) ?>" alt="<?= esc($title) ?>" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy">
-            <?php else: ?>
-                <?= view('components/responsive-image', [
-                    'src'      => $imageUrl,
-                    'alt'      => $title,
-                    'class'    => 'w-full h-full object-cover transition-transform duration-300 group-hover:scale-105',
-                    'variants' => $image['variants'] ?? null,
-                ], ['saveData' => false]) ?>
-            <?php endif; ?>
+            <?= view('components/responsive-image', [
+                'src'              => $imageUrl,
+                'alt'              => $title,
+                'class'            => 'w-full h-full object-cover transition-transform duration-300 group-hover:scale-105',
+                'variants'         => $image['variants'] ?? null,
+                'preferredVariant' => 'sd',
+                'sizes'            => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw',
+                'maxVariantWidth'  => 640,
+            ], ['saveData' => false]) ?>
         </a>
     <?php endif; ?>
 

@@ -15,7 +15,7 @@ if ($logos === []) {
 
 <section class="section-sm overflow-hidden <?= esc($cssClass) ?>">
     <?php if ($isMarquee): ?>
-        <style>
+        <style <?= csp_style_nonce() ?>>
             @keyframes marquee {
                 0% { transform: translateX(0%); }
                 100% { transform: translateX(-50%); }
@@ -53,6 +53,9 @@ if ($logos === []) {
                                 'class'      => 'max-h-full max-w-full object-contain ' . $logoStyleClass,
                                 'attributes' => 'title="' . esc($logo['name']) . '"',
                                 'variants'   => $logo['logo']['variants'] ?? null,
+                                'preferredVariant' => 'thumb',
+                                'sizes'      => '8rem',
+                                'maxVariantWidth' => 160,
                             ], ['saveData' => false]) ?>
                         <?php else: ?>
                             <span class="text-sm font-semibold text-slate-500"><?= esc($logo['name']) ?></span>
@@ -82,6 +85,9 @@ if ($logos === []) {
                             'class'      => 'max-h-full max-w-full object-contain ' . $logoStyleClass,
                             'attributes' => 'title="' . esc($logo['name']) . '"',
                             'variants'   => $logo['logo']['variants'] ?? null,
+                            'preferredVariant' => 'thumb',
+                            'sizes'      => '8rem',
+                            'maxVariantWidth' => 160,
                         ], ['saveData' => false]) ?>
                     <?php else: ?>
                         <span class="text-sm font-semibold text-slate-500"><?= esc($logo['name']) ?></span>

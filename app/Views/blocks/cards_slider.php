@@ -48,9 +48,15 @@ if ($cards === []) {
                         <div class="h-full bg-white border border-slate-100 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col <?= $cardVariant === 'testimonial' ? 'text-center items-center' : '' ?>">
                             <?php if (($t['image']['url'] ?? '') !== ''): ?>
                                 <?= view('components/responsive-image', [
-                                    'src'   => $t['image']['url'],
-                                    'alt'   => $t['title'] ?: $t['meta_title'],
-                                    'class' => 'mb-5 h-36 w-full rounded-2xl object-cover',
+                                    'src'              => $t['image']['url'],
+                                    'alt'              => $t['title'] ?: $t['meta_title'],
+                                    'class'            => 'mb-5 h-36 w-full rounded-2xl object-cover',
+                                    'variants'         => $t['image']['variants'] ?? null,
+                                    'preferredVariant' => 'sd',
+                                    'sizes'            => $visibleCount === 1
+                                        ? '(max-width: 1023px) calc(100vw - 1.5rem), 896px'
+                                        : '(max-width: 639px) calc(100vw - 1.5rem), (max-width: 1023px) 50vw, 33vw',
+                                    'maxVariantWidth'  => 640,
                                 ], ['saveData' => false]) ?>
                             <?php endif; ?>
                             <?php if ($t['rating'] > 0): ?>
@@ -125,9 +131,13 @@ if ($cards === []) {
                 <div class="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col">
                     <?php if (($t['image']['url'] ?? '') !== ''): ?>
                         <?= view('components/responsive-image', [
-                            'src'   => $t['image']['url'],
-                            'alt'   => $t['title'] ?: $t['meta_title'],
-                            'class' => 'mb-4 h-32 w-full rounded-xl object-cover',
+                            'src'              => $t['image']['url'],
+                            'alt'              => $t['title'] ?: $t['meta_title'],
+                            'class'            => 'mb-4 h-32 w-full rounded-xl object-cover',
+                            'variants'         => $t['image']['variants'] ?? null,
+                            'preferredVariant' => 'sd',
+                            'sizes'            => '(max-width: 767px) calc(100vw - 3rem), (max-width: 1023px) 50vw, 33vw',
+                            'maxVariantWidth'  => 640,
                         ], ['saveData' => false]) ?>
                     <?php endif; ?>
                     <?php if ($t['rating'] > 0): ?>

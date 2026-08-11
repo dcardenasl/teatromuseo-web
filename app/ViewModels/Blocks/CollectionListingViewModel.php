@@ -677,8 +677,22 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             return null;
         }
 
-        return [
+        $fileId = is_numeric($image['file_id'] ?? null) && (int) $image['file_id'] > 0
+            ? (int) $image['file_id']
+            : null;
+        $reference = $this->normalizeMediaReference([
+            'source_kind' => $image['source_kind'] ?? ($fileId !== null ? 'hub_file' : 'external_url'),
+            'file_id' => $fileId,
             'url' => $url,
+            'variants' => $image['variants'] ?? null,
+        ]);
+
+        if ($reference['url'] === '') {
+            return null;
+        }
+
+        return [
+            ...$reference,
             'alt' => is_string($image['alt'] ?? null) ? trim($image['alt']) : '',
         ];
     }

@@ -22,6 +22,8 @@ $cssClass = esc(trim($config['css_class'] ?? ''));
                     'alt'      => $alt,
                     'class'    => 'w-full h-auto rounded-3xl border border-slate-200/40 shadow-sm transition-all duration-300 hover:shadow-md',
                     'variants' => $image['variants'] ?? null,
+                    'preferredVariant' => 'lg',
+                    'sizes'    => '(max-width: 1023px) calc(100vw - 2rem), 1024px',
                 ], ['saveData' => false]) ?>
                 <?php if (! empty($caption)): ?>
                     <figcaption class="mt-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">

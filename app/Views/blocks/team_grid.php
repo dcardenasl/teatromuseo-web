@@ -62,6 +62,9 @@ $colClass = $colClasses[$columns] ?? $colClasses['3'];
                                         'alt' => $name,
                                         'class' => 'absolute inset-0 h-full w-full object-cover transition-opacity duration-500 group-hover:opacity-0',
                                         'variants' => $image['variants'] ?? null,
+                                        'preferredVariant' => 'sd',
+                                        'sizes' => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw',
+                                        'maxVariantWidth' => 640,
                                     ], ['saveData' => false]) ?>
                                 <?php endif; ?>
                                 <?php if (($hoverImage['url'] ?? '') !== ''): ?>
@@ -70,6 +73,9 @@ $colClass = $colClasses[$columns] ?? $colClasses['3'];
                                         'alt' => $name,
                                         'class' => 'absolute inset-0 h-full w-full object-cover opacity-0 transition-[opacity,transform,filter] duration-500 group-hover:opacity-100 group-hover:scale-105',
                                         'variants' => $hoverImage['variants'] ?? null,
+                                        'preferredVariant' => 'sd',
+                                        'sizes' => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw',
+                                        'maxVariantWidth' => 640,
                                         'hideOnError' => true,
                                     ], ['saveData' => false]) ?>
                                 <?php endif; ?>

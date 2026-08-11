@@ -30,6 +30,8 @@ $overlay_color = $overlay_color ?? 'rgba(15, 23, 42, 0.4)';
             'alt'      => $alt,
             'class'    => 'absolute inset-0 w-full h-full object-cover',
             'variants' => $image['variants'] ?? null,
+            'preferredVariant' => 'lg',
+            'sizes'    => '100vw',
         ], ['saveData' => false]) ?>
         <div class="absolute inset-0" style="background-color: <?= esc($overlay_color) ?>;"></div>
     <?php endif; ?>

@@ -9,6 +9,12 @@ $caption = (string) ($data['caption'] ?? '');
 $linkUrl = (string) ($data['link_url'] ?? '');
 $linkLabel = (string) ($data['link_label'] ?? '');
 $hasLink = $linkUrl !== '';
+$previewImage = \App\Support\ImageVariantSelector::resolve(
+    $imageUrl,
+    $image['variants'] ?? null,
+    'md',
+    800,
+);
 
 if ($imageUrl === '') {
     return;
@@ -18,6 +24,9 @@ if ($imageUrl === '') {
 <article
     data-gallery-item
     data-gallery-url="<?= esc($imageUrl) ?>"
+    data-gallery-preview-url="<?= esc($previewImage['src']) ?>"
+    data-gallery-preview-srcset="<?= esc($previewImage['srcset']) ?>"
+    data-gallery-preview-sizes="(max-width: 1023px) calc(100vw - 2rem), 800px"
     data-gallery-alt="<?= esc($alt) ?>"
     data-gallery-caption="<?= esc($caption) ?>"
     data-gallery-link-url="<?= esc($linkUrl) ?>"
@@ -29,10 +38,13 @@ if ($imageUrl === '') {
         'alt'      => $alt,
         'class'    => 'h-full w-full object-cover transition-transform duration-500 group-hover:scale-105',
         'variants' => $image['variants'] ?? null,
+        'preferredVariant' => 'sd',
+        'sizes'    => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 25vw',
+        'maxVariantWidth' => 640,
     ], ['saveData' => false]) ?>
 
     <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-        <style>
+        <style <?= csp_style_nonce() ?>>
             .gallery-item-text {
                 text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
             }

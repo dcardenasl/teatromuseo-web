@@ -22,6 +22,13 @@
 if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
     return;
 }
+
+$cardImageSizes = match ($layoutVariant) {
+    'list' => '(max-width: 767px) 100vw, 20rem',
+    'compact' => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 25vw',
+    'portfolio' => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw',
+    default => '(max-width: 767px) 100vw, 33vw',
+};
 ?>
 <section class="<?= esc($sectionClass) ?> <?= esc((string) $cssClass) ?>">
     <div class="<?= esc($containerClass) ?>">
@@ -74,6 +81,9 @@ if ($collectionKey === '' || ($entries === [] && $sectionTitle === '')) {
                                     'alt'      => $entryTitle,
                                     'class'    => 'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105',
                                     'variants' => $entry['featured_image']['variants'] ?? null,
+                                    'preferredVariant' => 'sd',
+                                    'sizes' => $cardImageSizes,
+                                    'maxVariantWidth' => 640,
                                 ], ['saveData' => false]) ?>
                             <?= $entryUrl !== '' ? '</a>' : '</div>' ?>
                         <?php endif; ?>

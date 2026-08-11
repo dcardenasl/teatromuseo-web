@@ -287,7 +287,13 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
                     'title' => 'Post 1',
                     'listing_content' => [
                         'rich_text' => '<script>alert(1)</script><p>Seguro</p>',
-                        'image' => ['url' => '/uploads/extra.jpg', 'alt' => 'Extra'],
+                        'image' => [
+                            'url' => '/uploads/extra.jpg',
+                            'alt' => 'Extra',
+                            'variants' => [
+                                'sm' => ['url' => '/uploads/extra_sm.webp', 'width' => 400, 'height' => 300],
+                            ],
+                        ],
                         'secondary_action' => ['label' => 'Más información', 'url' => '/detalle'],
                     ],
                 ]],
@@ -301,6 +307,7 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertTrue($vars['showExtraRichtext']);
         $this->assertStringNotContainsString('<script>', $vars['entries'][0]['listing_content']['rich_text']);
         $this->assertSame('/uploads/extra.jpg', $vars['entries'][0]['listing_content']['image']['url']);
+        $this->assertSame('/uploads/extra_sm.webp', $vars['entries'][0]['listing_content']['image']['variants']['sm']['url']);
         $this->assertStringContainsString('/es/detalle', $vars['entries'][0]['listing_content']['secondary_action']['url']);
     }
 
