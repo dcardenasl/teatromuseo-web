@@ -35,5 +35,6 @@ final class PublicLayoutTest extends CIUnitTestCase
         $this->assertStringContainsString('alt="Mi Sitio"', $html);
         $this->assertStringContainsString('<span class="text-xl font-bold text-primary">Mi Sitio</span>', $html);
         $this->assertStringContainsString('>Menu variant</p>', $html);
+        $this->assertStringNotContainsString('<style', $html);
     }
 }

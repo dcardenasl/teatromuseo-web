@@ -22,9 +22,11 @@
  */
 
 // Flash data keyed by form_key so multiple forms on the same page don't collide.
-// Session state is render-time only, so it stays in the view, not the view model.
-$sent   = session()->getFlashdata("form_sent_{$formKey}");
-$errors = (array) (session()->getFlashdata("form_errors_{$formKey}") ?? []);
+// Do not start a session for anonymous GETs: only a redirect from a form POST
+// can create the cookie that makes these values available.
+$session = \App\Support\PublicSession::current();
+$sent   = $session?->getFlashdata("form_sent_{$formKey}");
+$errors = (array) ($session?->getFlashdata("form_errors_{$formKey}") ?? []);
 
 $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && ($infoEmailLabel !== '' || $infoPhoneLabel !== '')));
 $isChild = $context['is_child'] ?? false;
