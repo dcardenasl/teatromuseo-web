@@ -98,5 +98,6 @@ if (($fetchPriority ?? null) === 'high') {
         fetchpriority="<?= esc($fetchPriority) ?>"
     <?php endif; ?>
     <?= $attributes ?>
-    onerror="<?= $hideOnError ? 'this.style.display=\'none\';' : "this.classList.add('opacity-50'); this.style.objectFit='contain'; this.alt='" . esc(lang('Site.image_failed_to_load')) . "';" ?>"
+    data-image-fallback="<?= $hideOnError ? 'hide' : 'fail' ?>"
+    data-image-fallback-alt="<?= esc(lang('Site.image_failed_to_load'), 'attr') ?>"
 >

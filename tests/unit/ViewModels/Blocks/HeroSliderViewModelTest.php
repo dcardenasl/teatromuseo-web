@@ -91,6 +91,21 @@ final class HeroSliderViewModelTest extends CIUnitTestCase
         $this->assertSame('', $vm->vars()['slides'][0]['cta_url']);
     }
 
+    public function testAutoplayFollowsTheBlockConfiguration(): void
+    {
+        $autoplayVm = new HeroSliderViewModel([
+            'block_config' => ['autoplay' => true],
+            'children' => [['block_data' => ['heading' => 'Autoplay hero']]],
+        ], 'es');
+        $staticVm = new HeroSliderViewModel([
+            'block_config' => ['autoplay' => false],
+            'children' => [['block_data' => ['heading' => 'Static hero']]],
+        ], 'es');
+
+        $this->assertTrue($autoplayVm->vars()['autoplay']);
+        $this->assertFalse($staticVm->vars()['autoplay']);
+    }
+
     public function testInvalidPositionsFallBackToDefaults(): void
     {
         $vm = new HeroSliderViewModel([

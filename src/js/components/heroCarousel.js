@@ -44,7 +44,18 @@ const initHeroCarousel = (root) => {
   const prev = root.querySelector('[data-hero-prev]');
   const next = root.querySelector('[data-hero-next]');
   const dots = Array.from(root.querySelectorAll('[data-hero-dot]'));
-  const autoplayEnabled = root.dataset.autoplay !== '0';
+  const autoplayRequested = root.dataset.autoplay === '1';
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const connectionType = typeof connection?.effectiveType === 'string'
+    ? connection.effectiveType
+    : '';
+  const networkConstrained = connection?.saveData === true
+    || ['slow-2g', '2g'].includes(connectionType);
+  const reducedMotion = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const autoplayEnabled = autoplayRequested && !networkConstrained && !reducedMotion;
+  const prefetchEnabled = slides.length > 1 && !networkConstrained;
+  const prefetchAhead = connectionType === '3g' ? 1 : 2;
   const slideDuration = Math.max(1000, Number(root.dataset.interval || 6000));
   const hoverTarget = image || root;
   const overlay = root.querySelector('[data-hero-overlay]');
@@ -56,6 +67,60 @@ const initHeroCarousel = (root) => {
   };
   const transitionClassList = Object.values(transitionClassNames);
   let hasRendered = false;
+  let prefetchScheduled = false;
+  const prefetchedSources = new Set();
+  const prefetchImages = new Map();
+
+  /**
+   * Warm the browser cache without competing with the critical first image.
+   * The detached image preserves the current responsive srcset selection and
+   * is intentionally low priority; it never changes the rendered DOM.
+   */
+  const prefetchSlide = (index) => {
+    if (!prefetchEnabled) return;
+
+    const source = imageSource(slides[index]);
+    const sourceKey = source.srcset || source.src;
+    if (sourceKey === '' || prefetchedSources.has(sourceKey)) return;
+
+    prefetchedSources.add(sourceKey);
+    const preload = document.createElement('img');
+    preload.decoding = 'async';
+    preload.loading = 'eager';
+    preload.fetchPriority = 'low';
+    const releasePrefetchImage = () => {
+      prefetchImages.delete(sourceKey);
+    };
+    preload.addEventListener('load', releasePrefetchImage, { once: true });
+    preload.addEventListener('error', releasePrefetchImage, { once: true });
+    prefetchImages.set(sourceKey, preload);
+    if (source.srcset !== '') {
+      preload.srcset = source.srcset;
+      preload.sizes = '100vw';
+    }
+    preload.src = source.src;
+  };
+
+  const schedulePrefetch = () => {
+    if (!prefetchEnabled || document.visibilityState === 'hidden' || prefetchScheduled) return;
+
+    prefetchScheduled = true;
+    const run = () => {
+      prefetchScheduled = false;
+      if (document.visibilityState === 'hidden') return;
+
+      const count = Math.min(prefetchAhead, slides.length - 1);
+      for (let offset = 1; offset <= count; offset += 1) {
+        prefetchSlide((current + offset) % slides.length);
+      }
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run, { timeout: 2000 });
+    } else {
+      window.setTimeout(run, 300);
+    }
+  };
 
   // The button is the touch target (min 24x24 for a11y); the visual pill is a
   // nested span so it can stay small while the button's hit area stays large.
@@ -129,6 +194,7 @@ const initHeroCarousel = (root) => {
       remainingMs = slideDuration;
       paused = false;
       render();
+      schedulePrefetch();
       clearProgress();
       startedAt = Date.now();
       updateProgress();
@@ -280,6 +346,7 @@ const initHeroCarousel = (root) => {
     remainingMs = slideDuration;
     paused = false;
     render();
+    schedulePrefetch();
     start();
   };
 
@@ -306,10 +373,17 @@ const initHeroCarousel = (root) => {
     hoverTarget.addEventListener('mouseleave', resumeProgress, { passive: true });
   }
 
-  start();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && autoplayEnabled) {
+      schedulePrefetch();
+    }
+  }, { passive: true });
+
   render();
   clearProgress();
   updateProgress();
+  start();
+  if (autoplayEnabled) schedulePrefetch();
 };
 
 export const initHeroCarousels = () => {

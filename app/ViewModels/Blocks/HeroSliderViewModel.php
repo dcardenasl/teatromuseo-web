@@ -35,6 +35,8 @@ class HeroSliderViewModel extends AbstractBlockViewModel
             'controlsPosition'  => $controlsPosition,
             'transition'        => $transition,
             'cssClass'          => trim($this->configString('css_class')),
+            // Autoplay is editorial block configuration. The browser applies
+            // accessibility and connection-budget guards at runtime.
             'autoplay'          => $this->configBool('autoplay', true),
             'intervalMs'        => max(1000, $this->configInt('interval', 6000)),
             'overlayPct'        => max(0, min(80, $this->configInt('overlay_opacity', 0))),

@@ -13,6 +13,7 @@ import { initVideoPlayers } from './components/videoPlayer.js';
 import { initCollectionFilters } from './components/collectionFilters.js';
 import { initShareButtons } from './components/shareButtons.js';
 import { initCollectionVideoPlayers } from './components/collectionVideoPlayers.js';
+import { initImageFallbacks } from './components/imageFallbacks.js';
 
 const boot = () => {
   initMobileDrawer();
@@ -23,6 +24,7 @@ const boot = () => {
   initCollectionFilters();
   initShareButtons();
   initCollectionVideoPlayers();
+  initImageFallbacks();
 };
 
 if (document.readyState === 'loading') {

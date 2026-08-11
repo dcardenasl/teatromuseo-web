@@ -144,6 +144,22 @@ final class ResponsiveImageTest extends CIUnitTestCase
         $this->assertStringContainsString('data-custom-attribute="test"', $html);
     }
 
+    public function testUsesDataAttributesForImageFallbackInsteadOfInlineHandlers(): void
+    {
+        $html = view('components/responsive-image', [
+            'src'        => 'https://example.test/image.jpg',
+            'alt'        => 'Fallback image',
+            'hideOnError' => true,
+        ]);
+
+        $this->assertStringContainsString('data-image-fallback="hide"', $html);
+        $this->assertStringContainsString(
+            'data-image-fallback-alt="' . esc(lang('Site.image_failed_to_load'), 'attr') . '"',
+            $html,
+        );
+        $this->assertStringNotContainsString('onerror=', $html);
+    }
+
     public function testRendersSrcsetFromVariants(): void
     {
         $variants = [
