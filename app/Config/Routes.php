@@ -26,8 +26,8 @@ $routes->post('forms/(:segment)/submit', 'FormController::submit/$1', ['as' => '
 // the other public POST routes above.
 $routes->post('blocks/preview', 'BlockPreviewController::preview', ['as' => 'blocks_preview', 'filter' => 'throttle:10,60']);
 
-// Locale validity is resolved from the CMS/API during controller bootstrap.
-// Config\App::$supportedLocales remains a fallback for API outages.
+// Locales are compile-time application configuration. Adding a locale requires
+// updating app/Config/App.php and deploying so the route table is rebuilt.
 
 // Dynamic form submissions (localized)
 $routes->post('{locale}/forms/(:segment)/submit', 'FormController::submit/$1', ['as' => 'form_submit_localized', 'filter' => 'throttle:10,60']);
