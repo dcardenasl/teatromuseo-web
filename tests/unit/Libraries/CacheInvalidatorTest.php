@@ -60,6 +60,18 @@ final class CacheInvalidatorTest extends CIUnitTestCase
         $this->assertNull($this->cache->get('sitemap_en'));
     }
 
+    public function testInvalidateHomeAlsoClearsLocalizedHomepageResponseCache(): void
+    {
+        $this->cache->save(md5('GET:/es'), 'root page', 900);
+        $this->cache->save(md5('GET:/es/inicio'), 'localized page', 900);
+
+        $result = $this->invalidator->invalidate(['pages'], 'remote', ['es'], ['home']);
+
+        $this->assertSame(2, $result['response_cache_deleted']);
+        $this->assertNull($this->cache->get(md5('GET:/es')));
+        $this->assertNull($this->cache->get(md5('GET:/es/inicio')));
+    }
+
     public function testInvalidateDoesNotClearSitemapsOnNonContentScopes(): void
     {
         $this->cache->save('sitemap_es', 'xml...', 3600);

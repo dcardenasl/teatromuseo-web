@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Libraries;
 
+use App\Support\PublicPaths;
+
 class CacheInvalidator
 {
     private const STATUS_CACHE_KEY = 'public_site_cache_invalidation_status_v1';
@@ -42,7 +44,7 @@ class CacheInvalidator
      * @param list<string> $scopes
      * @param list<string> $locales
      * @param list<string> $routes
-     * @return array{invalidated: list<string>, deleted: int, snapshots_invalidated: int}
+     * @return array{invalidated: list<string>, deleted: int, snapshots_invalidated: int, response_cache_deleted: int}
      */
     public function invalidate(array $scopes, string $source = 'remote', array $locales = [], array $routes = []): array
     {
@@ -69,16 +71,64 @@ class CacheInvalidator
         }
 
         if ($invalidated !== []) {
+            $responseCacheDeleted = 0;
+            if (in_array('pages', $invalidated, true) && in_array('home', $routes, true)) {
+                $responseCacheDeleted = $this->invalidateHomepageResponseCache($locales);
+            }
+
             $snapshotStore = \Config\Services::pageSnapshotStore();
             $snapshotsInvalidated = $snapshotStore->invalidateScopes($invalidated, $locales, $routes);
             $this->recordStatus($invalidated, $totalDeleted, $source);
+        } else {
+            $responseCacheDeleted = 0;
         }
 
         return [
             'invalidated' => $invalidated,
             'deleted' => $totalDeleted,
             'snapshots_invalidated' => $snapshotsInvalidated,
+            'response_cache_deleted' => $responseCacheDeleted,
         ];
+    }
+
+    /**
+     * Delete full HTML cache entries for the localized homepage aliases.
+     *
+     * ResponseCache uses an opaque md5 key rather than a scope prefix. The
+     * homepage is the one named route whose canonical and legacy paths are
+     * known here, so invalidate both forms without flushing unrelated caches.
+     * The relative and absolute variants cover CodeIgniter's URI
+     * normalization in local and hosted environments.
+     *
+     * @param list<string> $locales
+     */
+    private function invalidateHomepageResponseCache(array $locales): int
+    {
+        $configuredLocales = config('App')->supportedLocales;
+        $locales = $locales !== [] ? $locales : $configuredLocales;
+        $cache = \Config\Services::cache();
+        $deleted = 0;
+        $paths = [];
+
+        foreach ($locales as $locale) {
+            $locale = strtolower(trim((string) $locale));
+            if ($locale === '') {
+                continue;
+            }
+
+            $paths[] = '/' . $locale;
+            $paths[] = '/' . $locale . '/' . trim(PublicPaths::homepageSegment($locale), '/');
+        }
+
+        foreach (array_values(array_unique($paths)) as $path) {
+            foreach ([$path, site_url($path)] as $uri) {
+                if ($cache->delete(md5('GET:' . $uri))) {
+                    $deleted++;
+                }
+            }
+        }
+
+        return $deleted;
     }
 
     /**

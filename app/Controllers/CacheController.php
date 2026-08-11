@@ -68,6 +68,7 @@ class CacheController extends BaseController
             'invalidated' => $result['invalidated'],
             'deleted'     => $result['deleted'],
             'snapshots_invalidated' => $result['snapshots_invalidated'] ?? 0,
+            'response_cache_deleted' => $result['response_cache_deleted'] ?? 0,
             'locales' => $locales,
             'routes' => $routes,
         ]);
