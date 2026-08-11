@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Config;
 
+use App\Analytics\CurlAnalyticsTransport;
 use App\Interfaces\AliasResolverInterface;
+use App\Libraries\AnalyticsQueue;
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
 use App\Libraries\PublicListingPageBuilder;
@@ -162,6 +164,27 @@ class Services extends BaseService
             $config->webApiStaleTtl,
             $config->webApiMaxParallelRequests,
             $config->webApiConnectTimeout,
+        );
+    }
+
+    public static function analyticsQueue(bool $getShared = true): AnalyticsQueue
+    {
+        if ($getShared) {
+            /** @var AnalyticsQueue */
+            return static::getSharedInstance('analyticsQueue');
+        }
+
+        $config = config('App');
+
+        return new AnalyticsQueue(
+            directory: $config->analyticsQueueDirectory,
+            maxAttempts: $config->trackingQueueMaxAttempts,
+            transport: new CurlAnalyticsTransport(
+                trackUrl: rtrim($config->webApiBaseUrl, '/') . '/api/v1/public/track',
+                apiKey: $config->webApiKey,
+                timeoutMs: $config->trackingQueueTimeoutMs,
+                connectTimeoutMs: $config->trackingQueueConnectTimeoutMs,
+            ),
         );
     }
 

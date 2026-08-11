@@ -69,6 +69,9 @@ class Filters extends BaseFilters
         'after' => [
             'securityheaders',
             'pagecache',   // Web Page Caching
+            // Required after-filters still run when PageCache short-circuits
+            // the controller, so tracking also works on cache hits.
+            'tracking',
             'requestTelemetry',
             'correlationid',
             'performance', // Performance Metrics
@@ -93,7 +96,6 @@ class Filters extends BaseFilters
         ],
         'after' => [
             'secureheaders',   // CI4 native: emits headers from Config\Security::$secureHeaders
-            'tracking',        // First-party page-view tracking (fire-and-forget to Domain CMS)
         ],
     ];
 

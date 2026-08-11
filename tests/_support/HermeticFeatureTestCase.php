@@ -23,6 +23,7 @@ abstract class HermeticFeatureTestCase extends CIUnitTestCase
         $config->pageDeliveryEnabled = false;
         $config->pageDeliveryMode = 'snapshot';
         $config->pageDeliveryAllowSynchronousFallback = false;
+        $config->trackingEnabled = false;
         $this->domainAdapter = new DeterministicDomainAdapter();
         Services::injectMock('webApiClient', $this->domainAdapter);
         Services::injectMock('catalogWebApiClient', $this->domainAdapter);

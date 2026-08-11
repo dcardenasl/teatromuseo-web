@@ -55,6 +55,9 @@ WEB_API_TIMEOUT=5
 WEB_API_CONNECT_TIMEOUT=1
 WEB_API_STALE_TTL=86400
 WEB_TRACKING_ENABLED=false
+WEB_TRACKING_QUEUE_DIR=writable/analytics-queue
+WEB_TRACKING_QUEUE_BATCH_SIZE=100
+WEB_TRACKING_QUEUE_MAX_ATTEMPTS=5
 CSP_IMAGE_SRC="self http: https: data:"
 CSP_FRAME_SRC="self http: https:"
 CSP_MEDIA_SRC="self http: https:"
@@ -65,6 +68,20 @@ cache.handler=file
 
 `CACHE_INVALIDATE_KEY` debe estar configurado en producción. El webhook de
 invalidación rechaza claves vacías o incorrectas.
+
+### Tracking asíncrono
+
+El tracking público se encola localmente en `writable/analytics-queue` y no
+hace una llamada HTTP durante la visita. Configura un cron del hosting cada
+minuto:
+
+```cron
+* * * * * cd /ruta/absoluta/teatromuseo-web && php spark analytics:flush --limit 100 >> writable/logs/analytics-cron.log 2>&1
+```
+
+La carpeta `writable/analytics-queue` debe ser escribible por PHP. Los eventos
+que no pueden enviarse se reintentan y, después del límite configurado, pasan a
+`writable/analytics-queue/failed` para diagnóstico.
 
 `CSP_*` se deja abierto por defecto en el starter para que los seeders puedan
 cargar imágenes, documentos y embeds remotos durante la puesta en marcha. Si
