@@ -18,8 +18,12 @@ final class BlockPrefetchServiceTest extends TestCase
             ->method('multiGet')
             ->with($this->callback(static function (array $requests): bool {
                 return count($requests) === 2
-                    && ($requests[0]['path'] ?? '') === 'public/es/entries/news'
-                    && ($requests[1]['path'] ?? '') === 'public/es/entries/archive';
+                    && ($requests[0]['path'] ?? '') === 'public-read/es/entries/news'
+                    && ($requests[1]['path'] ?? '') === 'public-read/es/entries/archive'
+                    && str_contains((string) ($requests[0]['query']['fields'] ?? ''), 'excerpt')
+                    && ! str_contains((string) ($requests[0]['query']['fields'] ?? ''), 'summary')
+                    && ! str_contains((string) ($requests[0]['query']['fields'] ?? ''), 'entry.')
+                    && ! str_contains((string) ($requests[0]['query']['fields'] ?? ''), 'block.');
             }))
             ->willReturn([
                 $this->success([['id' => 1, 'title' => 'News item']], ['pagination' => ['total' => 1]]),
@@ -28,7 +32,14 @@ final class BlockPrefetchServiceTest extends TestCase
 
         $service = new BlockPrefetchService(['cms' => $client]);
         $result = $service->prefetch([
-            ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'news', 'items_limit' => 3]],
+            ['block_key' => 'collection_grid', 'block_config' => [
+                'collection_key' => 'news',
+                'items_limit' => 3,
+                'listing_projection' => [
+                    'slots' => ['title' => 'entry.title', 'summary' => 'entry.excerpt', 'date' => 'block.news.start_date'],
+                    'order' => ['field' => 'block.news.start_date'],
+                ],
+            ]],
             ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'archive', 'items_limit' => 4]],
         ], 'es');
 

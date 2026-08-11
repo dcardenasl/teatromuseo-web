@@ -131,11 +131,10 @@ class CollectionGridViewModel extends AbstractBlockViewModel
                 'order_by'        => $orderBy,
                 'order_direction' => $orderDirection,
                 'include'         => 'listing_content',
+                // Projection sources are logical paths resolved from the
+                // listing envelope, not fields accepted by public-read.
+                'fields'          => 'id,slug,title,excerpt,published_at,featured_image,listing_content',
             ];
-            $projectionFields = $this->projectionFields($listingProjection);
-            if ($projectionFields !== []) {
-                $query['fields'] = implode(',', $projectionFields);
-            }
             if (str_starts_with($orderBy, 'entry.') || str_starts_with($orderBy, 'block.') || str_starts_with($orderBy, 'taxonomy.')) {
                 $query['order_by'] = 'field:' . $orderBy;
             }
@@ -441,27 +440,6 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         }
 
         return is_array($projection) ? $projection : [];
-    }
-
-    /**
-     * @param array<string, mixed> $projection
-     * @return list<string>
-     */
-    private function projectionFields(array $projection): array
-    {
-        $fields = [];
-        foreach (['title', 'subtitle', 'summary', 'date', 'image'] as $slot) {
-            $source = is_array($projection['slots'] ?? null) ? trim((string) ($projection['slots'][$slot] ?? '')) : '';
-            if ($source !== '') {
-                $fields[] = $source;
-            }
-        }
-        $order = is_array($projection['order'] ?? null) ? trim((string) ($projection['order']['field'] ?? '')) : '';
-        if ($order !== '') {
-            $fields[] = $order;
-        }
-
-        return array_values(array_unique($fields));
     }
 
     /** @param array<string, mixed> $entry */

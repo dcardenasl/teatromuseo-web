@@ -26,8 +26,6 @@ class CmsCollectionSource implements ListingSourceInterface
         private int $collectionId,
         private Closure $urlBuilder,
         private Closure $mediaNormalizer,
-        /** @var array<string, mixed> */
-        private array $listingProjection = [],
     ) {
     }
 
@@ -48,10 +46,10 @@ class CmsCollectionSource implements ListingSourceInterface
         if ($query->orderBy !== '' && (str_starts_with($query->orderBy, 'entry.') || str_starts_with($query->orderBy, 'block.') || str_starts_with($query->orderBy, 'taxonomy.'))) {
             $apiQuery['order_by'] = 'field:' . $query->orderBy;
         }
-        $projectionFields = $this->projectionFields();
-        if ($projectionFields !== []) {
-            $apiQuery['fields'] = implode(',', $projectionFields);
-        }
+        // listing_projection sources are logical paths consumed from the
+        // returned entry/listing_content envelope. They are not CMS API field
+        // names; the public-read endpoint only accepts its fixed field list.
+        $apiQuery['fields'] = 'id,slug,title,excerpt,published_at,featured_image,listing_content';
         if ($query->category !== '') {
             $apiQuery['category'] = $query->category;
         }
@@ -76,32 +74,6 @@ class CmsCollectionSource implements ListingSourceInterface
         } catch (\Throwable) {
             return new ListingResult();
         }
-    }
-
-    /** @return list<string> */
-    private function projectionFields(): array
-    {
-        $projection = $this->listingProjection;
-        $fields = [];
-        foreach (['title', 'subtitle', 'summary', 'date', 'image'] as $slot) {
-            $source = is_array($projection['slots'] ?? null) ? trim((string) ($projection['slots'][$slot] ?? '')) : '';
-            if ($source !== '') {
-                $fields[] = $source;
-            }
-        }
-        foreach (['extras', 'filters'] as $group) {
-            foreach (is_array($projection[$group] ?? null) ? $projection[$group] : [] as $item) {
-                if (is_array($item) && trim((string) ($item['source'] ?? '')) !== '') {
-                    $fields[] = trim((string) $item['source']);
-                }
-            }
-        }
-        $orderField = is_array($projection['order'] ?? null) ? trim((string) ($projection['order']['field'] ?? '')) : '';
-        if ($orderField !== '') {
-            $fields[] = $orderField;
-        }
-
-        return array_values(array_unique($fields));
     }
 
     public function facets(ListingQuery $query, string $lang): array

@@ -286,7 +286,7 @@ final class BlockPrefetchService
                 $plan['result'] = $this->failedResult(422, 'CMS collection key could not be resolved.');
                 return;
             }
-            $path = 'public/' . rawurlencode($locale) . '/entries/' . rawurlencode($collectionKey);
+            $path = 'public-read/' . rawurlencode($locale) . '/entries/' . rawurlencode($collectionKey);
         }
 
         $plan['main_index'] = $this->addRequest(
@@ -891,8 +891,7 @@ final class BlockPrefetchService
             $query['category_id'] = $categoryId;
         }
         $fields = array_merge(
-            ['id', 'slug', 'title', 'excerpt', 'summary', 'published_at', 'featured_image', 'listing_content'],
-            $this->projectionFields($projection),
+            ['id', 'slug', 'title', 'excerpt', 'published_at', 'featured_image', 'listing_content'],
         );
         $fields = array_values(array_unique($fields));
         if ($fields !== []) {
@@ -908,29 +907,6 @@ final class BlockPrefetchService
             || str_starts_with($orderBy, 'taxonomy.')
             ? 'field:' . $orderBy
             : $orderBy;
-    }
-
-    /**
-     * @param array<string, mixed> $projection
-     * @return list<string>
-     */
-    private function projectionFields(array $projection): array
-    {
-        $fields = [];
-        foreach (['title', 'subtitle', 'summary', 'date', 'image'] as $slot) {
-            $source = is_array($projection['slots'] ?? null) ? trim((string) ($projection['slots'][$slot] ?? '')) : '';
-            if ($source !== '') {
-                $fields[] = $source;
-            }
-        }
-        foreach (['extras', 'filters'] as $group) {
-            foreach (is_array($projection[$group] ?? null) ? $projection[$group] : [] as $item) {
-                if (is_array($item) && trim((string) ($item['source'] ?? '')) !== '') {
-                    $fields[] = trim((string) $item['source']);
-                }
-            }
-        }
-        return array_values(array_unique($fields));
     }
 
     /**

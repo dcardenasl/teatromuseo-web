@@ -337,7 +337,6 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $this->configInt('collection_id', 0),
             $urlBuilder,
             $mediaNormalizer,
-            $listingProjection,
         );
     }
 
