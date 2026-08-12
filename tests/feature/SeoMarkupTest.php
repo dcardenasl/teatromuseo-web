@@ -145,6 +145,35 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/inicio') . '</loc>', $body);
     }
 
+    public function testSitemapUsesMinimalEntryFieldsAndPagedQuery(): void
+    {
+        $locale = $this->locale();
+        service('cache')->delete('sitemap_v2_' . $locale);
+        $this->domainAdapter->fakeGet('public/' . $locale . '/pages', []);
+        $this->domainAdapter->fakeGet('public/' . $locale . '/collections', [[
+            'collection_key' => 'news',
+            'slug' => 'news',
+            'index_page' => ['localized_urls' => [$locale => '/aa/news']],
+        ]]);
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/entries/news', [[
+            'slug' => 'entry-one',
+            'is_published' => true,
+            'updated_at' => '2026-08-10T00:00:00+00:00',
+        ]], ['pagination' => ['current_page' => 1, 'total_pages' => 1, 'total' => 1, 'per_page' => 100]]);
+
+        $result = $this->get('/' . $locale . '/sitemap.xml');
+        $result->assertStatus(200);
+
+        $entryCalls = array_values(array_filter(
+            $this->domainAdapter->calls,
+            static fn (array $call): bool => ($call['path'] ?? '') === 'public-read/' . $locale . '/entries/news',
+        ));
+        $this->assertCount(1, $entryCalls);
+        $this->assertSame(1, $entryCalls[0]['query']['page']);
+        $this->assertSame(100, $entryCalls[0]['query']['per_page']);
+        $this->assertSame('slug,is_published,updated_at', $entryCalls[0]['query']['fields']);
+    }
+
     /**
      * Test 4: Canonical URL format is correct.
      *

@@ -88,11 +88,12 @@ class SitePageService extends BaseSiteService
     /**
      * List all published pages for a language (for sitemap generation).
      *
+     * @param array<string, mixed> $query
      * @return array<array<string, mixed>>
      */
-    public function listAll(string $lang): array
+    public function listAll(string $lang, array $query = []): array
     {
-        return $this->fetchData("public-read/{$lang}/pages", [], self::CACHE_TTL_LIST, 'pages') ?? [];
+        return $this->fetchData("public-read/{$lang}/pages", $query, self::CACHE_TTL_LIST, 'pages') ?? [];
     }
 
     /**

@@ -58,7 +58,9 @@ class SitemapController extends BasePublicWebController
         ];
 
         // Add pages
-        $pages = $pageService->listAll($lang);
+        $pages = $pageService->listAll($lang, [
+            'fields' => 'slug,page_type,is_in_sitemap,updated_at,sitemap_changefreq,sitemap_priority',
+        ]);
         foreach ($pages as $page) {
             if (!isset($page['slug']) || !$page['is_in_sitemap']) {
                 continue;
@@ -81,7 +83,9 @@ class SitemapController extends BasePublicWebController
         }
 
         // Add collections and their entries
-        $collections = $collectionService->getAll($lang);
+        $collections = $collectionService->getAll($lang, [
+            'fields' => 'id,collection_key,slug,localized_slugs,index_page',
+        ]);
         foreach ($collections as $collection) {
             $collectionKey = $collection['collection_key'] ?? '';
             $urlPath       = collection_url_path($collection);
@@ -89,20 +93,38 @@ class SitemapController extends BasePublicWebController
                 continue;
             }
 
-            // Add entries
-            $result = $entryService->list($lang, $collectionKey, ['limit' => 500]);
-            foreach ($result['data'] ?? [] as $entry) {
-                if (!isset($entry['slug']) || !($entry['is_published'] ?? true)) {
-                    continue;
+            // Add entries. Use bounded page traversal so a large collection
+            // cannot be silently truncated at the old single 500-item call.
+            $page = 1;
+            $perPage = 100;
+            $maxPages = 1000;
+            do {
+                $result = $entryService->list($lang, $collectionKey, [
+                    'page' => $page,
+                    'per_page' => $perPage,
+                    'fields' => 'slug,is_published,updated_at',
+                ]);
+                $entries = is_array($result['data'] ?? null) ? $result['data'] : [];
+                foreach ($entries as $entry) {
+                    if (!isset($entry['slug']) || !($entry['is_published'] ?? true)) {
+                        continue;
+                    }
+
+                    $urls[] = [
+                        'loc'        => base_url('/' . $lang . $urlPath . '/' . $entry['slug']),
+                        'lastmod'    => $entry['updated_at'] ?? date('c'),
+                        'changefreq' => 'weekly',
+                        'priority'   => '0.7',
+                    ];
                 }
 
-                $urls[] = [
-                    'loc'        => base_url('/' . $lang . $urlPath . '/' . $entry['slug']),
-                    'lastmod'    => $entry['updated_at'] ?? date('c'),
-                    'changefreq' => 'weekly',
-                    'priority'   => '0.7',
-                ];
-            }
+                $pagination = is_array($result['meta']['pagination'] ?? null)
+                    ? $result['meta']['pagination']
+                    : [];
+                $hasNext = ($pagination['has_next_page'] ?? false) === true
+                    || count($entries) >= $perPage;
+                $page++;
+            } while ($hasNext && $entries !== [] && $page <= $maxPages);
         }
 
         return $this->buildSitemapXml($urls);

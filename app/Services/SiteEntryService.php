@@ -86,36 +86,72 @@ class SiteEntryService extends BaseSiteService
         $categorySlug = is_array($categories[0] ?? null) ? (string) ($categories[0]['slug'] ?? '') : '';
 
         $baseQuery = [
-            'per_page'        => $limit + 1,
+            // Prefer the category-filtered page and only request the generic
+            // fallback when it cannot fill the requested related-item count.
+            'per_page'        => max(1, $limit + 1),
             'order_by'        => 'published_at',
             'order_direction' => 'desc',
+            'fields'          => 'id,slug,title,excerpt,published_at,featured_image,categories,localized',
         ];
 
         $entries = [];
         if ($categorySlug !== '') {
-            $entries = $this->filteredList($lang, $collectionKey, $baseQuery + ['category' => $categorySlug], $currentSlug);
+            $categoryResult = $this->list($lang, $collectionKey, $baseQuery + ['category' => $categorySlug]);
+            $categoryCandidates = is_array($categoryResult['data'] ?? null) ? $categoryResult['data'] : [];
+            $entries = array_values(array_filter(
+                $categoryCandidates,
+                static fn (mixed $candidate): bool => is_array($candidate)
+                    && (string) ($candidate['slug'] ?? '') !== $currentSlug,
+            ));
+            usort($entries, static function (array $left, array $right) use ($categorySlug): int {
+                $leftMatch = self::hasCategory($left, $categorySlug) ? 0 : 1;
+                $rightMatch = self::hasCategory($right, $categorySlug) ? 0 : 1;
+
+                return $leftMatch <=> $rightMatch;
+            });
         }
 
         if (count($entries) < $limit) {
-            $entries = $this->filteredList($lang, $collectionKey, $baseQuery, $currentSlug);
+            $result = $this->list($lang, $collectionKey, $baseQuery);
+            $candidates = is_array($result['data'] ?? null) ? $result['data'] : [];
+            $knownSlugs = array_fill_keys(array_map(
+                static fn (array $entry): string => (string) ($entry['slug'] ?? ''),
+                $entries,
+            ), true);
+            foreach ($candidates as $candidate) {
+                if (! is_array($candidate)) {
+                    continue;
+                }
+
+                $slug = (string) ($candidate['slug'] ?? '');
+                if ($slug === $currentSlug || ($slug !== '' && isset($knownSlugs[$slug]))) {
+                    continue;
+                }
+
+                $entries[] = $candidate;
+                if ($slug !== '') {
+                    $knownSlugs[$slug] = true;
+                }
+                if (count($entries) >= $limit) {
+                    break;
+                }
+            }
         }
 
         return array_slice($entries, 0, $limit);
     }
 
-    /**
-     * @param array<string, mixed> $query
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function filteredList(string $lang, string $collectionKey, array $query, string $excludeSlug): array
+    /** @param array<string, mixed> $entry */
+    private static function hasCategory(array $entry, string $slug): bool
     {
-        $result = $this->list($lang, $collectionKey, $query);
-        $entries = is_array($result['data'] ?? null) ? $result['data'] : [];
+        $categories = is_array($entry['categories'] ?? null) ? $entry['categories'] : [];
+        foreach ($categories as $category) {
+            if (is_array($category) && (string) ($category['slug'] ?? '') === $slug) {
+                return true;
+            }
+        }
 
-        return array_values(array_filter(
-            $entries,
-            static fn ($e) => is_array($e) && (string) ($e['slug'] ?? '') !== $excludeSlug
-        ));
+        return false;
     }
+
 }
