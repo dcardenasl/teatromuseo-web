@@ -11,10 +11,11 @@ class SiteCollectionService extends BaseSiteService
     /**
      * Get all active collections for a language.
      *
+     * @param array<string, mixed> $query
      * @return array<array<string, mixed>>
      */
-    public function getAll(string $lang): array
+    public function getAll(string $lang, array $query = []): array
     {
-        return $this->fetchData("public/{$lang}/collections", [], self::CACHE_TTL, 'collections') ?? [];
+        return $this->fetchData("public/{$lang}/collections", $query, self::CACHE_TTL, 'collections') ?? [];
     }
 }
