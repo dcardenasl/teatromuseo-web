@@ -53,6 +53,8 @@ Vagrantfile
 /writable/cache/*
 !/writable/cache/index.html
 
+/writable/analytics-queue/*
+
 /writable/logs/*
 !/writable/logs/index.html
 
