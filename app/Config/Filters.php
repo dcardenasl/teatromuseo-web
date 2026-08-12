@@ -41,6 +41,7 @@ class Filters extends BaseFilters
         'performance'    => PerformanceMetrics::class,
         'correlationid'   => \App\Filters\CorrelationIdFilter::class,
         'requestTelemetry' => \App\Filters\RequestTelemetryFilter::class,
+        'csrfCookie'      => \App\Filters\CsrfCookieFilter::class,
     ];
 
     /**
@@ -69,6 +70,9 @@ class Filters extends BaseFilters
         'after' => [
             'securityheaders',
             'pagecache',   // Web Page Caching
+            // Must run after PageCache so cached HTML/headers never contain a
+            // visitor-specific CSRF token, while cache hits still receive one.
+            'csrfCookie',
             // Required after-filters still run when PageCache short-circuits
             // the controller, so tracking also works on cache hits.
             'tracking',

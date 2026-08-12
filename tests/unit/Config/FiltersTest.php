@@ -22,4 +22,17 @@ final class FiltersTest extends TestCase
         $this->assertLessThan($trackingPosition, $pageCachePosition);
         $this->assertNotContains('tracking', $filters->globals['after']);
     }
+
+    public function testCsrfCookieIsRequiredAfterPageCache(): void
+    {
+        $filters = new Filters();
+        $afterRequired = $filters->required['after'];
+
+        $pageCachePosition = array_search('pagecache', $afterRequired, true);
+        $csrfCookiePosition = array_search('csrfCookie', $afterRequired, true);
+
+        $this->assertIsInt($pageCachePosition);
+        $this->assertIsInt($csrfCookiePosition);
+        $this->assertLessThan($csrfCookiePosition, $pageCachePosition);
+    }
 }
