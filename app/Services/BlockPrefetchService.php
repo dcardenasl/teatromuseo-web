@@ -46,16 +46,19 @@ final class BlockPrefetchService
 
     /**
      * @param list<array<string, mixed>> $blocks
-     * @return array{block_prefetch: array<string, array<string, mixed>>, block_prefetch_complete: bool}
+     * @param array<string, list<array<string, mixed>>> $seededItems Items
+     * already loaded by the owning controller, grouped by source type.
+     * @return array{block_prefetch: array<string, array<string, mixed>>, block_prefetch_complete: bool, form_definitions: array<string, array<string, mixed>|null>, cacheScopes: list<string>}
      */
-    public function prefetchContext(array $blocks, string $locale = 'es'): array
+    public function prefetchContext(array $blocks, string $locale = 'es', array $seededItems = []): array
     {
-        $formDefinitions = $this->prefetchFormDefinitions($blocks, $locale);
+        [$blockResults, $formDefinitions] = $this->prefetchInternal($blocks, $locale, $seededItems, true);
 
         return [
-            'block_prefetch' => $this->prefetch($blocks, $locale),
+            'block_prefetch' => $blockResults,
             'block_prefetch_complete' => true,
             'form_definitions' => $formDefinitions,
+            'cacheScopes' => $this->cacheScopes($blocks),
         ];
     }
 
@@ -65,9 +68,26 @@ final class BlockPrefetchService
      * from an absent plan without issuing a second request.
      *
      * @param list<array<string, mixed>> $blocks
+     * @param array<string, list<array<string, mixed>>> $seededItems
      * @return array<string, array<string, mixed>>
      */
-    public function prefetch(array $blocks, string $locale = 'es'): array
+    public function prefetch(array $blocks, string $locale = 'es', array $seededItems = []): array
+    {
+        [$results] = $this->prefetchInternal($blocks, $locale, $seededItems, false);
+
+        return $results;
+    }
+
+    /**
+     * Keep forms in the same initial request plan as dynamic blocks. Dependency
+     * waves still use the existing executor, so maxParallelRequests and the
+     * current deadline/stale behavior remain unchanged.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @param array<string, list<array<string, mixed>>> $seededItems
+     * @return array{0: array<string, array<string, mixed>>, 1: array<string, array<string, mixed>|null>}
+     */
+    private function prefetchInternal(array $blocks, string $locale, array $seededItems, bool $includeForms): array
     {
         $this->planningLocale = $locale;
         /** @var array<string, array<string, mixed>> $plans */
@@ -79,9 +99,27 @@ final class BlockPrefetchService
 
         foreach ($plans as $blockPath => &$plan) {
             $plan['result'] = $this->emptyResult();
-            $this->planInitialRequests($plan, $locale, $requests, $requestIndexes);
+            $this->planInitialRequests($plan, $locale, $requests, $requestIndexes, $seededItems);
         }
         unset($plan);
+
+        $formIndexes = [];
+        if ($includeForms) {
+            foreach ($this->formKeys($blocks) as $formKey) {
+                if (! isset($this->clients['cms'])) {
+                    break;
+                }
+                $formIndexes[$formKey] = $this->addRequest(
+                    $requests,
+                    $requestIndexes,
+                    'cms',
+                    'public/' . rawurlencode($locale) . '/forms/' . rawurlencode($formKey),
+                    [],
+                    300,
+                    'forms',
+                );
+            }
+        }
 
         $initialRequestCount = count($requests);
         $responses = $this->executeRequests($requests);
@@ -105,7 +143,17 @@ final class BlockPrefetchService
             $results[(string) $blockPath] = $plan['result'];
         }
 
-        return $results;
+        $formDefinitions = [];
+        foreach ($formIndexes as $formKey => $index) {
+            $response = $responses[$index] ?? null;
+            $formDefinitions[$formKey] = is_array($response)
+                && ($response['ok'] ?? false)
+                && is_array($response['data'] ?? null)
+                ? $response['data']
+                : null;
+        }
+
+        return [$results, $formDefinitions];
     }
 
     /**
@@ -174,9 +222,15 @@ final class BlockPrefetchService
      * @param array<string, mixed> $plan
      * @param list<PrefetchRequest> $requests
      * @param array<string, int> $requestIndexes
+     * @param array<string, list<array<string, mixed>>> $seededItems
      */
-    private function planInitialRequests(array &$plan, string $locale, array &$requests, array &$requestIndexes): void
-    {
+    private function planInitialRequests(
+        array &$plan,
+        string $locale,
+        array &$requests,
+        array &$requestIndexes,
+        array $seededItems = []
+    ): void {
         if ($plan['kind'] === 'detail') {
             $reference = $this->detailReference($plan['payload'], (string) $plan['block_key']);
             if ($reference === null) {
@@ -195,6 +249,13 @@ final class BlockPrefetchService
                     'endpoint' => 'public-read/' . rawurlencode($locale) . '/collection-items',
                     'scope' => 'collection_items',
                 ];
+
+            $seededItem = $this->findSeededItem($seededItems, $definition['client'], $reference['value']);
+            if ($seededItem !== null) {
+                $plan['seeded_item'] = $seededItem;
+                return;
+            }
+
             if (! isset($this->clients[$definition['client']])) {
                 $plan['result'] = $this->failedResult(503, 'Dynamic detail client is unavailable.');
                 return;
@@ -374,7 +435,11 @@ final class BlockPrefetchService
             $collectionKey = trim((string) ($plan['collection_key'] ?? ''));
             if ($plan['collection_index'] !== null) {
                 $collectionResponse = $responses[$plan['collection_index']] ?? null;
-                $collection = $this->findCollection($collectionResponse, (int) ($plan['collection_id'] ?? 0));
+                $collection = $this->findCollection(
+                    $collectionResponse,
+                    (int) ($plan['collection_id'] ?? 0),
+                    (string) ($plan['collection_key'] ?? ''),
+                );
                 if ($collection !== null) {
                     $plan['collection'] = $collection;
                     $plan['collection_key'] = $collectionKey = trim((string) ($collection['collection_key'] ?? ''));
@@ -409,7 +474,15 @@ final class BlockPrefetchService
     private function materializePlan(array &$plan, array $responses): void
     {
         $result = $plan['result'];
-        $main = $plan['main_index'] !== null ? ($responses[$plan['main_index']] ?? null) : null;
+        $main = isset($plan['seeded_item'])
+            ? [
+                'ok' => true,
+                'status' => 200,
+                'data' => [$plan['seeded_item']],
+                'meta' => [],
+                'messages' => [],
+            ]
+            : ($plan['main_index'] !== null ? ($responses[$plan['main_index']] ?? null) : null);
         if (is_array($main)) {
             $result['ok'] = (bool) ($main['ok'] ?? false);
             $result['status'] = (int) ($main['status'] ?? 0);
@@ -487,19 +560,12 @@ final class BlockPrefetchService
     }
 
     /**
-     * Form definitions are supporting data for rendering, not a lazy view
-     * dependency. Fetch each unique form once before BlockRenderer starts.
-     *
      * @param list<array<string, mixed>> $blocks
-     * @return array<string, array<string, mixed>|null>
+     * @return list<string>
      */
-    private function prefetchFormDefinitions(array $blocks, string $locale): array
+    private function formKeys(array $blocks): array
     {
-        $client = $this->clients['cms'] ?? null;
-        if (! $client instanceof WebApiClientInterface) {
-            return [];
-        }
-
+        /** @var array<string, true> $keys */
         $keys = [];
         $collect = function (array $nested) use (&$collect, &$keys): void {
             foreach ($nested as $block) {
@@ -523,42 +589,48 @@ final class BlockPrefetchService
         };
         $collect($blocks);
 
-        if ($keys === []) {
-            return [];
-        }
+        return array_keys($keys);
+    }
 
-        $keys = array_keys($keys);
-        $requests = array_map(
-            static fn (string $formKey): array => [
-                'path' => 'public/' . rawurlencode($locale) . '/forms/' . rawurlencode($formKey),
-                'cacheTtl' => 300,
-                'scope' => 'forms',
-            ],
-            $keys,
-        );
-        $definitions = [];
-        try {
-            $responses = $client->multiGet($requests);
-        } catch (\Throwable $exception) {
-            log_message('warning', 'Form definition prefetch failed: {message}', [
-                'message' => $exception->getMessage(),
-                'locale' => $locale,
-            ]);
+    /**
+     * Derive the public data dependencies of a composed block tree. These
+     * scopes are attached to the HTML registry so non-homepage variants are
+     * invalidated together with the API data they embed.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @return list<string>
+     */
+    private function cacheScopes(array $blocks): array
+    {
+        $scopes = [];
+        $collect = function (array $nested) use (&$collect, &$scopes): void {
+            foreach ($nested as $block) {
+                if (! is_array($block)) {
+                    continue;
+                }
 
-            return [];
-        }
+                $blockKey = (string) ($block['block_key'] ?? '');
+                if ($blockKey === 'form_embed') {
+                    $scopes[] = 'forms';
+                }
+                if ($this->isDynamicBlock($blockKey)) {
+                    $sourceType = $this->resolveSourceType($this->payload($block), $blockKey);
+                    $scopes = array_merge($scopes, match ($sourceType) {
+                        'event_items' => ['events', 'event_types'],
+                        'catalog_items' => ['collection_items', 'categories'],
+                        'cms_collection' => ['collections', 'entries', 'taxonomies'],
+                        default => [],
+                    });
+                }
 
-        foreach ($responses as $index => $response) {
-            $formKey = $keys[$index] ?? null;
-            if ($formKey === null) {
-                continue;
+                if (is_array($block['children'] ?? null)) {
+                    $collect($block['children']);
+                }
             }
-            $definitions[$formKey] = is_array($response) && ($response['ok'] ?? false) && is_array($response['data'] ?? null)
-                ? $response['data']
-                : null;
-        }
+        };
+        $collect($blocks);
 
-        return $definitions;
+        return array_values(array_unique($scopes));
     }
 
     /**
@@ -812,10 +884,11 @@ final class BlockPrefetchService
         $publicOrdering = $this->truthy($projectionOrder['public'] ?? false);
         $configuredOrder = trim((string) ($payload['order_by'] ?? $projectionOrder['field'] ?? ''));
         $configuredDirection = strtolower((string) ($payload['order_direction'] ?? $projectionOrder['direction'] ?? 'desc'));
-        $direction = $configuredDirection === 'asc' ? 'asc' : 'desc';
+        $allowedDirections = $sourceType === 'cms_collection' ? ['asc', 'desc', 'upcoming'] : ['asc', 'desc'];
+        $direction = in_array($configuredDirection, $allowedDirections, true) ? $configuredDirection : 'desc';
         if ($isListing && $publicOrdering) {
             $requestedDirection = strtolower($this->requestValue('order_direction'));
-            if (in_array($requestedDirection, ['asc', 'desc'], true)) {
+            if (in_array($requestedDirection, $allowedDirections, true)) {
                 $direction = $requestedDirection;
             }
         }
@@ -1034,16 +1107,61 @@ final class BlockPrefetchService
      * @param array<string, mixed>|null $response
      * @return array<string, mixed>|null
      */
-    private function findCollection(?array $response, int $collectionId): ?array
+    private function findCollection(?array $response, int $collectionId, string $collectionKey = ''): ?array
     {
         if (! is_array($response) || ! ($response['ok'] ?? false)) {
             return null;
         }
         foreach ($this->items($response['data'] ?? null) as $collection) {
-            if ((int) ($collection['id'] ?? 0) === $collectionId) {
+            if ($collectionId > 0 && (int) ($collection['id'] ?? 0) === $collectionId) {
+                return $collection;
+            }
+            if ($collectionKey !== '' && (string) ($collection['collection_key'] ?? '') === $collectionKey) {
                 return $collection;
             }
         }
+        return null;
+    }
+
+    /**
+     * Match a controller-loaded detail against either the id/code or slug used
+     * by the template block. This keeps the seed contract independent of the
+     * route's public identifier shape.
+     *
+     * @param array<string, list<array<string, mixed>>> $seededItems
+     * @return array<string, mixed>|null
+     */
+    private function findSeededItem(array $seededItems, string $client, string $reference): ?array
+    {
+        $sourceType = $client === 'event' ? 'event_items' : 'catalog_items';
+        $candidates = $seededItems[$sourceType] ?? [];
+        if (! is_array($candidates)) {
+            return null;
+        }
+
+        foreach ($candidates as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $identifiers = [
+                (string) ($item['id'] ?? ''),
+                (string) ($item['uuid'] ?? ''),
+                (string) ($item['inventory_code'] ?? ''),
+                (string) ($item['slug'] ?? ''),
+            ];
+            $slugs = is_array($item['slugs'] ?? null) ? $item['slugs'] : [];
+            foreach ($slugs as $slug) {
+                if (is_scalar($slug)) {
+                    $identifiers[] = (string) $slug;
+                }
+            }
+
+            if (in_array($reference, array_filter($identifiers), true)) {
+                return $item;
+            }
+        }
+
         return null;
     }
 

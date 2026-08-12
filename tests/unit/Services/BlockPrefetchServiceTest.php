@@ -127,6 +127,75 @@ final class BlockPrefetchServiceTest extends TestCase
         $this->assertSame('Prefetched event', $result['0']['data'][0]['title']);
     }
 
+    public function testSeededDetailDoesNotIssueASecondRequest(): void
+    {
+        $event = $this->createMock(WebApiClientInterface::class);
+        $event->expects($this->never())->method('multiGet');
+
+        $service = new BlockPrefetchService(['event' => $event]);
+        $result = $service->prefetchContext([
+            ['block_key' => 'event_item_header', 'block_data' => ['event_slug' => 'festival-uno']],
+        ], 'es', [
+            'event_items' => [[
+                'id' => 201,
+                'slug' => 'festival-uno',
+                'title' => 'Festival Uno',
+            ]],
+        ]);
+
+        $this->assertTrue($result['block_prefetch']['0']['ok']);
+        $this->assertSame('Festival Uno', $result['block_prefetch']['0']['data'][0]['title']);
+    }
+
+    public function testFormsAndBlocksShareTheInitialPrefetchBatch(): void
+    {
+        $client = $this->createMock(WebApiClientInterface::class);
+        $client->expects($this->once())
+            ->method('multiGet')
+            ->with($this->callback(static function (array $requests): bool {
+                $paths = array_map(static fn (array $request): string => (string) ($request['path'] ?? ''), $requests);
+
+                return count($requests) === 2
+                    && in_array('public-read/es/entries/news', $paths, true)
+                    && in_array('public/es/forms/contact', $paths, true);
+            }))
+            ->willReturn([
+                $this->success([['id' => 1]]),
+                $this->success(['fields' => [['name' => 'email']]]),
+            ]);
+
+        $service = new BlockPrefetchService(['cms' => $client]);
+        $context = $service->prefetchContext([
+            ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'news']],
+            ['block_key' => 'form_embed', 'block_config' => ['form_key' => 'contact']],
+        ], 'es');
+
+        $this->assertSame(['fields' => [['name' => 'email']],], $context['form_definitions']['contact']);
+    }
+
+    public function testContextExposesAllDynamicContentScopesForHtmlInvalidation(): void
+    {
+        $service = new BlockPrefetchService([]);
+
+        $context = $service->prefetchContext([
+            ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'cartelera']],
+            ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'museo']],
+            ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'news']],
+            ['block_key' => 'form_embed', 'block_config' => ['form_key' => 'contact']],
+        ], 'es');
+
+        $this->assertSame([
+            'events',
+            'event_types',
+            'collection_items',
+            'categories',
+            'collections',
+            'entries',
+            'taxonomies',
+            'forms',
+        ], $context['cacheScopes']);
+    }
+
     public function testIdenticalRequestsAreDeduplicatedButMappedToBothBlocks(): void
     {
         $client = $this->createMock(WebApiClientInterface::class);

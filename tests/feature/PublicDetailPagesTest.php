@@ -37,6 +37,7 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
         $this->assertStringNotContainsString('English technique', $body);
         $this->assertStringContainsString('Vista previa integrada', $body);
         $this->assertStringContainsString('Imágenes de colección', $body);
+        $this->assertSame(1, $this->countCalls('public-read/es/collection-items/TMP-001'));
     }
 
     public function testEventDetailPageRendersCmsTemplateBlocks(): void
@@ -53,6 +54,15 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
         $this->assertStringContainsString('Festival', $body);
         $this->assertStringContainsString('Inicio:', $body);
         $this->assertStringContainsString('Fin:', $body);
+        $this->assertSame(1, $this->countCalls('public-read/es/events/festival-uno'));
+    }
+
+    private function countCalls(string $path): int
+    {
+        return count(array_filter(
+            $this->domainAdapter->calls,
+            static fn (array $call): bool => ($call['path'] ?? '') === $path,
+        ));
     }
 
     private function seedMuseumDetail(): void
