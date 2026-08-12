@@ -160,6 +160,34 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $this->assertSame('desc', $capturedQuery['order_direction']);
     }
 
+    public function testUpcomingProjectionOrderIsForwardedToCmsCollectionQueries(): void
+    {
+        $capturedQuery = null;
+        $vm = new CollectionGridViewModel([
+            'block_config' => [
+                'collection_key' => 'teatroescuela',
+                'listing_projection' => [
+                    'order' => [
+                        'field' => 'block.teatroescuela_ficha.start_date',
+                        'direction' => 'upcoming',
+                    ],
+                ],
+            ],
+        ], 'es', $this->context(
+            [['collection_key' => 'teatroescuela', 'slug' => 'teatroescuela']],
+            ['data' => [], 'meta' => []],
+            '/',
+            null,
+            $capturedQuery,
+        ));
+
+        $vm->vars();
+
+        $this->assertIsArray($capturedQuery);
+        $this->assertSame('field:block.teatroescuela_ficha.start_date', $capturedQuery['order_by']);
+        $this->assertSame('upcoming', $capturedQuery['order_direction']);
+    }
+
     public function testEventCardsUseLocalizedSlugAndResolvedListingNavigation(): void
     {
         $vm = new CollectionGridViewModel([

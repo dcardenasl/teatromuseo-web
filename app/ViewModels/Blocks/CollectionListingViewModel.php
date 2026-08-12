@@ -50,7 +50,11 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $orderBy = $this->resolveOrderBy($requestedOrderBy, $orderDefault);
         $configuredDirection = is_array($listingProjection['order'] ?? null) ? trim((string) ($listingProjection['order']['direction'] ?? '')) : '';
         $requestedDirection = $publicOrderingEnabled ? $this->requestGet('order_direction') : '';
-        $orderDirection = $this->resolveOrderDirection($requestedDirection, $configuredDirection !== '' ? $configuredDirection : $defaults['order_direction']);
+        $orderDirection = $this->resolveOrderDirection(
+            $requestedDirection,
+            $configuredDirection !== '' ? $configuredDirection : $defaults['order_direction'],
+            $sourceType,
+        );
         $perPage = max(1, min(100, $this->configInt('per_page', 12)));
         $requestedPerPage = $this->requestGet('limit') ?: $this->requestGet('per_page');
         if (ctype_digit($requestedPerPage) && (int) $requestedPerPage > 0) {
@@ -555,10 +559,15 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         return $this->normalizeMediaReference($value);
     }
 
-    private function resolveOrderDirection(string $requestValue, string $default): string
+    private function resolveOrderDirection(string $requestValue, string $default, string $sourceType): string
     {
         $value = strtolower(trim($requestValue));
-        return in_array($value, ['asc', 'desc'], true) ? $value : $default;
+        $allowed = $sourceType === 'cms_collection' ? ['asc', 'desc', 'upcoming'] : ['asc', 'desc'];
+        if (in_array($value, $allowed, true)) {
+            return $value;
+        }
+
+        return in_array($default, $allowed, true) ? $default : 'desc';
     }
 
     /** @param array<string, mixed> $projection */

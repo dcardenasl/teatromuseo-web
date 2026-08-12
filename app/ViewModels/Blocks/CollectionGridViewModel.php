@@ -37,8 +37,10 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             ? strtolower(trim((string) ($listingProjection['order']['direction'] ?? '')))
             : '';
         $legacyDirection = strtolower($this->configString('order_direction', 'desc'));
-        $orderDirection = ($configuredDirection !== '' ? $configuredDirection : $legacyDirection) === 'asc'
-            ? 'asc'
+        $candidateDirection = $configuredDirection !== '' ? $configuredDirection : $legacyDirection;
+        $orderDirection = in_array($candidateDirection, ['asc', 'desc'], true)
+            || ($candidateDirection === 'upcoming' && $sourceType === 'cms_collection')
+            ? $candidateDirection
             : 'desc';
 
         $layoutVariant = $this->configString('layout_variant');

@@ -215,6 +215,7 @@ $sectionClass = trim($cssClass . ' section');
                             <select name="order_direction" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15">
                                 <option value="asc" <?= $orderDirection === 'asc' ? 'selected' : '' ?>>Ascendente</option>
                                 <option value="desc" <?= $orderDirection === 'desc' ? 'selected' : '' ?>>Descendente</option>
+                                <option value="upcoming" <?= $orderDirection === 'upcoming' ? 'selected' : '' ?>>Próximos primero</option>
                             </select>
                         </label>
                     </div>
