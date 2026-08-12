@@ -97,6 +97,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Placeholder media and hero links** — real entries without media no longer receive stock
   placeholders, and empty hero destinations are not rendered as broken links.
 
+### Security
+
+- **CSRF-safe public forms under page caching** — public form submissions previously embedded
+  their CSRF token via `csrf_field()` directly in HTML that `pagecache` could serve to every
+  visitor, and form routes relied only on that embedded token rather than an explicit filter.
+  `CsrfCookieFilter` now mirrors a fresh, per-client token into a readable cookie after
+  `pagecache` runs, form routes require the `csrf` filter explicitly, and public forms submit via
+  `fetch` with the token read from that cookie instead of from cached markup. `Cookie.secure` and
+  the CSRF cookie/token names are also production-hardened (`__Host-` prefix, environment-gated
+  `secure` flag).
+
 ### Changed
 
 - **`SiteCollectionService` cache TTL** — extended from 10 minutes to 1 hour to reduce upstream
