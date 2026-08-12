@@ -33,6 +33,7 @@ final class TeamGridViewModel extends AbstractBlockViewModel
             }
             $photo = is_array($config['photo'] ?? null) ? $config['photo'] : [];
             $hoverPhoto = is_array($config['hover_photo'] ?? null) ? $config['hover_photo'] : $photo;
+            $photo = $this->replaceLegacyPrimaryPhoto($photo, $hoverPhoto);
 
             $members[] = [
                 'title' => $title,
@@ -53,5 +54,47 @@ final class TeamGridViewModel extends AbstractBlockViewModel
             'columns' => $this->configString('columns', '3'),
             'cssClass' => $this->configString('css_class'),
         ];
+    }
+
+    /**
+     * Older about-page records may still point their primary portrait at the
+     * retired web-local `/images/team/` tree while the hover reference has
+     * already been resolved to a public Hub asset. Prefer that resolved asset
+     * so a broken legacy primary URL cannot hide an otherwise valid portrait.
+     *
+     * @param array<string, mixed> $photo
+     * @param array<string, mixed> $hoverPhoto
+     * @return array<string, mixed>
+     */
+    private function replaceLegacyPrimaryPhoto(array $photo, array $hoverPhoto): array
+    {
+        $photoUrl = $this->mediaUrl($photo);
+        $hoverUrl = $this->mediaUrl($hoverPhoto);
+
+        if (! $this->isLegacyTeamImage($photoUrl)
+            || $hoverUrl === ''
+            || $this->isLegacyTeamImage($hoverUrl)) {
+            return $photo;
+        }
+
+        return $hoverPhoto;
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function mediaUrl(array $reference): string
+    {
+        return is_scalar($reference['url'] ?? null) ? trim((string) $reference['url']) : '';
+    }
+
+    private function isLegacyTeamImage(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        $path = is_string($path) ? $path : $url;
+
+        return str_starts_with($path, '/images/team/');
     }
 }
