@@ -27,6 +27,7 @@ return [
     'error_404_title'      => 'Page not found',
     'error_404_message'    => 'The page you are looking for does not exist.',
     'error_404_back_home'  => 'Back to home',
+    'form_submit_error'    => 'The form could not be sent. Please try again.',
     'block_unknown_notice' => 'Block type not found:',
     'block_unknown_view'   => 'Create a view at:',
     'published_label'      => 'Published',

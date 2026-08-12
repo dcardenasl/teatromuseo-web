@@ -112,8 +112,10 @@ $isChild = $context['is_child'] ?? false;
                     <form method="post"
                           action="<?= site_url("forms/{$formKey}/submit") ?>"
                           class="space-y-5"
-                          id="form-<?= esc($formKey) ?>">
-                        <?= csrf_field() ?>
+                          id="form-<?= esc($formKey) ?>"
+                          data-public-form
+                          data-csrf-cookie-name="<?= esc(config('Security')->readableCookieName, 'attr') ?>"
+                          <?= $hasCaptcha && $recaptchaSiteKey !== '' ? 'data-recaptcha-site-key="' . esc($recaptchaSiteKey, 'attr') . '"' : '' ?>>
 
                         <?php // Honeypot — hidden from real users, tempting to bots. Handled server-side in FormController. ?>
                         <div class="hidden" aria-hidden="true">
@@ -217,32 +219,13 @@ $isChild = $context['is_child'] ?? false;
                                 class="btn btn-primary w-full rounded-xl px-6 py-3.5 text-sm font-semibold">
                             <?= esc($submitLabel) ?>
                         </button>
+                        <p data-public-form-error class="mt-2 text-sm text-rose-700" role="alert" hidden>
+                            <?= esc(lang('Site.form_submit_error')) ?>
+                        </p>
                     </form>
                 </div>
 
                 <?php if ($hasCaptcha && $recaptchaSiteKey !== ''): ?>
-                    <script <?= csp_script_nonce() ?>>
-                    document.addEventListener('DOMContentLoaded', function () {
-                        var form = document.getElementById('form-<?= esc($formKey) ?>');
-                        if (!form) return;
-                        form.addEventListener('submit', function (e) {
-                            e.preventDefault();
-                            var btn = form.querySelector('button[type=submit]');
-                            if (btn) btn.disabled = true;
-                            grecaptcha.ready(function () {
-                                grecaptcha.execute('<?= esc($recaptchaSiteKey) ?>', { action: 'submit' })
-                                    .then(function (token) {
-                                        var input = document.getElementById('g_recaptcha_response_<?= esc($formKey) ?>');
-                                        if (input) input.value = token;
-                                        form.submit();
-                                    })
-                                    .catch(function () {
-                                        if (btn) btn.disabled = false;
-                                    });
-                            });
-                        });
-                    });
-                    </script>
                     <?php if (! defined('RECAPTCHA_SCRIPT_LOADED')): ?>
                         <?php define('RECAPTCHA_SCRIPT_LOADED', true); ?>
                         <script <?= csp_script_nonce() ?> src="https://www.google.com/recaptcha/api.js?render=<?= esc($recaptchaSiteKey) ?>" async defer></script>

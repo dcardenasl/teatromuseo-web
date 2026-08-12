@@ -27,6 +27,7 @@ return [
     'error_404_title'      => 'Página no encontrada',
     'error_404_message'    => 'La página que estás buscando no existe.',
     'error_404_back_home'  => 'Volver al inicio',
+    'form_submit_error'    => 'No se pudo enviar el formulario. Inténtalo de nuevo.',
     'block_unknown_notice' => 'Tipo de bloque no encontrado:',
     'block_unknown_view'   => 'Crea una vista en:',
     'published_label'      => 'Publicado',
