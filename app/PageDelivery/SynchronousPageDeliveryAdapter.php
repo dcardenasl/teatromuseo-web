@@ -6,6 +6,7 @@ namespace App\PageDelivery;
 
 use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
+use App\Services\PageCompositionService;
 use App\Services\SitePageService;
 use App\Support\PublicPaths;
 use DateTimeInterface;
@@ -21,6 +22,7 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         private readonly LayoutDataPrefetchService $layoutPrefetch,
         private readonly BlockPrefetchService $blockPrefetch,
         private readonly ClockInterface $clock,
+        private readonly ?PageCompositionService $composition = null,
     ) {
     }
 
@@ -39,8 +41,7 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         }
 
         $blocks = $this->blocks($page);
-        $layout = $this->layout($request);
-        $blockContext = $this->blockContext($blocks, $request);
+        [$layout, $blockContext] = $this->compose($blocks, $request);
         $now = $this->clock->now();
         $stale = $this->containsStaleSource($blockContext);
 
@@ -62,6 +63,28 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
                 'stale' => $stale,
             ],
         );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function compose(array $blocks, PageDeliveryRequest $request): array
+    {
+        if ($this->composition !== null) {
+            try {
+                $composition = $this->composition->compose($blocks, $request->locale);
+
+                return [$composition['layout'], $composition['block_context']];
+            } catch (\Throwable $exception) {
+                log_message('warning', 'Synchronous page composition failed: {message}', [
+                    'message' => $exception->getMessage(),
+                    'locale' => $request->locale,
+                ]);
+            }
+        }
+
+        return [$this->layout($request), $this->blockContext($blocks, $request)];
     }
 
     /** @return array<string, mixed>|null */

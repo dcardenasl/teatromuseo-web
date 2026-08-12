@@ -12,8 +12,11 @@ abstract class BasePublicWebController extends BaseController
     /** @param array<string,mixed> $data */
     protected function render(string $view, array $data = []): ResponseInterface
     {
+        $cacheScopes = $this->normalizeCacheScopes($data['cacheScopes'] ?? []);
+        unset($data['cacheScopes']);
         $preview = $this->request->getGet('preview') === '1';
         $pageCacheTtl = config('App')->webPageCacheTtl;
+        $cacheable = ! $preview && $pageCacheTtl > 0;
         if (! $preview && $pageCacheTtl > 0) {
             // CodeIgniter resets ResponseCache's TTL at the start of every
             // request. Set it only for rendered public HTML responses; form
@@ -81,8 +84,24 @@ abstract class BasePublicWebController extends BaseController
         // otherwise persist this render's data into the shared view store for
         // the rest of the process (e.g. across PHPUnit test cases).
         $body = view('layouts/public', $data, ['saveData' => false]);
+        if ($cacheable) {
+            try {
+                $cacheKey = service('responsecache')->generateCacheKey($this->request);
+                \Config\Services::htmlResponseCacheRegistry()->record(
+                    $this->request->getUri()->getPath(),
+                    (string) $this->request->getLocale(),
+                    array_values(array_filter(array_map('strval', $cacheScopes))),
+                    $cacheKey,
+                );
+            } catch (\Throwable $exception) {
+                // The registry is an invalidation accelerator; failure to
+                // write it must never turn an otherwise valid page into 500.
+                log_message('warning', 'HTML response-cache registry skipped: {message}', [
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
         $etag = '"' . sha1($body) . '"';
-        $cacheable = ! $preview && $pageCacheTtl > 0;
         $cacheControl = $cacheable
             ? sprintf('public, max-age=%d, stale-while-revalidate=60', $pageCacheTtl)
             : 'no-store, private';
@@ -167,8 +186,14 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function renderPageWithBlocks(array $pageData, array $blocks, string $lang, array $context = []): ResponseInterface
     {
-        $context = array_merge($context, $this->prefetchBlockContext($blocks, $lang));
+        $composition = $this->composePageContext($blocks, $lang, $context);
+        $context = array_merge($context, $composition['block_context']);
         $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
+        $pageData['__layout_data'] = $composition['layout'];
+        $pageData['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
+            ['pages', 'settings', 'menus'],
+            is_array($context['cacheScopes'] ?? null) ? $context['cacheScopes'] : [],
+        ));
 
         return $this->render('page', $pageData);
     }
@@ -181,8 +206,15 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function renderCmsPage(array $page, string $lang, array $context = []): ResponseInterface
     {
-        $context = array_merge($context, $this->prefetchBlockContext($this->pageBlocks($page), $lang));
+        $composition = $this->composePageContext($this->pageBlocks($page), $lang, $context);
+        $context = array_merge($context, $composition['block_context']);
         $data = $this->cmsPageData($page, $lang, $context);
+        $data['__layout_data'] = $composition['layout'];
+        $data['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
+            ['pages'],
+            ['settings', 'menus'],
+            is_array($context['cacheScopes'] ?? null) ? $context['cacheScopes'] : [],
+        ));
 
         return $this->render('page', $data);
     }
@@ -212,6 +244,12 @@ abstract class BasePublicWebController extends BaseController
         $data = $this->cmsPageData($delivery->page, $lang, $renderContext);
         $data['__layout_data'] = $delivery->layout;
         $data['pageDelivery'] = $delivery->meta;
+        $data['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
+            ['pages', 'settings', 'menus'],
+            is_array($renderContext['cacheScopes'] ?? null) ? $renderContext['cacheScopes'] : [],
+            isset($renderContext['event_item']) ? ['events'] : [],
+            isset($renderContext['catalog_item']) ? ['collection_items'] : [],
+        ));
 
         return $this->render('page', $data);
     }
@@ -354,8 +392,16 @@ abstract class BasePublicWebController extends BaseController
                 static fn (mixed $block): bool => is_array($block),
             ))
             : [];
-        $context = array_merge($context, $this->prefetchBlockContext($blocks, $lang));
+        $composition = $this->composePageContext($blocks, $lang, $context);
+        $context = array_merge($context, $composition['block_context']);
         $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
+        $pageData['__layout_data'] = $composition['layout'];
+        $pageData['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
+            ['pages', 'settings', 'menus'],
+            is_array($context['cacheScopes'] ?? null) ? $context['cacheScopes'] : [],
+            isset($context['event_item']) ? ['events'] : [],
+            isset($context['catalog_item']) ? ['collection_items'] : [],
+        ));
 
         return $this->render('page', $pageData);
     }
@@ -386,8 +432,75 @@ abstract class BasePublicWebController extends BaseController
             return [
                 'block_prefetch' => [],
                 'block_prefetch_complete' => true,
+                'cacheScopes' => [
+                    'collections',
+                    'entries',
+                    'taxonomies',
+                    'events',
+                    'event_types',
+                    'collection_items',
+                    'categories',
+                    'forms',
+                ],
             ];
         }
+    }
+
+    /**
+     * Compose layout and blocks at the controller boundary. The existing
+     * fallback remains available if the combined seam fails, while detail
+     * entities loaded by Museum/Event controllers become prefetch seeds.
+     *
+     * @param list<array<string, mixed>> $blocks
+     * @param array<string, mixed> $context
+     * @return array{layout: array<string, mixed>, block_context: array<string, mixed>}
+     */
+    protected function composePageContext(array $blocks, string $lang, array $context = []): array
+    {
+        try {
+            return \Config\Services::pageCompositionService()->compose(
+                $blocks,
+                $lang,
+                $context,
+                $this->seededDetailItems($context),
+            );
+        } catch (\Throwable) {
+            return [
+                'layout' => [],
+                'block_context' => $this->prefetchBlockContext($blocks, $lang),
+            ];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function seededDetailItems(array $context): array
+    {
+        $seeds = [];
+        foreach (['catalog_item' => 'catalog_items', 'event_item' => 'event_items'] as $contextKey => $sourceType) {
+            if (is_array($context[$contextKey] ?? null)) {
+                $seeds[$sourceType] = [$context[$contextKey]];
+            }
+        }
+
+        return $seeds;
+    }
+
+    /**
+     * @param mixed $scopes
+     * @return list<string>
+     */
+    private function normalizeCacheScopes(mixed $scopes): array
+    {
+        $scopes = is_array($scopes) ? $scopes : [];
+        $normalized = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $scope): string => is_scalar($scope) ? strtolower(trim((string) $scope)) : '',
+            $scopes,
+        ))));
+
+        return $normalized !== [] ? $normalized : ['pages', 'settings', 'menus'];
     }
 
     /**

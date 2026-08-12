@@ -389,7 +389,8 @@ class PageController extends BasePublicWebController
         $entryBlocks = $entry['blocks'] ?? [];
 
         // Resolve all dynamic block data through one page-level prefetch pass.
-        $renderContext = array_merge($blockContext, $this->prefetchBlockContext($entryBlocks, $lang));
+        $composition = $this->composePageContext($entryBlocks, $lang, $blockContext);
+        $renderContext = array_merge($blockContext, $composition['block_context']);
 
         $data = [
             'title'               => $translation['title'] ?? '',
@@ -417,6 +418,11 @@ class PageController extends BasePublicWebController
             'schemaData'          => !empty($translation['schema_data']) ? json_decode($translation['schema_data'], true) : null,
             'renderedBlocks'      => $blockRenderer->render($entryBlocks, $lang, $renderContext),
             'localized_urls'      => $this->resolveEntryLocalizedUrls($collection, $entry, $lang, $resolvedSlug),
+            '__layout_data'       => $composition['layout'],
+            'cacheScopes'         => array_values(array_unique(array_merge(
+                ['entries', 'pages', 'settings', 'menus'],
+                is_array($renderContext['cacheScopes'] ?? null) ? $renderContext['cacheScopes'] : [],
+            ))),
         ];
 
         return $this->render('collection/show', $data);

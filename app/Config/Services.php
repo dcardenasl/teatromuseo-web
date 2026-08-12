@@ -9,6 +9,7 @@ use App\Interfaces\AliasResolverInterface;
 use App\Libraries\AnalyticsQueue;
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
+use App\Libraries\HtmlResponseCacheRegistry;
 use App\Libraries\PublicListingPageBuilder;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
@@ -27,6 +28,7 @@ use App\PageDelivery\SynchronousPageDeliveryAdapter;
 use App\PageDelivery\SystemClock;
 use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
+use App\Services\PageCompositionService;
 use App\Services\PageResolverService;
 use App\Services\ParallelAliasResolver;
 use App\Services\PublicReadDiagnosticsService;
@@ -75,6 +77,7 @@ class Services extends BaseService
                 static::layoutDataPrefetchService(),
                 static::blockPrefetchService(),
                 $clock,
+                static::pageCompositionService(),
             ),
             snapshot: new SnapshotPageDeliveryAdapter(
                 static::pageSnapshotStore(),
@@ -139,6 +142,7 @@ class Services extends BaseService
                 static::layoutDataPrefetchService(),
                 static::blockPrefetchService(),
                 $clock,
+                static::pageCompositionService(),
             ),
             publisher: static::pageSnapshotStore(),
             lock: static::pageRegenerationLock(),
@@ -322,6 +326,19 @@ class Services extends BaseService
         ]);
     }
 
+    public static function pageCompositionService(bool $getShared = true): PageCompositionService
+    {
+        if ($getShared) {
+            /** @var PageCompositionService */
+            return static::getSharedInstance('pageCompositionService');
+        }
+
+        return new PageCompositionService(
+            static::layoutDataPrefetchService(),
+            static::blockPrefetchService(),
+        );
+    }
+
     public static function aliasResolverService(bool $getShared = true): AliasResolverInterface
     {
         if ($getShared) {
@@ -340,6 +357,16 @@ class Services extends BaseService
         }
 
         return new CacheInvalidator();
+    }
+
+    public static function htmlResponseCacheRegistry(bool $getShared = true): HtmlResponseCacheRegistry
+    {
+        if ($getShared) {
+            /** @var HtmlResponseCacheRegistry */
+            return static::getSharedInstance('htmlResponseCacheRegistry');
+        }
+
+        return new HtmlResponseCacheRegistry(static::cache());
     }
 
     public static function publicListingPageBuilder(bool $getShared = true): PublicListingPageBuilder
