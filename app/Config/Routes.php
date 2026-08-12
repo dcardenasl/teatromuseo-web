@@ -20,7 +20,10 @@ $routes->post('cache/invalidate', 'CacheController::invalidate', ['as' => 'cache
 $routes->get('cache/status', 'CacheController::status', ['as' => 'cache_status', 'filter' => 'throttle:30,60']);
 
 // Dynamic form submissions
-$routes->post('forms/(:segment)/submit', 'FormController::submit/$1', ['as' => 'form_submit', 'filter' => 'throttle:10,60']);
+$routes->post('forms/(:segment)/submit', 'FormController::submit/$1', [
+    'as'     => 'form_submit',
+    'filter' => ['csrf', 'throttle:10,60'],
+]);
 
 // Block Preview (called from admin panel) — unauthenticated, so throttled like
 // the other public POST routes above.
@@ -30,7 +33,10 @@ $routes->post('blocks/preview', 'BlockPreviewController::preview', ['as' => 'blo
 // updating app/Config/App.php and deploying so the route table is rebuilt.
 
 // Dynamic form submissions (localized)
-$routes->post('{locale}/forms/(:segment)/submit', 'FormController::submit/$1', ['as' => 'form_submit_localized', 'filter' => 'throttle:10,60']);
+$routes->post('{locale}/forms/(:segment)/submit', 'FormController::submit/$1', [
+    'as'     => 'form_submit_localized',
+    'filter' => ['csrf', 'throttle:10,60'],
+]);
 
 // Localized routes
 $routes->get('{locale}', 'PageController::home', ['as' => 'home_localized']);

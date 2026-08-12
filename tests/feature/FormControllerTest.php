@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Services\SiteFormService;
+use CodeIgniter\Security\Exceptions\SecurityException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\Mock\MockCache;
+use CodeIgniter\Test\TestResponse;
 use Config\Services;
 
 /**
@@ -17,18 +19,27 @@ final class FormControllerTest extends CIUnitTestCase
 {
     use FeatureTestTrait;
 
+    private string $csrfToken;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         Services::resetSingle('siteFormService');
         Services::resetSingle('cache');
+        Services::resetSingle('security');
+        $_COOKIE = [];
+        service('superglobals')->setCookieArray([]);
+        $this->csrfToken = bin2hex(random_bytes(16));
     }
 
     protected function tearDown(): void
     {
         Services::resetSingle('siteFormService');
         Services::resetSingle('cache');
+        Services::resetSingle('security');
+        $_COOKIE = [];
+        service('superglobals')->setCookieArray([]);
         $this->disableThrottleInTests();
 
         parent::tearDown();
@@ -54,8 +65,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email'   => 'bot@example.com',
                 'website' => 'https://spam.example',
             ]);
@@ -85,8 +95,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email' => 'ada@example.com',
             ]);
 
@@ -115,8 +124,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'name' => '',
             ]);
 
@@ -146,8 +154,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email' => 'not-an-email',
             ]);
 
@@ -197,8 +204,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'name'  => 'Ada Lovelace',
                 'email' => 'ada@example.com',
             ]);
@@ -236,8 +242,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email'                => 'Ada@Example.com',
                 'g_recaptcha_response' => 'captcha-token',
             ]);
@@ -276,14 +281,69 @@ final class FormControllerTest extends CIUnitTestCase
 
         $result = null;
         for ($i = 0; $i < 11; $i++) {
-            $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
-                    ->post('forms/contact/submit', [
+            $result = $this->postForm('forms/contact/submit', [
                         'email' => "ada{$i}@example.com",
                     ]);
         }
 
         $this->assertNotNull($result);
         $result->assertStatus(429);
+    }
+
+    public function testSubmitRejectsMissingCsrfBeforeLoadingFormDefinition(): void
+    {
+        $formService = $this->createMock(SiteFormService::class);
+        $formService->expects($this->never())->method('getDefinition');
+        Services::injectMock('siteFormService', $formService);
+
+        $this->expectException(SecurityException::class);
+
+        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
+            ->post('forms/contact/submit', ['email' => 'ada@example.com']);
+    }
+
+    public function testSubmitRejectsMismatchedCsrfBeforeLoadingFormDefinition(): void
+    {
+        $formService = $this->createMock(SiteFormService::class);
+        $formService->expects($this->never())->method('getDefinition');
+        Services::injectMock('siteFormService', $formService);
+
+        $securityConfig = config('Security');
+        $_COOKIE[$securityConfig->cookieName] = $this->csrfToken;
+        service('superglobals')->setCookieArray($_COOKIE);
+        Services::resetSingle('incomingrequest');
+        Services::resetSingle('security');
+
+        $this->expectException(SecurityException::class);
+
+        $result = $this->withHeaders([
+            'Referer'                  => 'http://localhost:8184/contacto',
+            $securityConfig->headerName => bin2hex(random_bytes(16)),
+        ])->post('forms/contact/submit', ['email' => 'ada@example.com']);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function postForm(string $path, array $params): TestResponse
+    {
+        $securityConfig = config('Security');
+        $_COOKIE[$securityConfig->cookieName] = $this->csrfToken;
+        service('superglobals')->setCookieArray($_COOKIE);
+        Services::resetSingle('incomingrequest');
+        Services::resetSingle('security');
+
+        $result = $this->withHeaders([
+            'Referer'                  => 'http://localhost:8184/contacto',
+            $securityConfig->headerName => $this->csrfToken,
+        ])->post($path, $params);
+
+        $rotatedCookie = $result->response()->getCookie($securityConfig->cookieName);
+        if ($rotatedCookie !== null) {
+            $this->csrfToken = $rotatedCookie->getValue();
+        }
+
+        return $result;
     }
 
     private function enableThrottleInTests(): void
