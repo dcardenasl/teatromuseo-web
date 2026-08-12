@@ -53,6 +53,11 @@ class CacheInvalidator
         $totalDeleted = 0;
         $snapshotsInvalidated = 0;
 
+        $scopes = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $scope): string => is_scalar($scope) ? strtolower(trim((string) $scope)) : '',
+            $scopes,
+        ))));
+
         foreach ($scopes as $scope) {
             if (! in_array($scope, self::VALID_SCOPES, true)) {
                 log_message('warning', '[CacheInvalidator] Unknown scope requested: ' . $scope);
@@ -71,9 +76,13 @@ class CacheInvalidator
         }
 
         if ($invalidated !== []) {
-            $responseCacheDeleted = 0;
-            if (in_array('pages', $invalidated, true) && in_array('home', $routes, true)) {
-                $responseCacheDeleted = $this->invalidateHomepageResponseCache($locales);
+            $responseCacheDeleted = \Config\Services::htmlResponseCacheRegistry()->invalidate(
+                $invalidated,
+                $locales,
+                $routes,
+            );
+            if ($this->shouldInvalidateHomepageResponseCache($invalidated, $routes)) {
+                $responseCacheDeleted += $this->invalidateHomepageResponseCache($locales);
             }
 
             $snapshotStore = \Config\Services::pageSnapshotStore();
@@ -89,6 +98,35 @@ class CacheInvalidator
             'snapshots_invalidated' => $snapshotsInvalidated,
             'response_cache_deleted' => $responseCacheDeleted,
         ];
+    }
+
+    /**
+     * Decide whether the opaque full-page cache needs a homepage purge.
+     *
+     * API/snapshot scopes are not a complete dependency graph for rendered
+     * HTML. The homepage currently embeds Events, CMS collections, layout
+     * data and other public-read sources, while the admin and domain outbox
+     * producers intentionally omit route metadata. With no route filter, a
+     * known public-scope invalidation must therefore conservatively invalidate
+     * the localized homepage aliases as well. A non-home route does not
+     * suppress this purge because the homepage is a composite consumer of
+     * multiple scopes; route metadata remains a snapshot selector only.
+     *
+     * @param list<string> $scopes
+     * @param list<string> $routes
+     */
+    private function shouldInvalidateHomepageResponseCache(array $scopes, array $routes): bool
+    {
+        $routes = array_values(array_filter(
+            array_map(static fn (mixed $route): string => strtolower(trim((string) $route)), $routes),
+            static fn (string $route): bool => $route !== '',
+        ));
+
+        if (in_array('home', $routes, true)) {
+            return true;
+        }
+
+        return $scopes !== [];
     }
 
     /**

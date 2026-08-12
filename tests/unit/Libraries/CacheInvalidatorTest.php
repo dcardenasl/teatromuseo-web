@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Libraries;
 
 use App\Libraries\CacheInvalidator;
+use App\Libraries\HtmlResponseCacheRegistry;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\Mock\MockCache;
 use Config\Services;
@@ -72,6 +73,70 @@ final class CacheInvalidatorTest extends CIUnitTestCase
         $this->assertNull($this->cache->get(md5('GET:/es')));
         $this->assertNull($this->cache->get(md5('GET:/es/inicio')));
         $this->assertNull($this->cache->get(md5('GET:/es/public/es')));
+    }
+
+    public function testInvalidateUsesRecordedRouteAndScopeForNonHomepageHtml(): void
+    {
+        Services::injectMock('htmlResponseCacheRegistry', new HtmlResponseCacheRegistry($this->cache));
+        Services::htmlResponseCacheRegistry()->record('/es/cartelera/festival-uno', 'es', ['events']);
+        $this->cache->save(md5('GET:/es/cartelera/festival-uno'), 'target page', 900);
+        $this->cache->save(md5('GET:' . site_url('/es/cartelera/festival-uno')), 'target absolute page', 900);
+        $this->cache->save(md5('GET:/es/cartelera/otro'), 'unrelated page', 900);
+
+        $result = $this->invalidator->invalidate(['events'], 'remote', ['es'], ['cartelera/festival-uno']);
+
+        $this->assertSame(2, $result['response_cache_deleted']);
+        $this->assertNull($this->cache->get(md5('GET:/es/cartelera/festival-uno')));
+        $this->assertNotNull($this->cache->get(md5('GET:/es/cartelera/otro')));
+    }
+
+    public function testInvalidateEventsClearsHomepageResponseCacheWithoutRouteMetadata(): void
+    {
+        $this->cache->save(md5('GET:/es'), 'root page', 900);
+        $this->cache->save(md5('GET:/es/inicio'), 'localized page', 900);
+        $this->cache->save(md5('GET:/es/public/es'), 'legacy leaked page', 900);
+
+        $result = $this->invalidator->invalidate(['events'], 'events_automatic', ['es']);
+
+        $this->assertSame(['events'], $result['invalidated']);
+        $this->assertSame(3, $result['response_cache_deleted']);
+        $this->assertNull($this->cache->get(md5('GET:/es')));
+        $this->assertNull($this->cache->get(md5('GET:/es/inicio')));
+        $this->assertNull($this->cache->get(md5('GET:/es/public/es')));
+    }
+
+    public function testExplicitNonHomepageRouteDoesNotMaskEventHomepageDependency(): void
+    {
+        $this->cache->save(md5('GET:/es'), 'root page', 900);
+        $this->cache->save(md5('GET:/es/inicio'), 'localized page', 900);
+        $this->cache->save(md5('GET:/es/public/es'), 'legacy leaked page', 900);
+
+        $result = $this->invalidator->invalidate(['events'], 'events_automatic', ['es'], ['cartelera']);
+
+        $this->assertSame(3, $result['response_cache_deleted']);
+        $this->assertNull($this->cache->get(md5('GET:/es')));
+        $this->assertNull($this->cache->get(md5('GET:/es/inicio')));
+        $this->assertNull($this->cache->get(md5('GET:/es/public/es')));
+    }
+
+    public function testInvalidateClearsEveryRecordedQueryVariantForRoute(): void
+    {
+        $registry = new HtmlResponseCacheRegistry($this->cache);
+        Services::injectMock('htmlResponseCacheRegistry', $registry);
+
+        $pageOneKey = md5('GET:/es/cartelera?page=1');
+        $pageTwoKey = md5('GET:/es/cartelera?page=2');
+        $registry->record('/es/cartelera?page=1', 'es', ['events'], $pageOneKey);
+        $registry->record('/es/cartelera?page=2', 'es', ['events'], $pageTwoKey);
+        $this->cache->save($pageOneKey, 'page one', 900);
+        $this->cache->save($pageTwoKey, 'page two', 900);
+
+        $result = $this->invalidator->invalidate([' EVENTS '], 'remote', ['ES'], [' /CARTELERA/ ']);
+
+        $this->assertSame(['events'], $result['invalidated']);
+        $this->assertSame(2, $result['response_cache_deleted']);
+        $this->assertNull($this->cache->get($pageOneKey));
+        $this->assertNull($this->cache->get($pageTwoKey));
     }
 
     public function testInvalidateDoesNotClearSitemapsOnNonContentScopes(): void
