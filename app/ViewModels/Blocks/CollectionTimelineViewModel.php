@@ -48,6 +48,7 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
                 'per_page' => $limit,
                 'order_by' => 'published_at',
                 'order_direction' => $direction,
+                'fields' => 'id,slug,title,excerpt,published_at,created_at,localized,listing_content',
                 'include' => 'listing_content',
             ];
             if ($categoryId > 0) {
@@ -252,6 +253,25 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
 
     private function collectionListingUrl(string $collectionKey): string
     {
+        $blockPath = (string) ($this->context['blockPath'] ?? '');
+        $allPrefetched = $this->context['block_prefetch'] ?? null;
+        $prefetched = is_array($allPrefetched) && is_array($allPrefetched[$blockPath] ?? null)
+            ? $allPrefetched[$blockPath]
+            : [];
+        $collection = is_array($prefetched['collection'] ?? null) ? $prefetched['collection'] : null;
+        if ($collection !== null) {
+            $indexPage = is_array($collection['index_page'] ?? null) ? $collection['index_page'] : [];
+            $urls = is_array($indexPage['localized_urls'] ?? null) ? $indexPage['localized_urls'] : [];
+            return (string) ($urls[$this->lang] ?? '');
+        }
+
+        // A completed prefetch is an explicit no-I/O boundary. If collection
+        // metadata was unavailable, keep the timeline usable without reopening
+        // the old per-view collection list request.
+        if (($this->context['block_prefetch_complete'] ?? false) === true) {
+            return '';
+        }
+
         $collectionService = $this->contextService('siteCollectionService', SiteCollectionService::class);
         if ($collectionService === null) {
             return '';
