@@ -31,6 +31,15 @@ class LayoutDataPrefetchService extends BaseSiteService
         if ($missingMenuKeys !== []) {
             $keys[] = 'navigation';
             $requests[] = ['path' => "public-read/{$locale}/navigation", 'cacheTtl' => 600, 'scope' => 'menus'];
+
+            // Menu items whose navigation payload omits `collection_slug`
+            // fall back to resolveCollectionSlug(), which otherwise issues
+            // its own uncached GET *after* this batch returns — a third,
+            // strictly sequential round trip on every page (menus render
+            // everywhere). Warm the same cache entry here so that fallback
+            // becomes a cache hit instead of an extra network call.
+            $keys[] = 'collections';
+            $requests[] = ['path' => "public/{$locale}/collections", 'cacheTtl' => 3600, 'scope' => 'collections'];
         }
 
         if (! isset($data['settings'])) {

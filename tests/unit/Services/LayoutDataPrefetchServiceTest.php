@@ -33,6 +33,7 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
             ->with($this->callback(static function (array $requests): bool {
                 return $requests === [
                     ['path' => 'public-read/es/navigation', 'cacheTtl' => 600, 'scope' => 'menus'],
+                    ['path' => 'public/es/collections', 'cacheTtl' => 3600, 'scope' => 'collections'],
                     ['path' => 'public-read/es/settings', 'cacheTtl' => 3600, 'scope' => 'settings'],
                 ];
             }))
@@ -68,6 +69,13 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
                 [
                     'ok' => true,
                     'status' => 200,
+                    'data' => [],
+                    'meta' => [],
+                    'messages' => [],
+                ],
+                [
+                    'ok' => true,
+                    'status' => 200,
                     'data' => ['site_name' => 'TeatroMuseo'],
                     'meta' => [],
                     'messages' => [],
@@ -93,26 +101,38 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
             ->method('multiGet')
             ->with([
                 ['path' => 'public-read/es/navigation', 'cacheTtl' => 600, 'scope' => 'menus'],
+                ['path' => 'public/es/collections', 'cacheTtl' => 3600, 'scope' => 'collections'],
             ])
-            ->willReturn([[
-                'ok' => true,
-                'status' => 200,
-                'data' => [
-                    'main' => [
-                        'items' => [[
-                            'label' => 'Festivales',
-                            'navigation' => [
-                                'route_key' => 'catalog',
-                                'target_type' => 'collection_listing',
-                                'target_id' => 3,
-                            ],
-                            'children' => [],
-                        ]],
+            ->willReturn([
+                [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [
+                        'main' => [
+                            'items' => [[
+                                'label' => 'Festivales',
+                                'navigation' => [
+                                    'route_key' => 'catalog',
+                                    'target_type' => 'collection_listing',
+                                    'target_id' => 3,
+                                ],
+                                'children' => [],
+                            ]],
+                        ],
                     ],
+                    'meta' => [],
+                    'messages' => [],
                 ],
-                'meta' => [],
-                'messages' => [],
-            ]]);
+                [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [
+                        ['id' => 3, 'slug' => 'festivales', 'localized_slugs' => ['es' => 'festivales']],
+                    ],
+                    'meta' => [],
+                    'messages' => [],
+                ],
+            ]);
         $client->expects($this->once())
             ->method('get')
             ->with('public/es/collections', [], 3600, 'collections')
@@ -141,6 +161,7 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
             ->method('multiGet')
             ->with([
                 ['path' => 'public-read/en/navigation', 'cacheTtl' => 600, 'scope' => 'menus'],
+                ['path' => 'public/en/collections', 'cacheTtl' => 3600, 'scope' => 'collections'],
                 ['path' => 'public-read/en/settings', 'cacheTtl' => 3600, 'scope' => 'settings'],
             ])
             ->willReturn([
@@ -148,6 +169,13 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
                     'ok' => true,
                     'status' => 200,
                     'data' => ['main' => ['items' => []]],
+                    'meta' => [],
+                    'messages' => [],
+                ],
+                [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [],
                     'meta' => [],
                     'messages' => [],
                 ],

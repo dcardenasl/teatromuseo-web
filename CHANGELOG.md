@@ -56,6 +56,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cold-page latency: menu collection-slug resolution issued its own uncached
+  request outside the layout prefetch batch** — `LayoutDataPrefetchService`
+  fetched `navigation`+`settings` in one parallel `multiGet()`, but menu items
+  whose CMS payload omitted `collection_slug` fell back to
+  `BaseSiteService::resolveCollectionSlug()`, which issued its own blocking
+  `GET public/{locale}/collections` *after* that batch returned — a third,
+  strictly sequential round trip on every single page (menus render
+  everywhere). `public/{locale}/collections` now joins the initial
+  `navigation`/`settings` batch; `WebApiClient` shares the same cache key
+  between `get()` and `multiGet()`, so the fallback becomes a cache hit
+  instead of a network call. Found auditing a cold `/es/nosotros` load
+  (`docs/audits/2026-08-13-auditoria-carga-fria-web-domains.md`), a page with
+  no dynamic blocks of its own — the menu was effectively the page's entire
+  network cost.
 - **Broken `/files/{id}/view` media fallback** — block view models no longer fabricate a
   local `/files/{id}/view` URL when a hub-file reference has no resolved URL; the CMS domain
   now always resolves the real public URL upstream, so a missing one means the asset should

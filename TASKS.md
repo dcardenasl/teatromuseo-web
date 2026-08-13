@@ -6,6 +6,23 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-PERF-11 — Batchear la resolución de collection_slug del menú**
+  — cerrada 2026-08-13. `LayoutDataPrefetchService::normalizeMenuItems()`
+  llamaba a `resolveCollectionSlug()` (`BaseSiteService.php`) dentro de un
+  `foreach`, y esa función hacía su propio `$apiClient->get('public/{locale}/collections', ...)`
+  — una tercera llamada de red, estrictamente secuencial, fuera del lote
+  paralelo `navigation`+`settings`, disparada en **cada página** (el menú
+  se renderiza en todas). Encontrado auditando en frío `/es/nosotros`
+  (`docs/audits/2026-08-13-auditoria-carga-fria-web-domains.md`), que no
+  tiene bloques dinámicos propios — el menú era casi todo el trabajo de
+  red de esa página. Ahora `public/{locale}/collections` entra al mismo
+  `multiGet()` que `navigation`/`settings`; como `WebApiClient` usa la
+  misma clave de caché en `get()` y `multiGet()`, el fallback de
+  `resolveCollectionSlug()` pasa a ser un cache hit en vez de un tercer
+  round-trip. Verificado: 385/385 tests, PHPStan 106/106 sin errores,
+  CS-Fixer limpio (evidencia previa a WEB-QUAL-01; ambos cierres
+  comparten la misma sesión).
+
 - [x] **WEB-PERF-10 — Lock single-flight en WebApiClient::get()** — cerrada
   2026-08-13. Implementa lock single-flight en `WebApiClient::get()` utilizando
   la primitiva `SingleFlightLock` (bloqueo exclusivo flock) con re-chequeo
