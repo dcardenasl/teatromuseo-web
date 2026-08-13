@@ -181,4 +181,61 @@ final class BlockPreviewControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('¿Cómo funciona la vista previa?', $json['html']);
         $this->assertStringContainsString('¿Es fiel al diseño final?', $json['html']);
     }
+
+    public function testBlockPreviewRejectsMissingKeyWhenConfigured(): void
+    {
+        putenv('BLOCK_PREVIEW_KEY=test_preview_secret');
+        $_ENV['BLOCK_PREVIEW_KEY'] = 'test_preview_secret';
+
+        try {
+            $result = $this->post('blocks/preview', [
+                'block_key'    => 'alert',
+                'block_config' => json_encode(['type' => 'success']),
+                'block_data'   => json_encode([]),
+            ]);
+
+            $result->assertStatus(401);
+        } finally {
+            putenv('BLOCK_PREVIEW_KEY');
+            unset($_ENV['BLOCK_PREVIEW_KEY']);
+        }
+    }
+
+    public function testBlockPreviewRejectsWrongKeyWhenConfigured(): void
+    {
+        putenv('BLOCK_PREVIEW_KEY=test_preview_secret');
+        $_ENV['BLOCK_PREVIEW_KEY'] = 'test_preview_secret';
+
+        try {
+            $result = $this->withHeaders(['X-Block-Preview-Key' => 'wrong'])->post('blocks/preview', [
+                'block_key'    => 'alert',
+                'block_config' => json_encode(['type' => 'success']),
+                'block_data'   => json_encode([]),
+            ]);
+
+            $result->assertStatus(401);
+        } finally {
+            putenv('BLOCK_PREVIEW_KEY');
+            unset($_ENV['BLOCK_PREVIEW_KEY']);
+        }
+    }
+
+    public function testBlockPreviewAcceptsCorrectKeyWhenConfigured(): void
+    {
+        putenv('BLOCK_PREVIEW_KEY=test_preview_secret');
+        $_ENV['BLOCK_PREVIEW_KEY'] = 'test_preview_secret';
+
+        try {
+            $result = $this->withHeaders(['X-Block-Preview-Key' => 'test_preview_secret'])->post('blocks/preview', [
+                'block_key'    => 'alert',
+                'block_config' => json_encode(['type' => 'success']),
+                'block_data'   => json_encode([]),
+            ]);
+
+            $result->assertStatus(200);
+        } finally {
+            putenv('BLOCK_PREVIEW_KEY');
+            unset($_ENV['BLOCK_PREVIEW_KEY']);
+        }
+    }
 }

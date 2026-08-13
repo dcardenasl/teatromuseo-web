@@ -25,8 +25,9 @@ $routes->post('forms/(:segment)/submit', 'FormController::submit/$1', [
     'filter' => ['csrf', 'throttle:10,60'],
 ]);
 
-// Block Preview (called from admin panel) — unauthenticated, so throttled like
-// the other public POST routes above.
+// Block Preview (called from admin panel) — throttled, plus an optional
+// shared-secret check (X-Block-Preview-Key) enforced when BLOCK_PREVIEW_KEY
+// is configured. See BlockPreviewController::hasValidPreviewKeyOrNoneConfigured().
 $routes->post('blocks/preview', 'BlockPreviewController::preview', ['as' => 'blocks_preview', 'filter' => 'throttle:10,60']);
 
 // Locales are compile-time application configuration. Adding a locale requires

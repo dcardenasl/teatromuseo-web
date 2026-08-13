@@ -55,6 +55,11 @@ Key environment variables:
 endpoint returns `500` when it is unset, `401` for bad keys, and `422` for empty
 scope lists.
 
+`BLOCK_PREVIEW_KEY` is optional (recommended in production): while unset,
+`/blocks/preview` stays open, mitigated only by `throttle:10,60` — set it, and
+the matching value in `teatromuseo-admin`'s own `BLOCK_PREVIEW_KEY`, to require
+`X-Block-Preview-Key` on every call.
+
 `app.defaultLocale` must match an active CMS language and a localized `home`
 page. It is static CI4 routing configuration, not discovered from Domain.
 
