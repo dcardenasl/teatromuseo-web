@@ -53,6 +53,7 @@ class WebApiClient implements WebApiClientInterface
     private int $maxParallelRequests;
     private int $lastPayloadBytes = 0;
     private SingleFlightLock $singleFlightLock;
+    private ?\CurlShareHandle $curlShare = null;
 
     public function __construct(
         string $baseUrl,
@@ -84,6 +85,31 @@ class WebApiClient implements WebApiClientInterface
         $this->maxParallelRequests = min(16, max(1, $maxParallelRequests));
         $this->connectTimeout = min($this->timeout, max(1, $connectTimeout));
         $this->singleFlightLock = $singleFlightLock ?? new SingleFlightLock(defined('WRITABLEPATH') ? WRITABLEPATH . 'cache/locks' : '');
+    }
+
+    /**
+     * A page render commonly issues several sequential (not batched) GET
+     * calls to this same client within one request — e.g. PageResolverService's
+     * page-bootstrap call followed by LayoutDataPrefetchService's layout call.
+     * Each `curl_init()`/`curl_close()` pair in this class discards its
+     * connection on close by default, so every one of those calls pays its
+     * own full TCP+TLS handshake to the same host even though the previous
+     * call just finished talking to it. Attaching one shared handle (this
+     * client instance is itself request-scoped via Config\Services'
+     * getSharedInstance()) lets libcurl reuse the connection, TLS session and
+     * DNS lookup across calls instead of re-negotiating each time.
+     */
+    private function curlShare(): \CurlShareHandle
+    {
+        if ($this->curlShare === null) {
+            $share = curl_share_init();
+            curl_share_setopt($share, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
+            curl_share_setopt($share, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+            curl_share_setopt($share, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+            $this->curlShare = $share;
+        }
+
+        return $this->curlShare;
     }
 
     /**
@@ -350,6 +376,7 @@ class WebApiClient implements WebApiClientInterface
                     CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
                     CURLOPT_NOSIGNAL       => true,
                     CURLOPT_HTTPHEADER     => $headers,
+                    CURLOPT_SHARE          => $this->curlShare(),
                 ]);
                 curl_multi_add_handle($mh, $ch);
                 $handles[$idx] = $ch;
@@ -588,6 +615,7 @@ class WebApiClient implements WebApiClientInterface
                 CURLOPT_CONNECTTIMEOUT => $client->connectTimeout,
                 CURLOPT_NOSIGNAL => true,
                 CURLOPT_HTTPHEADER => $headers,
+                CURLOPT_SHARE => $client->curlShare(),
             ]);
             curl_multi_add_handle($multiHandle, $handle);
             $handles[$index] = $handle;
@@ -767,6 +795,7 @@ class WebApiClient implements WebApiClientInterface
             CURLOPT_NOSIGNAL       => true,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_CUSTOMREQUEST  => $method,
+            CURLOPT_SHARE          => $this->curlShare(),
         ]);
 
         if ($jsonBody !== null) {
