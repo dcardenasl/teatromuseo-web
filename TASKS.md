@@ -6,6 +6,30 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-QUAL-01 — Descomponer BlockPrefetchService en colaboradores de
+  responsabilidad única** — cerrada 2026-08-13. `BlockPrefetchService`
+  (1223 líneas, una sola clase planificando + ejecutando + resolviendo
+  dependencias + materializando resultados) se dividió en 8 clases bajo
+  `app/Services/BlockPrefetch/`: `RequestQueryReader` (lectura segura de
+  `?query`), `BlockPlanCollector` (recorrido del árbol de bloques),
+  `ListQueryBuilder` (query por tipo de fuente), `PrefetchRequestQueue`
+  (acumulación/dedup de requests — reemplaza el patrón de arrays pasados
+  por referencia por un objeto real), `PrefetchRequestExecutor`
+  (despacho paralelo/por cliente), `BlockRequestPlanner` (qué requests
+  necesita cada plan), `BlockDependencyResolver` (segunda oleada:
+  colección/categoría resueltas → request de listado) y
+  `BlockResultMaterializer` (dar forma al resultado). `BlockPrefetchService`
+  queda como fachada delgada (168 líneas) que conserva exactamente su API
+  pública (`prefetchContext()`, `prefetch()`, constructor `array $clients`)
+  — ningún consumidor (`PageCompositionService`,
+  `SynchronousPageDeliveryAdapter`, `Config\Services`) cambió. Sin cambio de
+  comportamiento: los 10 tests originales de `BlockPrefetchServiceTest`
+  (end-to-end contra la fachada) pasan sin modificar ni una aserción; se
+  sumaron 51 tests nuevos y focalizados por colaborador. Verificado:
+  436/436 tests (1616 assertions), PHPStan 114/114 sin errores, CS-Fixer
+  limpio, `test:fixture-policy` e `i18n-check` verdes, `git diff --check`
+  limpio.
+
 - [x] **WEB-PERF-11 — Batchear la resolución de collection_slug del menú**
   — cerrada 2026-08-13. `LayoutDataPrefetchService::normalizeMenuItems()`
   llamaba a `resolveCollectionSlug()` (`BaseSiteService.php`) dentro de un

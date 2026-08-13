@@ -129,6 +129,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`BlockPrefetchService` split into single-responsibility collaborators** —
+  the 1223-line class (block-tree walking, request planning, query building,
+  request execution, dependency resolution, and result materialization all
+  in one file) is now a 168-line facade over 8 focused classes under
+  `app/Services/BlockPrefetch/`: `BlockPlanCollector`, `ListQueryBuilder`,
+  `PrefetchRequestQueue`, `PrefetchRequestExecutor`, `BlockRequestPlanner`,
+  `BlockDependencyResolver`, `BlockResultMaterializer`, and
+  `RequestQueryReader`. The by-reference `array &$requests, array
+  &$requestIndexes` parameter pair threaded through half the original
+  methods is replaced by `PrefetchRequestQueue`, a real object; the mutable
+  `$this->planningLocale` instance field (a latent hazard on a
+  request-shared singleton service) is replaced by locale passed into a
+  fresh `PrefetchRequestQueue` per call. Public API unchanged
+  (`prefetchContext()`, `prefetch()`, constructor `array $clients`) — no
+  consumer needed changes. No behavior change: the original
+  `BlockPrefetchServiceTest` suite passes unmodified.
 - **`SiteCollectionService` cache TTL** — extended from 10 minutes to 1 hour to reduce upstream
   request volume under shared-hosting process limits; edits still invalidate immediately via
   `CacheInvalidator` regardless of TTL.
