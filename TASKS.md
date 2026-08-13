@@ -47,6 +47,18 @@
   Verificado: 373/373 tests, PHPStan 0 errores, CS-Fixer limpio. Evidencia:
   [`../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md`](../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md).
 
+- [x] **Auditoría carga fría 2026-08-13 — Fase 1 (observabilidad por fase)**
+  — cerrada 2026-08-13. Se instrumentó la infraestructura existente de
+  correlación/telemetría: `RequestContext` mide resolución, composición y
+  render; `PageCompositionService` cubre el camino normal y PageDelivery
+  síncrono; `RequestTelemetryFilter` emite `page_render_phase` con
+  `request_id`, ruta, status, `route_resolution_ms`, `composition_ms`,
+  `view_render_ms`, `unattributed_ms`, `total_ms` y estado de snapshot. La
+  traza no se emite para redirects-only y no cambia el contrato HTML. Añadidos
+  tests de agregación y de no emisión para redirects. Verificado: 379 tests,
+  1.479 assertions, 5 skips; PHPStan 106/106 sin errores y CS-Fixer limpio.
+  Evidencia: [`../docs/audits/2026-08-13-cerrar-la-auditoria-de-carga-fria-(2026-08-13)-sin-deuda-tecnica.md`](../docs/audits/2026-08-13-cerrar-la-auditoria-de-carga-fria-(2026-08-13)-sin-deuda-tecnica.md).
+
 - [x] **QA-01 — Contract tests y OpenAPI** — cerrada 2026-08-10. Contrato
   hermético, gate integrado de los tres dominios y estados de entrega
   verificados. Ver evidencia en [`../docs/audits/2026-08-10-qa-01-contractos-openapi.md`](../docs/audits/2026-08-10-qa-01-contractos-openapi.md).
