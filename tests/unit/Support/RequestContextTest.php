@@ -49,4 +49,35 @@ final class RequestContextTest extends TestCase
         $this->assertSame(['cms:1'], $summary['source_revisions']);
         $this->assertSame(['snapshot:1'], $summary['snapshot_revisions']);
     }
+
+    public function testSummarizesPageRenderPhasesAndDeliveryMetadata(): void
+    {
+        RequestContext::begin('request-page-1234');
+        RequestContext::addPhaseDuration('route_resolution', 12.345);
+        RequestContext::addPhaseDuration('page_composition', 34.567);
+        RequestContext::addPhaseDuration('view_render', 5.678);
+        RequestContext::setPageDelivery([
+            'available' => true,
+            'cache' => 'fresh',
+            'state' => 'fresh',
+        ]);
+
+        $summary = RequestContext::pageRenderSummary();
+
+        $this->assertNotNull($summary);
+        $this->assertSame(12.35, $summary['route_resolution_ms']);
+        $this->assertSame(34.57, $summary['composition_ms']);
+        $this->assertSame(5.68, $summary['view_render_ms']);
+        $this->assertIsFloat($summary['unattributed_ms']);
+        $this->assertSame('fresh', $summary['delivery']['cache']);
+    }
+
+    public function testDoesNotTreatRedirectOnlyRouteTimingAsPageRender(): void
+    {
+        RequestContext::begin('request-redirect-1234');
+        RequestContext::startPhase('route_resolution');
+        RequestContext::stopPhase('route_resolution');
+
+        $this->assertNull(RequestContext::pageRenderSummary());
+    }
 }
