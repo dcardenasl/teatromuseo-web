@@ -73,6 +73,38 @@ page. It is static CI4 routing configuration, not discovered from Domain.
 - Public POST routes (`forms/*/submit`, `cache/invalidate`) use
   `throttle:10,60`. GET pages are not throttled, so crawlers are not penalized.
 
+## CSRF On A Fully-Cached Public Site
+
+Form-submission routes (`forms/(:segment)/submit`, localized and not) carry
+the native CI4 `csrf` filter. Nothing else does — do not add it globally.
+
+The site relies on full-page HTML caching (`pagecache`, `WEB_PAGE_CACHE_TTL`),
+so a token rendered server-side into cached HTML would be shared by every
+visitor who hits that cache entry (useless as protection, and it would break
+real submissions once the token no longer matches CI4's regenerated hash).
+The fix is a double-submit-cookie pattern instead of `csrf_field()`:
+
+- `App\Filters\CsrfCookieFilter` is a **required `after` filter that must run
+  after `pagecache`** in `app/Config/Filters.php` (`pagecache` snapshots the
+  response before this filter adds the cookie, so the cookie is never baked
+  into the cached copy). It mirrors CI4's native `HttpOnly` CSRF cookie into a
+  second, JS-readable cookie holding the exact same token — never a
+  separately generated one.
+- Never call `csrf_field()`/`csrf_hash()` in a view that can be served from
+  page cache. If a new form needs CSRF, read the token client-side from the
+  mirror cookie (see `src/js/components/publicForms.js`) and send it as the
+  `X-CSRF-TOKEN` header on submit — do not render it into the HTML.
+- Cookie names use the `__Host-` prefix in production (`Config\Security.php`),
+  which requires `Secure`, `Path=/`, and no `Domain` attribute — changing any
+  of those three silently breaks cookie delivery in production, so keep them
+  in sync if you touch `Config\Cookie.php`.
+
+Regression coverage: `tests/unit/Config/FiltersTest.php` (filter order),
+`tests/unit/Filters/CsrfCookieFilterTest.php` (cookie mirrors the native
+token), `tests/feature/CsrfCacheIntegrationTest.php` (token never leaks into
+the cached response), `tests/feature/FormControllerTest.php` (missing/wrong
+token rejected).
+
 ## API Client And Services
 
 `app/Libraries/WebApiClientInterface.php` is the test seam for Domain access.
