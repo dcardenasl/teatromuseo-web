@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\PageDelivery;
 
+use App\Libraries\PublicListingPageBuilder;
 use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\PageCompositionService;
@@ -12,8 +13,9 @@ use App\Support\PublicPaths;
 use DateTimeInterface;
 
 /**
- * Composes the homepage before the renderer starts. This is the controlled
- * path for preview, regeneration and explicitly enabled fallback traffic.
+ * Composes an explicitly requested public page before the renderer starts.
+ * This is the controlled path for preview, regeneration and explicitly
+ * enabled fallback traffic.
  */
 final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
 {
@@ -23,18 +25,15 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         private readonly BlockPrefetchService $blockPrefetch,
         private readonly ClockInterface $clock,
         private readonly ?PageCompositionService $composition = null,
+        private readonly ?PublicListingPageBuilder $listingBuilder = null,
     ) {
     }
 
     public function deliver(PageDeliveryRequest $request): PageDeliveryResponse
     {
-        if ($request->route !== 'home') {
-            return PageDeliveryResponse::failure(404, ['Page delivery route is not supported.']);
-        }
-
-        $page = $this->findHomepage($request);
+        $page = $this->findPage($request);
         if ($page === null) {
-            return PageDeliveryResponse::failure(404, ['Homepage was not found.'], [
+            return PageDeliveryResponse::failure(404, ['Public page was not found.'], [
                 'locale' => $request->locale,
                 'route' => $request->route,
             ]);
@@ -88,6 +87,28 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
     }
 
     /** @return array<string, mixed>|null */
+    private function findPage(PageDeliveryRequest $request): ?array
+    {
+        if ($request->route === 'home') {
+            return $this->findHomepage($request);
+        }
+
+        $query = $request->previewQuery();
+        $page = $this->pageService->getBySlug(
+            $request->locale,
+            $request->route,
+            $request->preview,
+            $query['preview_expires'] ?? null,
+            $query['preview_sig'] ?? null,
+        );
+        if ($page !== null) {
+            return $page;
+        }
+
+        return $this->fallbackListing($request);
+    }
+
+    /** @return array<string, mixed>|null */
     private function findHomepage(PageDeliveryRequest $request): ?array
     {
         $query = $request->previewQuery();
@@ -103,6 +124,30 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         }
 
         return $this->pageService->getByType($request->locale, 'home');
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fallbackListing(PageDeliveryRequest $request): ?array
+    {
+        if ($this->listingBuilder === null) {
+            return null;
+        }
+
+        $pageType = $request->route === PublicPaths::eventsSegment($request->locale)
+            ? 'events'
+            : ($request->route === PublicPaths::catalogSegment($request->locale) ? 'catalog_listing' : null);
+        if ($pageType === null) {
+            return null;
+        }
+
+        $listing = $pageType === 'events'
+            ? $this->listingBuilder->event($request->locale)
+            : $this->listingBuilder->museum($request->locale);
+        $page = $listing['page'];
+        $page['page_type'] = $pageType;
+        $page['blocks'] = $listing['blocks'];
+
+        return $page;
     }
 
     /**

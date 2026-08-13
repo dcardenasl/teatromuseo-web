@@ -78,6 +78,7 @@ class Services extends BaseService
                 static::blockPrefetchService(),
                 $clock,
                 static::pageCompositionService(),
+                static::publicListingPageBuilder(),
             ),
             snapshot: new SnapshotPageDeliveryAdapter(
                 static::pageSnapshotStore(),
@@ -143,6 +144,7 @@ class Services extends BaseService
                 static::blockPrefetchService(),
                 $clock,
                 static::pageCompositionService(),
+                static::publicListingPageBuilder(),
             ),
             publisher: static::pageSnapshotStore(),
             lock: static::pageRegenerationLock(),
