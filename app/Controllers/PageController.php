@@ -136,19 +136,20 @@ class PageController extends BasePublicWebController
             return $delivery;
         }
 
-        // Steps 1 & 2: Resolve redirects and fetch page in parallel (independent calls).
-        // After fetching, check redirect result first. If no redirect, use page result and proceed to fallbacks.
+        // Steps 1 & 2: Resolve redirects and fetch page in one composite request
+        // (ADR 006 in the CMS domain). Check redirect result first; if none,
+        // use page result and proceed to fallbacks.
         $pageService = Services::sitePageService();
 
-        $parallelResults = Services::pageResolverService()->parallelResolveRedirectAndPage(
+        $bootstrapResults = Services::pageResolverService()->resolveRedirectAndPage(
             $path,
             $lang,
             $preview,
             $previewExpires,
             $previewSig
         );
-        $redirect = $parallelResults['redirect'];
-        $page = $parallelResults['page'];
+        $redirect = $bootstrapResults['redirect'];
+        $page = $bootstrapResults['page'];
 
         if ($redirect) {
             // Redirect destinations in the CMS are locale-less. Normalize

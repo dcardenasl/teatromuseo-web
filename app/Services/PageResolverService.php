@@ -7,12 +7,15 @@ namespace App\Services;
 class PageResolverService extends BaseSiteService
 {
     /**
-     * Resolve redirect and page in parallel using multiGet.
-     * Returns both results; caller decides which takes precedence (redirect first).
+     * Resolve the redirect check and the page-by-path lookup in one request
+     * using the composite `page-bootstrap` PublicRead endpoint (ADR 006 in
+     * the CMS domain) — these used to be two separate calls in one
+     * `multiGet()` batch; they're now one HTTP round trip. Returns both
+     * results; caller decides which takes precedence (redirect first).
      *
      * @return array{redirect: ?array<string, mixed>, page: ?array<string, mixed>}
      */
-    public function parallelResolveRedirectAndPage(
+    public function resolveRedirectAndPage(
         string $path,
         string $lang,
         bool $preview,
@@ -30,20 +33,15 @@ class PageResolverService extends BaseSiteService
             }
         }
 
-        $results = $this->apiClient->multiGet([
-            ['path' => "public/redirects/{$path}", 'cacheTtl' => 3600, 'scope' => 'redirects'],
-            ['path' => "public-read/{$lang}/pages/{$path}", 'query' => $query, 'cacheTtl' => $preview ? 0 : 300, 'scope' => 'pages'],
-        ]);
+        $result = $this->fetchData(
+            "public-read/{$lang}/page-bootstrap/{$path}",
+            $query,
+            $preview ? 0 : 300,
+            'pages',
+        ) ?? [];
 
-        $redirect = null;
-        if (($results[0]['ok'] ?? false) && is_array($results[0]['data'] ?? null)) {
-            $redirect = $results[0]['data'];
-        }
-
-        $page = null;
-        if (($results[1]['ok'] ?? false) && is_array($results[1]['data'] ?? null)) {
-            $page = $results[1]['data'];
-        }
+        $redirect = is_array($result['redirect'] ?? null) ? $result['redirect'] : null;
+        $page = is_array($result['page'] ?? null) ? $result['page'] : null;
 
         return ['redirect' => $redirect, 'page' => $page];
     }

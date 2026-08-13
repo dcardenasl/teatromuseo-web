@@ -35,7 +35,7 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
     {
         // A CMS redirect always wins over a configured route's own content —
         // the same precedence the legacy resolver uses
-        // (PageResolverService::parallelResolveRedirectAndPage()). Checked
+        // (PageResolverService::resolveRedirectAndPage()). Checked
         // here rather than at the manifest gate so a snapshot HIT never pays
         // for this lookup: it only runs on preview, sync mode, and the
         // (infrequent) synchronous build that refreshes a snapshot.
