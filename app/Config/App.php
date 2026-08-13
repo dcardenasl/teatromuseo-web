@@ -411,7 +411,11 @@ class App extends BaseConfig
             // Production must stay within the shared-hosting budget even if a
             // stale or mistyped .env requests a larger burst. Non-production
             // environments may opt into wider concurrency for load tests.
-            $maximumParallelRequests = ENVIRONMENT === 'production' ? 1 : 16;
+            // One remains the safe default. The production ceiling is two so
+            // beta can opt into the documented QA-03 calibration explicitly;
+            // no deployment receives two concurrent calls unless its .env
+            // asks for it and the hosting budget has been observed.
+            $maximumParallelRequests = ENVIRONMENT === 'production' ? 2 : 16;
             $this->webApiMaxParallelRequests = min(
                 $maximumParallelRequests,
                 (int) $webApiMaxParallelRequests,
