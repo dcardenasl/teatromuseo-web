@@ -8,8 +8,16 @@ class SiteCatalogService extends BaseSiteService
 {
     private const CACHE_TTL_DETAIL = 300; // 5 minutes
     private const CACHE_TTL_LIST = 180;   // 3 minutes
-    private const LIST_FIELDS = 'id,name,category_id,inventory_code,status,summary,cover_image,slug,localized,category,created_at,updated_at';
+    public const LIST_FIELDS = 'id,name,category_id,inventory_code,status,summary,cover_image,slug,localized,category,created_at,updated_at';
     private const DETAIL_FIELDS = 'id,name,category_id,inventory_code,status,summary,curiosidad,contenido,origin,period,creator,ubicacion,materials,cover_file_id,cover_image,gallery_file_ids,gallery_images,collection_number,collection_group,physical_description,dimensions,ingress_type,donated_by,tags,links,company_history,localized,translations,slug,slugs,techniques,created_at,updated_at';
+
+    /**
+     * Minimal projection for a `collection_grid` card (image, title, link) —
+     * a fraction of LIST_FIELDS, which is sized for `collection_listing`'s
+     * richer card (category, dates, inventory code). See
+     * docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
+     */
+    public const GRID_FIELDS = 'id,name,cover_image,slug,localized';
 
     /**
      * List categories of the catalog.
@@ -119,11 +127,13 @@ class SiteCatalogService extends BaseSiteService
         $sort = ltrim(trim((string) ($query['sort'] ?? 'name')), '-');
         $sort = in_array($sort, ['name', 'created_at', 'id'], true) ? $sort : 'name';
 
+        $fields = trim((string) ($query['fields'] ?? ''));
+
         $result = [
             'page' => max(1, (int) ($query['page'] ?? 1)),
             'per_page' => min(100, max(1, (int) ($query['per_page'] ?? 20))),
             'sort' => $sort,
-            'fields' => self::LIST_FIELDS,
+            'fields' => $fields !== '' ? $fields : self::LIST_FIELDS,
         ];
 
         foreach (['search', 'technique', 'technique_id'] as $key) {

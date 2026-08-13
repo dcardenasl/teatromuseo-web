@@ -11,8 +11,16 @@ class SiteEventService extends BaseSiteService
     private const CACHE_TTL_DETAIL = 300;
     private const CACHE_TTL_LIST = 180;
     private const CACHE_TTL_TYPES = 600;
-    private const LIST_FIELDS = 'id,uuid,title,event_type,slug,cover_file_id,cover_image,localized,next_occurrence_at,status';
+    public const LIST_FIELDS = 'id,uuid,title,event_type,slug,cover_file_id,cover_image,localized,next_occurrence_at,status';
     private const DETAIL_FIELDS = 'id,uuid,title,event_type,description,slug,slugs,cover_file_id,cover_image,gallery_file_ids,gallery_images,translations,localized,occurrences,status,created_at,updated_at';
+
+    /**
+     * Minimal projection for a `collection_grid` card (image, title, link,
+     * next occurrence for a date badge) — a fraction of LIST_FIELDS, which is
+     * sized for `collection_listing`'s richer card (event_type, status). See
+     * docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
+     */
+    public const GRID_FIELDS = 'id,title,slug,cover_image,localized,next_occurrence_at';
 
     public function __construct(WebApiClientInterface $apiClient)
     {
@@ -125,11 +133,13 @@ class SiteEventService extends BaseSiteService
             default => 'agenda',
         };
 
+        $fields = trim((string) ($query['fields'] ?? ''));
+
         $result = [
             'page' => max(1, (int) ($query['page'] ?? 1)),
             'per_page' => min(100, max(1, (int) ($query['per_page'] ?? 20))),
             'sort' => $sort,
-            'fields' => self::LIST_FIELDS,
+            'fields' => $fields !== '' ? $fields : self::LIST_FIELDS,
         ];
 
         foreach (['search', 'from', 'to'] as $key) {

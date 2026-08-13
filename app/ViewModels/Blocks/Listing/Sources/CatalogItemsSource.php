@@ -31,6 +31,10 @@ class CatalogItemsSource implements ListingSourceInterface
             'sort' => ($query->orderDirection === 'desc' ? '-' : '') . $this->apiSortField($query->orderBy),
         ];
 
+        if ($query->fields !== '') {
+            $apiQuery['fields'] = $query->fields;
+        }
+
         if ($query->query !== '') {
             $apiQuery['search'] = $query->query;
         }

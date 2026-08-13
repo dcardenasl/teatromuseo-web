@@ -901,11 +901,16 @@ final class BlockPrefetchService
         }
 
         if ($sourceType === 'event_items') {
+            // Only collection_grid/collection_listing ever reach this branch
+            // (collection_timeline is CMS-collection-only) — $isListing
+            // cleanly picks the richer collection_listing card fields vs. the
+            // minimal grid card. See
+            // docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
             $query = [
                 'page' => $page,
                 'per_page' => $limit,
                 'sort' => 'agenda',
-                'fields' => 'id,uuid,title,event_type,slug,cover_file_id,cover_image,localized,next_occurrence_at,status',
+                'fields' => $isListing ? \App\Services\SiteEventService::LIST_FIELDS : \App\Services\SiteEventService::GRID_FIELDS,
             ];
             $sort = match ($orderBy) {
                 'entry.title', 'title' => 'title',
@@ -934,7 +939,7 @@ final class BlockPrefetchService
                 'page' => $page,
                 'per_page' => $limit,
                 'sort' => $sort,
-                'fields' => 'id,name,category_id,inventory_code,status,summary,cover_image,slug,localized,category,created_at,updated_at',
+                'fields' => $isListing ? \App\Services\SiteCatalogService::LIST_FIELDS : \App\Services\SiteCatalogService::GRID_FIELDS,
             ];
             $categoryId = max(0, (int) ($plan['category_id'] ?? $payload['category_id'] ?? 0));
             if ($categoryId > 0) {

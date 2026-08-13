@@ -27,6 +27,10 @@ class EventItemsSource implements ListingSourceInterface
             'per_page' => $query->perPage,
         ];
 
+        if ($query->fields !== '') {
+            $apiQuery['fields'] = $query->fields;
+        }
+
         $sort = $this->apiSortField($query->orderBy);
         if ($sort !== '') {
             $apiQuery['sort'] = ($query->orderDirection === 'desc' ? '-' : '') . $sort;

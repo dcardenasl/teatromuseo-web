@@ -18,6 +18,13 @@ class ListingQuery
         public string $filterBy = '',
         public string $filterValue = '',
         public string $filterOperator = 'equals',
+        /**
+         * Explicit `fields=` projection to request from the domain
+         * (e.g. SiteCatalogService::GRID_FIELDS). Empty means "let the
+         * source use its own default" (SiteCatalogService/SiteEventService's
+         * LIST_FIELDS, sized for collection_listing's richer card).
+         */
+        public string $fields = '',
     ) {
     }
 }

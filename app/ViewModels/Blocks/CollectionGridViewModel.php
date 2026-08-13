@@ -344,7 +344,11 @@ class CollectionGridViewModel extends AbstractBlockViewModel
                 ? $this->eventSortField($orderBy)
                 : $this->catalogSortField($orderBy);
             $direction = $orderDirection;
-            $result = $source->fetch(new ListingQuery(1, $itemsLimit, '', 0, '', '', $sort, $direction), $this->lang);
+            $gridFields = $sourceType === 'event_items' ? SiteEventService::GRID_FIELDS : SiteCatalogService::GRID_FIELDS;
+            $result = $source->fetch(
+                new ListingQuery(page: 1, perPage: $itemsLimit, orderBy: $sort, orderDirection: $direction, fields: $gridFields),
+                $this->lang
+            );
 
             $entries = array_map(
                 fn (array $entry): array => $source->normalizeEntry($entry),
