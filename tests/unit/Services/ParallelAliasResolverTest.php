@@ -19,10 +19,10 @@ class ParallelAliasResolverTest extends TestCase
         $this->apiClient = $this->createMock(WebApiClientInterface::class);
         $this->resolver = new ParallelAliasResolver($this->apiClient);
 
-        // Clear cache between tests - use wildcard to clear everything
+        // Clear only this service's keys. A global wildcard would also remove
+        // writable/cache/index.html and other runtime-owned cache artifacts.
         $cache = \Config\Services::cache();
-        // Clear all possible cache patterns
-        $cache->deleteMatching('*');
+        $cache->deleteMatching((string) config('Cache')->prefix . 'alias_resolver_*');
     }
 
     public function test_resolve_alias_single(): void
@@ -135,7 +135,7 @@ class ParallelAliasResolverTest extends TestCase
     public function test_resolve_batch_deduplicates_aliases(): void
     {
         // Clear cache for this specific test
-        \Config\Services::cache()->deleteMatching('alias_resolver_*');
+        \Config\Services::cache()->deleteMatching((string) config('Cache')->prefix . 'alias_resolver_*');
 
         $mockResponse = [
             'ok' => true,
@@ -188,7 +188,7 @@ class ParallelAliasResolverTest extends TestCase
     public function test_resolve_batch_handles_missing_data(): void
     {
         // Clear cache for this specific test
-        \Config\Services::cache()->deleteMatching('alias_resolver_*');
+        \Config\Services::cache()->deleteMatching((string) config('Cache')->prefix . 'alias_resolver_*');
 
         $mockResponse = [
             'ok' => false,
