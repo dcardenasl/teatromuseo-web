@@ -7,16 +7,17 @@ namespace App\Services;
 class LayoutDataPrefetchService extends BaseSiteService
 {
     /**
-     * Prefetch all layout data (menus, settings) in parallel using multiGet.
-     * Returns only keys that are not already set in $data to avoid overwriting.
+     * Prefetch all layout data (menus, settings) in one request using the
+     * composite `layout` PublicRead endpoint (ADR 006 in the CMS domain) —
+     * navigation, collections and settings used to be three separate calls;
+     * they're now one. Returns only keys that are not already set in $data
+     * to avoid overwriting.
      *
      * @param array<string, mixed> $data
      * @return array<string, mixed>
      */
     public function prefetchLayoutData(array $data, ?string $locale = null): array
     {
-        $requests = [];
-        $keys = [];
         $locale ??= (string) service('request')->getLocale();
         $menuKeys = [
             'main'   => 'mainMenu',
@@ -27,83 +28,80 @@ class LayoutDataPrefetchService extends BaseSiteService
             $menuKeys,
             static fn (string $key): bool => ! isset($data[$key]),
         ));
+        $needsSettings = ! isset($data['settings']);
 
-        if ($missingMenuKeys !== []) {
-            $keys[] = 'navigation';
-            $requests[] = ['path' => "public-read/{$locale}/navigation", 'cacheTtl' => 600, 'scope' => 'menus'];
-
-            // Menu items whose navigation payload omits `collection_slug`
-            // fall back to resolveCollectionSlug(), which otherwise issues
-            // its own uncached GET *after* this batch returns — a third,
-            // strictly sequential round trip on every page (menus render
-            // everywhere). Warm the same cache entry here so that fallback
-            // becomes a cache hit instead of an extra network call.
-            $keys[] = 'collections';
-            $requests[] = ['path' => "public/{$locale}/collections", 'cacheTtl' => 3600, 'scope' => 'collections'];
-        }
-
-        if (! isset($data['settings'])) {
-            $keys[] = 'settings';
-            $requests[] = ['path' => "public-read/{$locale}/settings", 'cacheTtl' => 3600, 'scope' => 'settings'];
-        }
-
-        if ($requests === []) {
+        if ($missingMenuKeys === [] && ! $needsSettings) {
             return [];
         }
 
-        $results = $this->apiClient->multiGet($requests);
+        $bootstrap = $this->fetchData("public-read/{$locale}/layout", [], 600, 'layout') ?? [];
+        $navigation = is_array($bootstrap['navigation'] ?? null) ? $bootstrap['navigation'] : [];
+        $rawCollections = is_array($bootstrap['collections'] ?? null) ? $bootstrap['collections'] : [];
+        $collectionSlugsById = $this->collectionSlugsById(
+            array_values(array_filter($rawCollections, static fn (mixed $collection): bool => is_array($collection))),
+            $locale,
+        );
+        $settings = is_array($bootstrap['settings'] ?? null) ? $bootstrap['settings'] : [];
+
         $output = [];
+        if ($needsSettings) {
+            $output['settings'] = $settings;
+        }
 
-        foreach ($results as $i => $result) {
-            $key = $keys[$i] ?? null;
-            if ($key === null) {
-                continue;
-            }
-
-            if ($result['ok'] === false || ! is_array($result['data'])) {
-                if ($key === 'settings') {
-                    $output['settings'] = [];
-                } elseif ($key === 'navigation') {
-                    foreach ($missingMenuKeys as $missingMenuKey) {
-                        $output[$missingMenuKey] = ['items' => []];
-                    }
-                }
-                continue;
-            }
-
-            if ($key === 'settings') {
-                $output[$key] = $result['data'];
-            } elseif ($key === 'navigation') {
-                $navData = $result['data'];
-                foreach ($menuKeys as $location => $menuKey) {
-                    if (! in_array($menuKey, $missingMenuKeys, true)) {
-                        continue;
-                    }
-
-                    $output[$menuKey] = isset($navData[$location]) && is_array($navData[$location])
-                        ? $this->normalizeMenuPayload($navData[$location], $locale)
-                        : ['items' => []];
-                }
-            }
+        $menuLocations = ['main' => 'mainMenu', 'footer' => 'footerMenu', 'legal' => 'legalMenu'];
+        foreach ($missingMenuKeys as $menuKey) {
+            $location = array_search($menuKey, $menuLocations, true);
+            $output[$menuKey] = is_string($location) && isset($navigation[$location]) && is_array($navigation[$location])
+                ? $this->normalizeMenuPayload($navigation[$location], $locale, $collectionSlugsById)
+                : ['items' => []];
         }
 
         if (! isset($data['socialLinks'])) {
-            $settings = is_array($output['settings'] ?? null)
-                ? $output['settings']
-                : (is_array($data['settings'] ?? null) ? $data['settings'] : []);
-            $output['socialLinks'] = \Config\Services::socialLinksService()->getActiveLinksFromSettings($settings);
+            $settingsForSocial = $needsSettings ? $settings : (is_array($data['settings'] ?? null) ? $data['settings'] : []);
+            $output['socialLinks'] = \Config\Services::socialLinksService()->getActiveLinksFromSettings($settingsForSocial);
         }
 
         return $output;
     }
 
     /**
+     * Build an id => slug map from the bootstrap's `collections` list, so menu
+     * items that reference a collection by id resolve locally instead of the
+     * BaseSiteService::resolveCollectionSlug() network fallback — the
+     * collections list is already in hand from the same response.
+     *
+     * @param list<array<string, mixed>> $collections
+     * @return array<int, string>
+     */
+    private function collectionSlugsById(array $collections, string $locale): array
+    {
+        $map = [];
+        foreach ($collections as $collection) {
+            if (! is_array($collection)) {
+                continue;
+            }
+            $id = (int) ($collection['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $localizedSlugs = is_array($collection['localized_slugs'] ?? null) ? $collection['localized_slugs'] : [];
+            $slug = trim((string) ($localizedSlugs[$locale] ?? $collection['slug'] ?? ''), '/');
+            if ($slug !== '') {
+                $map[$id] = $slug;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * Normalize a menu payload by processing items and route key resolution.
      *
      * @param array<string, mixed> $menu
+     * @param array<int, string> $collectionSlugsById
      * @return array<string, mixed>
      */
-    private function normalizeMenuPayload(array $menu, string $locale): array
+    private function normalizeMenuPayload(array $menu, string $locale, array $collectionSlugsById): array
     {
         if (is_array($menu['items'] ?? null)) {
             $items = [];
@@ -112,7 +110,7 @@ class LayoutDataPrefetchService extends BaseSiteService
                     $items[] = $rawItem;
                 }
             }
-            $menu['items'] = $this->normalizeMenuItems($items, $locale);
+            $menu['items'] = $this->normalizeMenuItems($items, $locale, $collectionSlugsById);
         } else {
             $menu['items'] = [];
         }
@@ -124,9 +122,10 @@ class LayoutDataPrefetchService extends BaseSiteService
      * Recursively normalize menu items and resolve route keys.
      *
      * @param list<array<string, mixed>> $items
+     * @param array<int, string> $collectionSlugsById
      * @return list<array<string, mixed>>
      */
-    private function normalizeMenuItems(array $items, string $locale): array
+    private function normalizeMenuItems(array $items, string $locale, array $collectionSlugsById): array
     {
         foreach ($items as &$item) {
             if (! is_array($item)) {
@@ -136,7 +135,7 @@ class LayoutDataPrefetchService extends BaseSiteService
             $navigation = is_array($item['navigation'] ?? null) ? $item['navigation'] : [];
             $routePath = \App\Support\PublicPaths::routePath((string) ($navigation['route_key'] ?? ''), $locale);
             $targetType = (string) ($navigation['target_type'] ?? '');
-            $collectionSlug = $this->resolveCollectionSlug($locale, $navigation);
+            $collectionSlug = $this->collectionSlugFromNavigation($navigation, $collectionSlugsById);
             $entrySlug = trim((string) ($navigation['slug'] ?? ''), '/');
             if (in_array($targetType, ['collection_listing', 'entry'], true) && $collectionSlug !== '') {
                 $item['custom_url'] = '/' . $collectionSlug . ($targetType === 'entry' && $entrySlug !== '' ? '/' . $entrySlug : '');
@@ -172,11 +171,37 @@ class LayoutDataPrefetchService extends BaseSiteService
                         $children[] = $rawChild;
                     }
                 }
-                $item['children'] = $this->normalizeMenuItems($children, $locale);
+                $item['children'] = $this->normalizeMenuItems($children, $locale, $collectionSlugsById);
             }
         }
         unset($item);
 
         return $items;
+    }
+
+    /**
+     * Same precedence as BaseSiteService::resolveCollectionSlug(): an
+     * explicit `collection_slug` on the navigation payload wins; otherwise
+     * a collection/collection_index/collection_listing target resolves via
+     * its id against the bootstrap's collections map.
+     *
+     * @param array<string, mixed> $navigation
+     * @param array<int, string> $collectionSlugsById
+     */
+    private function collectionSlugFromNavigation(array $navigation, array $collectionSlugsById): string
+    {
+        $collectionSlug = trim((string) ($navigation['collection_slug'] ?? ''), '/');
+        if ($collectionSlug !== '') {
+            return $collectionSlug;
+        }
+
+        $targetType = (string) ($navigation['target_type'] ?? '');
+        if (! in_array($targetType, ['collection', 'collection_index', 'collection_listing'], true)) {
+            return '';
+        }
+
+        $collectionId = (int) ($navigation['target_id'] ?? 0);
+
+        return $collectionId > 0 ? ($collectionSlugsById[$collectionId] ?? '') : '';
     }
 }

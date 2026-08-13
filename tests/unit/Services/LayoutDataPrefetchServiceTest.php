@@ -25,23 +25,17 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testPrefetchesLocalizedNavigationWithoutOverwritingProvidedMenus(): void
+    public function testPrefetchesLayoutInOneCallWithoutOverwritingProvidedMenus(): void
     {
         $client = $this->createMock(WebApiClientInterface::class);
         $client->expects($this->once())
-            ->method('multiGet')
-            ->with($this->callback(static function (array $requests): bool {
-                return $requests === [
-                    ['path' => 'public-read/es/navigation', 'cacheTtl' => 600, 'scope' => 'menus'],
-                    ['path' => 'public/es/collections', 'cacheTtl' => 3600, 'scope' => 'collections'],
-                    ['path' => 'public-read/es/settings', 'cacheTtl' => 3600, 'scope' => 'settings'],
-                ];
-            }))
+            ->method('get')
+            ->with('public-read/es/layout', [], 600, 'layout')
             ->willReturn([
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'navigation' => [
                         'main' => [
                             'items' => [[
                                 'label' => 'Eventos nuevos',
@@ -63,23 +57,11 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
                         ],
                         'legal' => null,
                     ],
-                    'meta' => [],
-                    'messages' => [],
+                    'collections' => [],
+                    'settings' => ['site_name' => 'TeatroMuseo'],
                 ],
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => [],
-                    'meta' => [],
-                    'messages' => [],
-                ],
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => ['site_name' => 'TeatroMuseo'],
-                    'meta' => [],
-                    'messages' => [],
-                ],
+                'meta' => [],
+                'messages' => [],
             ]);
 
         $providedMain = ['items' => [['label' => 'Menú entregado por el controlador']]];
@@ -94,20 +76,17 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
         $this->assertSame(['site_name' => 'TeatroMuseo'], $result['settings']);
     }
 
-    public function testResolvesCollectionSlugFromTargetIdWhenCmsOmitsIt(): void
+    public function testResolvesCollectionSlugFromTargetIdUsingTheBundledCollectionsList(): void
     {
         $client = $this->createMock(WebApiClientInterface::class);
         $client->expects($this->once())
-            ->method('multiGet')
-            ->with([
-                ['path' => 'public-read/es/navigation', 'cacheTtl' => 600, 'scope' => 'menus'],
-                ['path' => 'public/es/collections', 'cacheTtl' => 3600, 'scope' => 'collections'],
-            ])
+            ->method('get')
+            ->with('public-read/es/layout', [], 600, 'layout')
             ->willReturn([
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => [
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'navigation' => [
                         'main' => [
                             'items' => [[
                                 'label' => 'Festivales',
@@ -119,28 +98,13 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
                                 'children' => [],
                             ]],
                         ],
+                        'footer' => null,
+                        'legal' => null,
                     ],
-                    'meta' => [],
-                    'messages' => [],
-                ],
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => [
+                    'collections' => [
                         ['id' => 3, 'slug' => 'festivales', 'localized_slugs' => ['es' => 'festivales']],
                     ],
-                    'meta' => [],
-                    'messages' => [],
-                ],
-            ]);
-        $client->expects($this->once())
-            ->method('get')
-            ->with('public/es/collections', [], 3600, 'collections')
-            ->willReturn([
-                'ok' => true,
-                'status' => 200,
-                'data' => [
-                    ['id' => 3, 'slug' => 'festivales', 'localized_slugs' => ['es' => 'festivales']],
+                    'settings' => [],
                 ],
                 'meta' => [],
                 'messages' => [],
@@ -158,38 +122,58 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
     {
         $client = $this->createMock(WebApiClientInterface::class);
         $client->expects($this->once())
-            ->method('multiGet')
-            ->with([
-                ['path' => 'public-read/en/navigation', 'cacheTtl' => 600, 'scope' => 'menus'],
-                ['path' => 'public/en/collections', 'cacheTtl' => 3600, 'scope' => 'collections'],
-                ['path' => 'public-read/en/settings', 'cacheTtl' => 3600, 'scope' => 'settings'],
-            ])
+            ->method('get')
+            ->with('public-read/en/layout', [], 600, 'layout')
             ->willReturn([
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => ['main' => ['items' => []]],
-                    'meta' => [],
-                    'messages' => [],
+                'ok' => true,
+                'status' => 200,
+                'data' => [
+                    'navigation' => ['main' => ['items' => []], 'footer' => null, 'legal' => null],
+                    'collections' => [],
+                    'settings' => ['site_name' => 'TeatroMuseo'],
                 ],
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => [],
-                    'meta' => [],
-                    'messages' => [],
-                ],
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => ['site_name' => 'TeatroMuseo'],
-                    'meta' => [],
-                    'messages' => [],
-                ],
+                'meta' => [],
+                'messages' => [],
             ]);
 
         $result = (new LayoutDataPrefetchService($client))->prefetchLayoutData(['socialLinks' => []], 'en');
 
         $this->assertSame(['site_name' => 'TeatroMuseo'], $result['settings']);
+    }
+
+    public function testNothingMissingSkipsTheRequestEntirely(): void
+    {
+        $client = $this->createMock(WebApiClientInterface::class);
+        $client->expects($this->never())->method('get');
+        $client->expects($this->never())->method('multiGet');
+
+        $result = (new LayoutDataPrefetchService($client))->prefetchLayoutData([
+            'mainMenu' => ['items' => []],
+            'footerMenu' => ['items' => []],
+            'legalMenu' => ['items' => []],
+            'settings' => [],
+            'socialLinks' => [],
+        ]);
+
+        $this->assertSame([], $result);
+    }
+
+    public function testFailedRequestFallsBackToEmptyMenusAndSettings(): void
+    {
+        $client = $this->createMock(WebApiClientInterface::class);
+        $client->method('get')->willReturn([
+            'ok' => false,
+            'status' => 503,
+            'data' => null,
+            'meta' => [],
+            'messages' => ['unavailable'],
+        ]);
+
+        $result = (new LayoutDataPrefetchService($client))->prefetchLayoutData(['socialLinks' => []]);
+
+        $this->assertSame(['items' => []], $result['mainMenu']);
+        $this->assertSame(['items' => []], $result['footerMenu']);
+        $this->assertSame(['items' => []], $result['legalMenu']);
+        $this->assertSame([], $result['settings']);
     }
 }

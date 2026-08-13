@@ -70,16 +70,31 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             return $this->responses[$normalizedPath];
         }
 
-        if ($path === 'public/settings' || preg_match('#^public-read/([^/]+)/settings$#', $path) === 1) {
-            $settingsPath = preg_match('#^public-read/#', $path) === 1 ? 'public/settings' : $path;
-            if (isset($this->responses[$settingsPath])) {
-                return $this->responses[$settingsPath];
-            }
+        // Composite bootstrap endpoints (ADR 006 in the CMS domain) — Web's
+        // LayoutDataPrefetchService/PageResolverService each make one request
+        // instead of the three/two they used to make. Compose from the same
+        // per-resource resolution the individual paths below still serve, so
+        // `fakeGet()` calls for the old individual paths keep working
+        // transparently for tests that predate the composite endpoints.
+        if (preg_match('#^public-read/([^/]+)/layout$#', $path, $matches) === 1) {
             return $this->response([
-                'site_name' => 'Deterministic Fixture Site',
-                'site_description' => 'Synthetic settings for hermetic feature tests.',
-                'site_logo_url' => 'https://example.com/assets/fixture-logo.png',
+                'navigation' => $this->navigationData(),
+                'collections' => $this->collectionsData($matches[1]),
+                'settings' => $this->settingsData($matches[1]),
             ]);
+        }
+
+        if (preg_match('#^public-read/([^/]+)/page-bootstrap/(.+)$#', $path, $matches) === 1) {
+            return $this->response([
+                'redirect' => $this->redirectData($matches[2]),
+                'page' => $this->pageData($matches[1], $matches[2]),
+            ]);
+        }
+
+        if ($path === 'public/settings' || preg_match('#^public-read/([^/]+)/settings$#', $path) === 1) {
+            $locale = preg_match('#^public-read/([^/]+)/settings$#', $path, $matches) === 1 ? $matches[1] : '';
+
+            return $this->response($this->settingsData($locale));
         }
 
         if ($path === 'cms/public/languages') {
@@ -94,32 +109,32 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             ));
         }
 
-        if (preg_match('#^public-read/([^/]+)/navigation$#', $path, $matches) === 1) {
-            $mainMenu = isset($this->responses["public/menus/main"]) ? $this->responses["public/menus/main"]['data'] : ['items' => []];
-            $footerMenu = isset($this->responses["public/menus/footer"]) ? $this->responses["public/menus/footer"]['data'] : ['items' => []];
-            $legalMenu = isset($this->responses["public/menus/legal"]) ? $this->responses["public/menus/legal"]['data'] : ['items' => []];
-
-            return $this->response([
-                'main' => $mainMenu,
-                'footer' => $footerMenu,
-                'legal' => $legalMenu,
-            ]);
+        if (preg_match('#^public-read/([^/]+)/navigation$#', $path) === 1) {
+            return $this->response($this->navigationData());
         }
 
         if (str_starts_with($path, 'public/menus/')) {
             return $this->response(['items' => []]);
         }
 
-        if (preg_match('#^public(?:-read)?/([^/]+)/pages/(?:home|inicio)$#', $path, $matches) === 1) {
-            return $this->response($this->homePage($matches[1]));
+        if (preg_match('#^public(?:-read)?/([^/]+)/pages/(.+)$#', $path, $matches) === 1) {
+            $page = $this->pageData($matches[1], $matches[2]);
+
+            return $page !== null ? $this->response($page) : [
+                'ok' => false,
+                'status' => 404,
+                'data' => null,
+                'meta' => [],
+                'messages' => ['Not found'],
+            ];
         }
 
         if (preg_match('#^public/([^/]+)/pages$#', $path, $matches) === 1 || preg_match('#^public-read/([^/]+)/pages$#', $path, $matches) === 1) {
             return $this->response([$this->homePage($matches[1])]);
         }
 
-        if (preg_match('#^public/([^/]+)/collections$#', $path) === 1) {
-            return $this->response([]);
+        if (preg_match('#^public/([^/]+)/collections$#', $path, $matches) === 1) {
+            return $this->response($this->collectionsData($matches[1]));
         }
 
         return [
@@ -174,6 +189,75 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             'meta' => $meta,
             'messages' => [],
         ];
+    }
+
+    /** @return array{main: mixed, footer: mixed, legal: mixed} */
+    private function navigationData(): array
+    {
+        return [
+            'main' => isset($this->responses['public/menus/main']) ? $this->responses['public/menus/main']['data'] : ['items' => []],
+            'footer' => isset($this->responses['public/menus/footer']) ? $this->responses['public/menus/footer']['data'] : ['items' => []],
+            'legal' => isset($this->responses['public/menus/legal']) ? $this->responses['public/menus/legal']['data'] : ['items' => []],
+        ];
+    }
+
+    private function settingsData(string $locale): mixed
+    {
+        if ($locale !== '' && isset($this->responses["public-read/{$locale}/settings"])) {
+            return $this->responses["public-read/{$locale}/settings"]['data'];
+        }
+        if (isset($this->responses['public/settings'])) {
+            return $this->responses['public/settings']['data'];
+        }
+
+        return [
+            'site_name' => 'Deterministic Fixture Site',
+            'site_description' => 'Synthetic settings for hermetic feature tests.',
+            'site_logo_url' => 'https://example.com/assets/fixture-logo.png',
+        ];
+    }
+
+    /** @return list<mixed> */
+    private function collectionsData(string $locale): array
+    {
+        $key = "public/{$locale}/collections";
+
+        return isset($this->responses[$key]) && is_array($this->responses[$key]['data'])
+            ? $this->responses[$key]['data']
+            : [];
+    }
+
+    /** @return array{new_url: string, redirect_type: int}|null */
+    private function redirectData(string $path): ?array
+    {
+        $key = 'public/redirects/' . $path;
+
+        return isset($this->responses[$key]) && ($this->responses[$key]['ok'] ?? false) && is_array($this->responses[$key]['data'])
+            ? $this->responses[$key]['data']
+            : null;
+    }
+
+    /**
+     * The individual page-by-path fake keys accept both `public-read/...`
+     * and `public/...` prefixes (tests predate the `public-read` migration
+     * for some fixtures); the composite `page-bootstrap` route only exists
+     * under `public-read`, so it checks both when composing.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function pageData(string $locale, string $path): ?array
+    {
+        foreach (["public-read/{$locale}/pages/{$path}", "public/{$locale}/pages/{$path}"] as $key) {
+            if (isset($this->responses[$key]) && ($this->responses[$key]['ok'] ?? false) && is_array($this->responses[$key]['data'])) {
+                return $this->responses[$key]['data'];
+            }
+        }
+
+        if (in_array($path, ['home', 'inicio'], true)) {
+            return $this->homePage($locale);
+        }
+
+        return null;
     }
 
     /** @return array<string, mixed> */
