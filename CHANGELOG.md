@@ -99,6 +99,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`blocks/preview` had no authentication of its own** — the server-to-server proxy called by the
+  Admin panel's block editor relied only on `throttle:10,60`. Added an optional shared-secret check
+  (`BLOCK_PREVIEW_KEY`, `hash_equals()` against `X-Block-Preview-Key`, same pattern as
+  `CacheController`): while unset the endpoint keeps its previous throttle-only behavior, and when
+  set a missing or incorrect header is rejected with `401` (2026-08-12 audit finding).
 - **CSRF-safe public forms under page caching** — public form submissions previously embedded
   their CSRF token via `csrf_field()` directly in HTML that `pagecache` could serve to every
   visitor, and form routes relied only on that embedded token rather than an explicit filter.
