@@ -6,6 +6,14 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-PERF-10 — Lock single-flight en WebApiClient::get()** — cerrada
+  2026-08-13. Implementa lock single-flight en `WebApiClient::get()` utilizando
+  la primitiva `SingleFlightLock` (bloqueo exclusivo flock) con re-chequeo
+  de cache tras desbloqueo. Se agregaron tests unitarios dedicados
+  (`SingleFlightLockTest.php`) cubriendo cache hit, cache miss, exclusión y timeout.
+  Verificado: 377/377 tests, PHPStan 0 errores, CS-Fixer limpio. Evidencia:
+  [`../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md`](../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md).
+
 - [x] **WEB-PERF-09 — Alerta de payload_bytes en WebApiClient** — cerrada
   2026-08-13. Ejecuta la mitad "de bajo riesgo" de §2.E de
   [`../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md`](../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md):
@@ -86,13 +94,6 @@ absorben en QA cuando se solapan con el plan nuevo.
   posterior al cutover.
 - [ ] **WEB-PERF-08** — Automatizar crawl/smoke/performance budget. Su resultado
   debe alimentar `QA-03/QA-04`, no reemplazarlos.
-- [ ] **WEB-PERF-10** — Lock single-flight en `WebApiClient::get()` para
-  colapsar requests concurrentes en cache-miss (§2.E de
-  `../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md`).
-  Diferido explícitamente de WEB-PERF-09 — necesita una primitiva de lock
-  bloqueante+polling nueva (no la que ya existe en `FileRegenerationLock`,
-  que es "intenta una vez, si no sigue sin bloquear") y diseño/tests
-  dedicados.
 
 ### Backlog heredado del saneamiento 2026-08-05 — prioridad 3
 
