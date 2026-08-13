@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`WebApiClient` reuses its cURL connection/TLS session across sequential
+  calls** — every `get()`/`multiGet()`/`multiGetAcross()` handle now attaches
+  a per-instance `CURLOPT_SHARE` (connection + SSL session + DNS cache), so
+  two calls made moments apart to the same host within one request (e.g.
+  `page-bootstrap` then `layout`) reuse the first call's TCP+TLS handshake
+  instead of each paying their own.
 - **Cold-page round trips cut from 5–7 to 2–3 via composite CMS endpoints** —
   `LayoutDataPrefetchService` and `PageResolverService` (renamed
   `resolveRedirectAndPage()`) now call the CMS domain's new
