@@ -6,6 +6,36 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-PERF-12 — Consumir los endpoints compuestos `layout` y
+  `page-bootstrap` del CMS domain** — cerrada 2026-08-13. Enmienda ADR 004
+  §1/§6 vía
+  [`../docs/adr/006-public-read-composite-bootstrap-endpoints.md`](../docs/adr/006-public-read-composite-bootstrap-endpoints.md):
+  bajo hosting con concurrencia efectiva de 1, agrupar llamadas en un lote no
+  ahorra nada — solo el número de llamadas distintas importa. Se agregaron
+  dos endpoints agregados en `teatromuseo-cms-domain` (PERF-04 de ese repo) y
+  este lado los consume: `LayoutDataPrefetchService::prefetchLayoutData()`
+  pasa de un lote de 3 (`navigation`+`collections`+`settings`) a 1 llamada a
+  `public-read/{locale}/layout`, y `PageResolverService` (renombrado
+  `parallelResolveRedirectAndPage()` → `resolveRedirectAndPage()`, ya no es
+  paralelo) pasa de un lote de 2 (`public/redirects/{path}`+`pages/{path}`) a
+  1 llamada a `public-read/{locale}/page-bootstrap/{path}`. `/es/nosotros`
+  pasa de 5 a 2 llamadas de red en frío; `/es/teatroescuela` de 7 a 3.
+  `LayoutDataPrefetchService` ahora resuelve el slug de colección del menú
+  contra la lista de `collections` ya incluida en el bootstrap en vez de
+  `BaseSiteService::resolveCollectionSlug()` (que sigue existiendo, sin
+  cambios, para otros llamadores sin bootstrap a mano). `CacheInvalidator`
+  gana un mapa de alias de scope (`SCOPE_ALIASES`): invalidar
+  `settings`/`menus`/`collections` también invalida `layout` (nuevo scope
+  válido, 13→14), e invalidar `redirects` también invalida `pages` — sin eso,
+  el caché del endpoint compuesto quedaría stale hasta su propio TTL aunque
+  el scope individual se invalidara. `DeterministicDomainAdapter` (fixture
+  hermético compartido por las pruebas de feature) gana soporte para ambos
+  paths compuestos, componiéndolos desde la misma resolución que ya usan los
+  paths individuales — los `fakeGet()` existentes con paths individuales
+  siguen funcionando sin cambios. Verificado: 461/461 tests (450 previos + 11
+  nuevos/reescritos), PHPStan 0 errores, CS-Fixer limpio, fixture-policy e
+  i18n-check verdes.
+
 - [x] **REL-01-HARDEN-01 — Cerrar 2 gaps de robustez en PageDelivery
   Fases 2-3** — cerrada 2026-08-13. Revisión de código pedida explícitamente
   tras cerrar las Fases 2-3 encontró dos gaps concretos, ambos cerrados:
