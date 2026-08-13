@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cold-page round trips cut from 5–7 to 2–3 via composite CMS endpoints** —
+  `LayoutDataPrefetchService` and `PageResolverService` (renamed
+  `resolveRedirectAndPage()`) now call the CMS domain's new
+  `public-read/{locale}/layout` and `public-read/{locale}/page-bootstrap/{path}`
+  endpoints (ADR 006) instead of firing 3 and 2 separate requests
+  respectively. Under hosting without real request concurrency, round-trip
+  count — not batching — is what determines cold-load latency.
+  `CacheInvalidator` gained scope aliasing (`settings`/`menus`/`collections` →
+  also `layout`; `redirects` → also `pages`) so the composite responses'
+  cache entries invalidate correctly.
 - **Single block prefetch pipeline** — `BlockPrefetchService` plans collection grids, listings, timelines, and item detail blocks before rendering, routes each request to its owning domain, deduplicates identical queries, and returns explicit path-keyed result envelopes. Legacy overlapping prefetch services were removed.
 - **Sparse fieldsets optimization** — clients can request subset of fields via `?fields=id,name,slug` to reduce payloads 40–60%; integrated via `SparseFieldsetTrait` from `ci4-api-core` in domain public APIs.
 - **Parallel alias resolution** — `ParallelAliasResolver` batches slug-to-ID lookups across collection items and events, eliminating sequential alias resolution calls.
