@@ -52,6 +52,7 @@ class WebApiClient implements WebApiClientInterface
     private int $staleTtl;
     private int $maxParallelRequests;
     private int $lastPayloadBytes = 0;
+    private SingleFlightLock $singleFlightLock;
 
     public function __construct(
         string $baseUrl,
@@ -60,6 +61,7 @@ class WebApiClient implements WebApiClientInterface
         int $staleTtl = 86400,
         int $maxParallelRequests = 2,
         int $connectTimeout = 1,
+        ?SingleFlightLock $singleFlightLock = null,
     ) {
         if (trim($baseUrl) === '') {
             throw new \LogicException(
@@ -81,6 +83,7 @@ class WebApiClient implements WebApiClientInterface
         $this->staleTtl = max(0, $staleTtl);
         $this->maxParallelRequests = min(16, max(1, $maxParallelRequests));
         $this->connectTimeout = min($this->timeout, max(1, $connectTimeout));
+        $this->singleFlightLock = $singleFlightLock ?? new SingleFlightLock(defined('WRITABLEPATH') ? WRITABLEPATH . 'cache/locks' : '');
     }
 
     /**
@@ -120,25 +123,59 @@ class WebApiClient implements WebApiClientInterface
             return $result;
         }
 
-        $result = $this->request('GET', $path, $query);
-        $timeout = $this->isTimeoutResult($result);
-
-        if ($result['ok']) {
-            if ($cacheTtl > 0) {
-                $cache->save($cacheKey, $result, $cacheTtl);
-
-                if ($this->staleTtl > 0) {
-                    $cache->save($staleKey, $result, $this->staleTtl);
-                }
-            }
-
+        if ($cacheTtl <= 0) {
+            $result = $this->request('GET', $path, $query);
+            $timeout = $this->isTimeoutResult($result);
             $this->recordTelemetry($this->telemetryEvent(
                 'GET',
                 $path,
                 $url,
                 $scope,
                 $result['status'],
-                $cacheTtl > 0 ? 'miss' : 'bypass',
+                'bypass',
+                false,
+                $timeout,
+                $this->elapsedMilliseconds($startedAt),
+                $this->lastOrResultPayloadBytes($result),
+                $this->sourceRevision($result),
+                $this->snapshotRevision($result),
+            ));
+
+            return $result;
+        }
+
+        $missExecuted = false;
+
+        $result = $this->singleFlightLock->single(
+            $cacheKey,
+            function () use ($cache, $cacheKey) {
+                $cached = $cache->get($cacheKey);
+                return is_array($cached) ? $this->resultFromArray($cached) : null;
+            },
+            function () use ($path, $query, $cache, $cacheKey, $staleKey, $cacheTtl, &$missExecuted) {
+                $missExecuted = true;
+                $res = $this->request('GET', $path, $query);
+                if ($res['ok']) {
+                    $cache->save($cacheKey, $res, $cacheTtl);
+
+                    if ($this->staleTtl > 0) {
+                        $cache->save($staleKey, $res, $this->staleTtl);
+                    }
+                }
+                return $res;
+            }
+        );
+
+        $timeout = $this->isTimeoutResult($result);
+
+        if ($result['ok']) {
+            $this->recordTelemetry($this->telemetryEvent(
+                'GET',
+                $path,
+                $url,
+                $scope,
+                $result['status'],
+                $missExecuted ? 'miss' : 'hit',
                 false,
                 $timeout,
                 $this->elapsedMilliseconds($startedAt),
@@ -189,7 +226,7 @@ class WebApiClient implements WebApiClientInterface
             $url,
             $scope,
             $result['status'],
-            $cacheTtl > 0 ? 'miss' : 'bypass',
+            $missExecuted ? 'miss' : 'hit',
             false,
             $timeout,
             $this->elapsedMilliseconds($startedAt),
