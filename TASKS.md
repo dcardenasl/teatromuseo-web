@@ -6,6 +6,58 @@
 
 ## ✅ Completadas
 
+- [x] **REL-01-HARDEN-01 — Cerrar 2 gaps de robustez en PageDelivery
+  Fases 2-3** — cerrada 2026-08-13. Revisión de código pedida explícitamente
+  tras cerrar las Fases 2-3 encontró dos gaps concretos, ambos cerrados:
+  1. **Redirects ignorados en rutas del manifest**: `deliverConfiguredPageRoute()`
+     nunca consultaba `public/redirects/{route}` — un redirect creado sobre
+     una ruta del manifest (`home`/`events`/`catalog`, y cualquier slug CMS
+     que `REL-02` agregue después) quedaba silenciosamente inerte. Fix:
+     `SynchronousPageDeliveryAdapter::deliver()` ahora consulta el redirect
+     (vía `SiteRedirectService`, ya existente pero sin usar) **antes** de
+     buscar la página, con la misma precedencia que ya usa el resolver
+     legacy. Se ubicó deliberadamente ahí y no en `deliverConfiguredPageRoute()`
+     para que un **snapshot HIT siga sin tocar el dominio** — la
+     comprobación solo corre en preview, modo sync, y el build síncrono que
+     refresca un snapshot (ya cacheado 3600s como el resolver legacy). Se
+     extrajo `PublicPaths::resolveRedirectTarget()` compartido entre
+     `PageController::resolve()` y el nuevo camino — una sola normalización
+     externa/interna, no dos que puedan divergir. Nuevo
+     `PageDeliveryResponse::redirect()`/`isRedirect()`;
+     `SnapshotBuilder`/`FileSnapshotStore` no requirieron cambios (una
+     respuesta de redirect ya tiene `page=null`, tratada igual que un 404 —
+     mismo tradeoff de staleness ya aceptado, y el scope `redirects` ya
+     estaba en `pageSnapshotScopes`/`CacheInvalidator::VALID_SCOPES`, así que
+     la invalidación cross-repo ya existía).
+  2. **Crecimiento no acotado de snapshots vía búsqueda libre**: `q`,
+     `search`, `filter_value` (y `filter_by`, cuyo valor también es
+     string libre) en `PageDeliveryRequest::VARIANT_QUERY_KEYS` generaban un
+     `cacheKey()` nuevo por cada término de búsqueda real de un visitante —
+     sin tope global en `FileSnapshotStore`, esto viola el invariante
+     explícito del plan 2026-08-09 ("snapshots... deben tener tamaño y
+     retención limitados"), y se vuelve alcanzable recién con Cartelera/
+     Catálogo en el manifest (ambos con buscador real). Fix: nuevo
+     `PageDeliveryRequest::isSnapshotEligible()` — `category`/`tag`/`page`/
+     `per_page`/`order_by`/`order_direction`/`limit`/`filter_operator`
+     (cardinalidad orgánica acotada) siguen siendo snapshot-eligible;
+     `q`/`search`/`filter_value`/`filter_by` (texto libre, cardinalidad
+     orgánica no acotada — cada término de búsqueda real es distinto) nunca
+     lo son. `PageDeliveryService::deliver()` enruta esas requests por el
+     mismo camino síncrono que preview — nunca tocan `SnapshotBuilder` ni
+     escriben a disco. No se construyó una cuota/LRU global nueva: el fix
+     ataca la causa raíz (por qué un campo de cardinalidad no acotada llega
+     siquiera a ser candidato a snapshot) en vez de mitigar el síntoma con
+     una pieza de infraestructura nueva y su propio riesgo de bugs.
+  Tests nuevos: 4 feature (`PageDeliveryRouteTest`: redirect gana sobre
+  contenido CMS/listado declarado, búsqueda libre nunca cachea — dos
+  requests idénticas ambas tocan el dominio) + 8 unitarios
+  (`PageDeliveryRequestTest`, `PageDeliveryResponseTest`, `PublicPathsTest`).
+  Se corrigió además el test preexistente que afirmaba explícitamente el bug
+  (`assertNotContains('public/redirects/about', ...)` → ahora
+  `assertContains`, documentando el comportamiento correcto). Verificado:
+  450/450 tests, PHPStan 114/114 sin errores, CS-Fixer limpio,
+  `composer quality` completo verde.
+
 - [x] **WEB-QUAL-01 — Descomponer BlockPrefetchService en colaboradores de
   responsabilidad única** — cerrada 2026-08-13. `BlockPrefetchService`
   (1223 líneas, una sola clase planificando + ejecutando + resolviendo
@@ -118,8 +170,10 @@
 - [ ] **REL-01 — Activación controlada de homepage** — pendiente de ventana de
   cutover, baseline/shadow y telemetría del runtime anterior. El código de las
   Fases 2–3 ya está preflight-ready: manifest locale-aware, PageDelivery para
-  rutas CMS/listados declarados y runbook operativo; falta evidencia beta de
-  paralelismo, filesystem compartido, cron y EP/508.
+  rutas CMS/listados declarados, runbook operativo, y (ver `REL-01-HARDEN-01`
+  arriba) redirects respetados en rutas del manifest + búsqueda libre nunca
+  persistida como snapshot; falta evidencia beta de paralelismo, filesystem
+  compartido, cron y EP/508.
 
 ## 🟡 Próximo
 
