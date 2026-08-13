@@ -75,7 +75,10 @@
 ## 🔴 En progreso
 
 - [ ] **REL-01 — Activación controlada de homepage** — pendiente de ventana de
-  cutover, baseline/shadow y telemetría del runtime anterior.
+  cutover, baseline/shadow y telemetría del runtime anterior. El código de las
+  Fases 2–3 ya está preflight-ready: manifest locale-aware, PageDelivery para
+  rutas CMS/listados declarados y runbook operativo; falta evidencia beta de
+  paralelismo, filesystem compartido, cron y EP/508.
 
 ## 🟡 Próximo
 
