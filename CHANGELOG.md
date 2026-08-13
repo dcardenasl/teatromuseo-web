@@ -56,6 +56,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`PageDelivery` ignored active redirects on manifest routes** — `deliverConfiguredPageRoute()`
+  never checked `public/redirects/{route}`, so a redirect created for `home`/`events`/`catalog` (or
+  any CMS slug added to the manifest) was silently overridden by that route's own content while
+  `pageDeliveryEnabled=true`. `SynchronousPageDeliveryAdapter::deliver()` now checks the redirect
+  first, with the same precedence the legacy resolver already uses.
+- **`PageDelivery` could snapshot an unbounded number of free-text search variants** — `q`,
+  `search`, and `filter_value`/`filter_by` on Cartelera/Catalog listings each produced a distinct,
+  permanent snapshot identity with no global cap on `FileSnapshotStore`. These variants are no
+  longer snapshot-eligible; they always render synchronously, like preview does.
 - **Cold-page latency: menu collection-slug resolution issued its own uncached
   request outside the layout prefetch batch** — `LayoutDataPrefetchService`
   fetched `navigation`+`settings` in one parallel `multiGet()`, but menu items
