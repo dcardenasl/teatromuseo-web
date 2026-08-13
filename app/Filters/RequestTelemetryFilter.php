@@ -18,6 +18,28 @@ final class RequestTelemetryFilter implements FilterInterface
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null): ResponseInterface
     {
+        RequestContext::finishOpenPhases();
+        $pageRender = RequestContext::pageRenderSummary();
+        if ($pageRender !== null) {
+            $pagePayload = array_merge(
+                [
+                    'component' => 'teatromuseo-web',
+                    'event' => 'page_render_phase',
+                    'request_id' => RequestContext::requestId(),
+                    'path' => $request->getUri()->getPath(),
+                    'locale' => service('request')->getLocale(),
+                    'status' => $response->getStatusCode(),
+                    'total_ms' => round(RequestContext::elapsedMilliseconds(), 2),
+                ],
+                $pageRender,
+            );
+
+            log_message(
+                'info',
+                '[page-render-phase] ' . (string) json_encode($pagePayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            );
+        }
+
         $summary = RequestContext::outboundSummary();
         $payload = [
             'component'          => 'teatromuseo-web',
