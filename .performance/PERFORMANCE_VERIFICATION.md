@@ -1,5 +1,14 @@
 # Performance Verification Report — Smart Prefetch Integration
 
+> **Historical evidence — not a current production acceptance gate.** This
+> report records a localhost/dev-stack verification from 2026-08-08. It does
+> not measure LCP, does not prove the current beta snapshot configuration, and
+> must not be used to close `QA-03`, `QA-04`, or `REL-01`. The current cold-load
+> and LCP status is tracked in
+> [`docs/audits/2026-08-13-cerrar-la-auditoria-de-carga-fria-(2026-08-13)-sin-deuda-tecnica.md`](../../docs/audits/2026-08-13-cerrar-la-auditoria-de-carga-fria-(2026-08-13)-sin-deuda-tecnica.md)
+> and the operational acceptance procedure is in
+> [`docs/operations/page-delivery-rollout.md`](../../docs/operations/page-delivery-rollout.md).
+
 **Verified:** 2026-08-08  
 **Environment:** localhost:8184 (dev stack with start-dev.sh)
 
@@ -66,12 +75,15 @@ The performance gain is server-side: **reducing concurrent API request count fro
 - ✅ **Better cache hit rates** — less redundant API calls across pages
 - ✅ **Improved stability** — fewer concurrent connections to domain APIs
 
-## Verification Status
+## Verification Status (historical scope)
 
-- ✅ Code is deployed to ftp.teatromuseo.cl
-- ✅ Integration is active on both `/es` and `/es/cartelera`
-- ✅ BlockAnalyzer and SmartPrefetch are working
-- ✅ No errors in execution (graceful fallback on failure)
+- ✅ BlockAnalyzer and SmartPrefetch were verified in the localhost stack on
+  2026-08-08.
+- ✅ The original report recorded deployment to `ftp.teatromuseo.cl`; that
+  deployment claim is not independently re-verified by this document and is
+  not evidence of the current beta runtime.
+- ✅ The original local verification exercised `/es` and `/es/cartelera` with
+  graceful fallback on failure.
 
 ---
 
