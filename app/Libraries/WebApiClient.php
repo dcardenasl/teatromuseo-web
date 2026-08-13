@@ -34,6 +34,17 @@ class WebApiClient implements WebApiClientInterface
     // fallback.
     private const CACHE_SCHEMA_VERSION = 11;
 
+    /**
+     * Above this size, a response is worth a human looking at — either a
+     * listing block requesting more than it needs (see
+     * docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.E)
+     * or a genuinely large detail payload. Deliberately just a log-level
+     * signal, not a hard cap: once §2.A-§2.C bounded the worst-case payload
+     * structurally, a size cap here would only ever fire on a regression —
+     * and should be *investigated*, not silently truncated.
+     */
+    private const PAYLOAD_WARNING_BYTES = 200_000;
+
     private string $baseUrl;
     private string $apiKey;
     private int $timeout;
@@ -973,10 +984,12 @@ class WebApiClient implements WebApiClientInterface
         $event['snapshot_revision'] ??= null;
         RequestContext::recordOutbound($event);
 
-        log_message(
-            'info',
-            '[web-api] ' . (string) json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        );
+        $encoded = (string) json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        log_message('info', '[web-api] ' . $encoded);
+
+        if ((int) $event['payload_bytes'] > self::PAYLOAD_WARNING_BYTES) {
+            log_message('warning', '[web-api] oversized payload (' . $event['payload_bytes'] . ' bytes) ' . $encoded);
+        }
     }
 
     /**
