@@ -9,6 +9,7 @@ use App\Libraries\HtmlResponseCacheRegistry;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\Mock\MockCache;
 use Config\Services;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
@@ -177,7 +178,50 @@ final class CacheInvalidatorTest extends CIUnitTestCase
         $this->assertContains('categories', $scopes);
         $this->assertContains('techniques', $scopes);
         $this->assertContains('collection_items', $scopes);
-        $this->assertCount(13, $scopes);
+        $this->assertContains('layout', $scopes);
+        $this->assertCount(14, $scopes);
+    }
+
+    /**
+     * The composite `layout` PublicRead endpoint (ADR 006) bundles
+     * navigation+collections+settings into one cached response — editing any
+     * of the three must also invalidate that composite entry, or it serves
+     * stale data until its own TTL expires.
+     */
+    #[DataProvider('layoutAliasedScopeProvider')]
+    public function testInvalidatingABundledResourceAlsoInvalidatesLayout(string $scope): void
+    {
+        $this->cache->save('web_api_v4_layout_abc123', ['ok' => true], 300);
+
+        $result = $this->invalidator->invalidate([$scope]);
+
+        $this->assertContains('layout', $result['invalidated']);
+        $this->assertNull($this->cache->get('web_api_v4_layout_abc123'));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function layoutAliasedScopeProvider(): iterable
+    {
+        yield 'settings' => ['settings'];
+        yield 'menus' => ['menus'];
+        yield 'collections' => ['collections'];
+    }
+
+    public function testInvalidatingRedirectsAlsoInvalidatesThePageBootstrapCacheUnderThePagesScope(): void
+    {
+        $this->cache->save('web_api_v4_pages_abc123', ['ok' => true], 300);
+
+        $result = $this->invalidator->invalidate(['redirects']);
+
+        $this->assertContains('pages', $result['invalidated']);
+        $this->assertNull($this->cache->get('web_api_v4_pages_abc123'));
+    }
+
+    public function testInvalidatingPagesAloneDoesNotAliasToAnythingElse(): void
+    {
+        $result = $this->invalidator->invalidate(['pages']);
+
+        $this->assertSame(['pages'], $result['invalidated']);
     }
 
     public function testStatusTracksAutomaticAndManualInvalidations(): void

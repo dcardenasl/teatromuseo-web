@@ -33,6 +33,24 @@ class CacheInvalidator
         'collection_items',
         'redirects',
         'forms',
+        'layout',
+    ];
+
+    /**
+     * The composite `layout`/`page-bootstrap` PublicRead endpoints (ADR 006
+     * in the CMS domain) bundle several resources into one cached response.
+     * Invalidating any one of the bundled resources must also invalidate
+     * the composite's own cache entry, or it would keep serving stale data
+     * until its TTL expires. `pages` is not aliased to itself here — the
+     * page-bootstrap response is already cached under the `pages` scope.
+     *
+     * @var array<string, list<string>>
+     */
+    private const SCOPE_ALIASES = [
+        'settings' => ['layout'],
+        'menus' => ['layout'],
+        'collections' => ['layout'],
+        'redirects' => ['pages'],
     ];
 
     /**
@@ -57,6 +75,7 @@ class CacheInvalidator
             static fn (mixed $scope): string => is_scalar($scope) ? strtolower(trim((string) $scope)) : '',
             $scopes,
         ))));
+        $scopes = $this->expandScopeAliases($scopes);
 
         foreach ($scopes as $scope) {
             if (! in_array($scope, self::VALID_SCOPES, true)) {
@@ -227,6 +246,22 @@ class CacheInvalidator
         }
 
         \Config\Services::cache()->save(self::STATUS_CACHE_KEY, $status, 0);
+    }
+
+    /**
+     * @param list<string> $scopes
+     * @return list<string>
+     */
+    private function expandScopeAliases(array $scopes): array
+    {
+        $expanded = $scopes;
+        foreach ($scopes as $scope) {
+            foreach (self::SCOPE_ALIASES[$scope] ?? [] as $alias) {
+                $expanded[] = $alias;
+            }
+        }
+
+        return array_values(array_unique($expanded));
     }
 
     private function nullableString(mixed $value): ?string
