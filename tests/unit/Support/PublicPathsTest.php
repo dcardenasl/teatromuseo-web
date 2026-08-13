@@ -57,4 +57,39 @@ final class PublicPathsTest extends CIUnitTestCase
         $this->assertNull(PublicPaths::normalizeLocalizedPath('https://example.com/inicio', 'es'));
         $this->assertNull(PublicPaths::normalizeLocalizedPath('/es/cartelera?page=2', 'es'));
     }
+
+    public function testResolvesRedirectTargetStatusByType(): void
+    {
+        $permanent = PublicPaths::resolveRedirectTarget(['new_url' => '/cartelera', 'redirect_type' => 'permanent'], 'es');
+        $temporary = PublicPaths::resolveRedirectTarget(['new_url' => '/cartelera', 'redirect_type' => 'temporary'], 'es');
+        $missingType = PublicPaths::resolveRedirectTarget(['new_url' => '/cartelera'], 'es');
+
+        $this->assertSame(301, $permanent['status']);
+        $this->assertSame(302, $temporary['status']);
+        $this->assertSame(301, $missingType['status']);
+    }
+
+    public function testResolvesRedirectTargetNormalizesKnownInternalRoutesPerLocale(): void
+    {
+        $target = PublicPaths::resolveRedirectTarget(['new_url' => '/cartelera', 'redirect_type' => 'permanent'], 'pt');
+
+        $this->assertSame('/programacao', $target['path']);
+    }
+
+    public function testResolvesRedirectTargetLeavesUnknownInternalPathsUntouched(): void
+    {
+        $target = PublicPaths::resolveRedirectTarget(['new_url' => '/custom-destination', 'redirect_type' => 'permanent'], 'es');
+
+        $this->assertSame('/custom-destination', $target['path']);
+    }
+
+    public function testResolvesRedirectTargetLeavesExternalUrlsUntouched(): void
+    {
+        $target = PublicPaths::resolveRedirectTarget([
+            'new_url' => 'https://example.com/cartelera',
+            'redirect_type' => 'permanent',
+        ], 'en');
+
+        $this->assertSame('https://example.com/cartelera', $target['path']);
+    }
 }

@@ -57,6 +57,36 @@ final readonly class PageDeliveryResponse
     }
 
     /**
+     * A configured route has an active CMS redirect. It carries no page —
+     * `isAvailable()` stays false, so it is treated exactly like a 404 by
+     * `SnapshotBuilder` (never published as a snapshot) and must be
+     * translated into an actual HTTP redirect by the caller instead of the
+     * generic "unavailable" response.
+     *
+     * @param array<string, mixed> $meta
+     */
+    public static function redirect(string $to, int $status, array $meta = []): self
+    {
+        return new self(
+            status: $status,
+            page: null,
+            layout: [],
+            blockContext: [],
+            meta: array_merge(['version' => 1, 'redirect_to' => $to], $meta),
+            source: [
+                'domain' => 'web',
+                'state' => 'unavailable',
+                'stale' => false,
+            ],
+        );
+    }
+
+    public function isRedirect(): bool
+    {
+        return $this->status >= 300 && $this->status < 400 && is_string($this->meta['redirect_to'] ?? null);
+    }
+
+    /**
      * @param list<string> $messages
      * @param array<string, mixed> $meta
      */

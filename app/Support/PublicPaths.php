@@ -118,6 +118,40 @@ class PublicPaths
     }
 
     /**
+     * Turn a domain redirect record ({new_url, redirect_type}) into an
+     * absolute-or-relative target path and its HTTP status.
+     *
+     * Shared by the legacy resolver (`PageController::resolve()`) and
+     * PageDelivery (`SynchronousPageDeliveryAdapter`) so both honor the same
+     * external-vs-internal detection and locale-aware canonical
+     * normalization — one implementation, not two that can drift apart.
+     *
+     * @param array<string, mixed> $redirect
+     * @return array{path: string, status: int}
+     */
+    public static function resolveRedirectTarget(array $redirect, string $locale): array
+    {
+        $status = match ($redirect['redirect_type'] ?? 'permanent') {
+            'temporary' => 302,
+            default => 301,
+        };
+
+        $redirectPath = (string) ($redirect['new_url'] ?? '');
+        $parsed = parse_url(trim($redirectPath));
+        $isExternal = is_array($parsed)
+            && (($parsed['scheme'] ?? '') !== '' || ($parsed['host'] ?? '') !== '');
+
+        if (! $isExternal) {
+            $canonicalPath = self::canonicalPath($redirectPath, $locale);
+            if ($canonicalPath !== null) {
+                $redirectPath = $canonicalPath;
+            }
+        }
+
+        return ['path' => $redirectPath, 'status' => $status];
+    }
+
+    /**
      * Resolve known legacy/editorial aliases to the canonical public path.
      *
      * CMS URLs are authored without a locale prefix. This keeps old content

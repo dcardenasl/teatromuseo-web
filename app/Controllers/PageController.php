@@ -151,28 +151,13 @@ class PageController extends BasePublicWebController
         $page = $parallelResults['page'];
 
         if ($redirect) {
-            $statusCode = match ($redirect['redirect_type'] ?? 301) {
-                'temporary' => 302,
-                'permanent' => 301,
-                default => 301,
-            };
-
             // Redirect destinations in the CMS are locale-less. Normalize
             // known canonical routes before adding the current locale so a
             // legacy `/pt/obras` request lands on `/pt/programacao`, not on
             // the Spanish fallback `/pt/cartelera`.
-            $redirectPath = (string) ($redirect['new_url'] ?? '');
-            $parsedRedirect = parse_url(trim($redirectPath));
-            $isExternalRedirect = is_array($parsedRedirect)
-                && (($parsedRedirect['scheme'] ?? '') !== '' || ($parsedRedirect['host'] ?? '') !== '');
-            if (! $isExternalRedirect) {
-                $localizedCanonicalPath = \App\Support\PublicPaths::canonicalPath($redirectPath, $lang);
-                if ($localizedCanonicalPath !== null) {
-                    $redirectPath = $localizedCanonicalPath;
-                }
-            }
+            $target = \App\Support\PublicPaths::resolveRedirectTarget($redirect, $lang);
 
-            return redirect()->to(lang_url($redirectPath, $lang))->setStatusCode($statusCode);
+            return redirect()->to(lang_url($target['path'], $lang))->setStatusCode($target['status']);
         }
 
         if ($page && ! $this->isExactPageSlugMatch($page, $path, $lang)) {

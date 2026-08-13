@@ -9,6 +9,7 @@ use App\Services\BlockPrefetchService;
 use App\Services\LayoutDataPrefetchService;
 use App\Services\PageCompositionService;
 use App\Services\SitePageService;
+use App\Services\SiteRedirectService;
 use App\Support\PublicPaths;
 use DateTimeInterface;
 
@@ -26,11 +27,28 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         private readonly ClockInterface $clock,
         private readonly ?PageCompositionService $composition = null,
         private readonly ?PublicListingPageBuilder $listingBuilder = null,
+        private readonly ?SiteRedirectService $redirects = null,
     ) {
     }
 
     public function deliver(PageDeliveryRequest $request): PageDeliveryResponse
     {
+        // A CMS redirect always wins over a configured route's own content —
+        // the same precedence the legacy resolver uses
+        // (PageResolverService::parallelResolveRedirectAndPage()). Checked
+        // here rather than at the manifest gate so a snapshot HIT never pays
+        // for this lookup: it only runs on preview, sync mode, and the
+        // (infrequent) synchronous build that refreshes a snapshot.
+        $redirect = $this->findRedirect($request);
+        if ($redirect !== null) {
+            $target = PublicPaths::resolveRedirectTarget($redirect, $request->locale);
+
+            return PageDeliveryResponse::redirect($target['path'], $target['status'], [
+                'locale' => $request->locale,
+                'route' => $request->route,
+            ]);
+        }
+
         $page = $this->findPage($request);
         if ($page === null) {
             return PageDeliveryResponse::failure(404, ['Public page was not found.'], [
@@ -84,6 +102,20 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         }
 
         return [$this->layout($request), $this->blockContext($blocks, $request)];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function findRedirect(PageDeliveryRequest $request): ?array
+    {
+        if ($this->redirects === null) {
+            return null;
+        }
+
+        $path = $request->route === 'home'
+            ? PublicPaths::homepageSegment($request->locale)
+            : $request->route;
+
+        return $this->redirects->resolve($path);
     }
 
     /** @return array<string, mixed>|null */

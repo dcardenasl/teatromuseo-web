@@ -79,6 +79,7 @@ class Services extends BaseService
                 $clock,
                 static::pageCompositionService(),
                 static::publicListingPageBuilder(),
+                static::siteRedirectService(),
             ),
             snapshot: new SnapshotPageDeliveryAdapter(
                 static::pageSnapshotStore(),
@@ -145,6 +146,7 @@ class Services extends BaseService
                 $clock,
                 static::pageCompositionService(),
                 static::publicListingPageBuilder(),
+                static::siteRedirectService(),
             ),
             publisher: static::pageSnapshotStore(),
             lock: static::pageRegenerationLock(),

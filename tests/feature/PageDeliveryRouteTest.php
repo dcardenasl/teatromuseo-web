@@ -49,7 +49,70 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         $result->assertStatus(200);
         $result->assertSee('Fixture about aa');
         self::assertSame(1, $this->countPath('public-read/aa/pages/about'));
-        self::assertNotContains('public/redirects/about', $this->domainAdapter->requestedPaths());
+        // The redirect table is consulted for a configured route exactly like
+        // it is for the legacy resolver — with no redirect fixture registered
+        // it resolves to "no redirect" and the manifest page renders.
+        self::assertContains('public/redirects/about', $this->domainAdapter->requestedPaths());
+    }
+
+    public function testRedirectOnAConfiguredRouteWinsOverItsOwnManifestContent(): void
+    {
+        config('App')->pageDeliveryEnabled = true;
+        config('App')->pageDeliveryMode = 'sync';
+        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about aa'));
+        $this->domainAdapter->fakeGet('public/redirects/about', [
+            'new_url' => '/elsewhere',
+            'redirect_type' => 'permanent',
+        ]);
+
+        $result = $this->get('aa/about');
+
+        $result->assertStatus(301);
+        $result->assertHeader('Location', site_url('/aa/elsewhere'));
+        $result->assertDontSee('Fixture about aa');
+        // A redirect never touches page composition or the view renderer.
+        self::assertSame(0, $this->countPath('public-read/aa/pages/about'));
+    }
+
+    public function testRedirectOnAConfiguredListingRouteWinsOverTheFallbackListing(): void
+    {
+        config('App')->pageDeliveryEnabled = true;
+        config('App')->pageDeliveryMode = 'sync';
+        config('App')->pageSnapshotManifestRoutes = ['events'];
+        $this->domainAdapter->fakeGet('public/redirects/cartelera', [
+            'new_url' => '/elsewhere',
+            'redirect_type' => 'temporary',
+        ]);
+
+        $result = $this->get('aa/cartelera');
+
+        $result->assertStatus(302);
+        $result->assertHeader('Location', site_url('/aa/elsewhere'));
+    }
+
+    public function testSearchQueryOnAConfiguredRouteIsNeverPersistedAsASnapshot(): void
+    {
+        $this->snapshotDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'teatromuseo-page-delivery-route-' . bin2hex(random_bytes(6));
+        $config = config('App');
+        $config->pageDeliveryEnabled = true;
+        $config->pageDeliveryMode = 'snapshot';
+        $config->pageDeliveryAllowSynchronousFallback = true;
+        $config->pageSnapshotDirectory = $this->snapshotDirectory;
+        $config->pageSnapshotShared = true;
+        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about aa'));
+
+        $first = $this->get('aa/about?q=free-text-search-term');
+        $first->assertStatus(200);
+        $callsAfterFirst = count($this->domainAdapter->calls);
+
+        $second = $this->get('aa/about?q=free-text-search-term');
+        $second->assertStatus(200);
+
+        // Same free-text query, requested twice: if it had been snapshotted,
+        // the second request would reuse the file and add zero calls (as
+        // testSnapshotHitAvoidsDomainCallsAfterTheFirstBuild proves for a
+        // plain manifest route). It must always recompose synchronously.
+        self::assertGreaterThan($callsAfterFirst, count($this->domainAdapter->calls));
     }
 
     public function testSnapshotHitAvoidsDomainCallsAfterTheFirstBuild(): void

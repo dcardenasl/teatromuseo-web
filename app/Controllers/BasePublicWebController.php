@@ -235,6 +235,17 @@ abstract class BasePublicWebController extends BaseController
     protected function renderDeliveredPage(PageDeliveryResponse $delivery, string $lang): ResponseInterface
     {
         $this->finishRouteResolution();
+
+        // A redirect ends the request before any page is rendered — same as
+        // the legacy resolver's own redirect branch, it must not emit a
+        // page_render_phase event (RequestContext::pageRenderSummary() stays
+        // null while setPageDelivery() is never called for this response).
+        if ($delivery->isRedirect()) {
+            $target = (string) $delivery->meta['redirect_to'];
+
+            return redirect()->to(lang_url($target, $lang))->setStatusCode($delivery->status);
+        }
+
         RequestContext::setPageDelivery([
             'available' => $delivery->isAvailable(),
             'status' => $delivery->status,
