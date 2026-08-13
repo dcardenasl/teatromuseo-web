@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\PageDelivery\PageDeliveryRequest;
 use App\PageDelivery\PublicSnapshotManifest;
 use App\PageDelivery\SnapshotBuildResult;
 use CodeIgniter\CLI\BaseCommand;
@@ -12,7 +13,8 @@ use Config\Services;
 use JsonException;
 
 /**
- * Warm only the explicit public snapshot manifest.
+ * Warm the explicit public snapshot manifest, or the legacy API cache when
+ * PageDelivery is not enabled in the current environment.
  *
  * This command is intentionally serial. It is suitable for a deployment hook
  * or a single cron invocation on the current shared-hosting plan.
@@ -21,7 +23,7 @@ final class CacheWarmup extends BaseCommand
 {
     protected $group = 'Cache';
     protected $name = 'cache:warmup';
-    protected $description = 'Build the explicit public snapshot manifest serially';
+    protected $description = 'Warm public snapshots or the API cache serially';
     protected $usage = 'php spark cache:warmup [--locale es] [--route home] [--force]';
     protected $arguments = [];
     protected $options = [
@@ -41,6 +43,24 @@ final class CacheWarmup extends BaseCommand
         CLI::write(sprintf('Snapshot warm-up: %d manifest entries (serial)', count($requests)), 'cyan');
         if ($requests === []) {
             CLI::error('The selected locale/route is not present in the configured manifest.');
+            return;
+        }
+
+        // Local and pre-cutover deployments intentionally keep PageDelivery
+        // disabled. The snapshot-only command introduced with PageDelivery
+        // made those environments report success while warming nothing,
+        // regressing the previous deploy warm-up of the API cache.
+        if (! config('App')->pageDeliveryEnabled) {
+            $this->warmApiCache(array_map(
+                static fn (PageDeliveryRequest $request): string => $request->locale,
+                $requests,
+            ));
+
+            return;
+        }
+
+        if ((Services::pageSnapshotStore()->status()['enabled'] ?? false) !== true) {
+            CLI::error('PageDelivery is enabled, but the shared snapshot backend is not enabled. Configure WEB_PAGE_SNAPSHOT_DIR and WEB_PAGE_SNAPSHOT_SHARED=true.');
             return;
         }
 
@@ -75,6 +95,76 @@ final class CacheWarmup extends BaseCommand
 
         CLI::newLine();
         CLI::write(sprintf('Warm-up completed: %d/%d successful or skipped.', $successful, count($requests)), $successful === count($requests) ? 'green' : 'yellow');
+    }
+
+    /** @param list<string> $locales */
+    private function warmApiCache(array $locales): void
+    {
+        $config = config('App');
+        $previousMode = $config->pageDeliveryMode;
+        $request = service('request');
+        $previousLocale = $request->getLocale();
+        $successful = 0;
+        $targetLocales = array_values(array_unique($locales));
+        $report = [];
+
+        CLI::write(sprintf('API cache warm-up: composing %d homepage variant(s) synchronously', count($targetLocales)), 'cyan');
+
+        // Reuse the production composition seam so the warm-up follows the
+        // exact homepage dependency graph (layout, forms and dynamic blocks)
+        // instead of maintaining a second, inevitably stale endpoint list.
+        $config->pageDeliveryMode = 'sync';
+        try {
+            foreach ($targetLocales as $locale) {
+                $request->setLocale($locale);
+
+                try {
+                    $delivery = Services::pageDelivery(false)->deliver(PageDeliveryRequest::home($locale));
+                } catch (\Throwable $exception) {
+                    $report[] = [
+                        'locale' => $locale,
+                        'route' => 'home',
+                        'state' => 'failed',
+                        'message' => $exception->getMessage(),
+                    ];
+                    CLI::write(sprintf('  WARN %s/home composition failed: %s', $locale, $exception->getMessage()), 'yellow');
+                    continue;
+                }
+
+                if ($delivery->isAvailable() && ($delivery->source['stale'] ?? false) !== true) {
+                    $successful++;
+                    $report[] = [
+                        'locale' => $locale,
+                        'route' => 'home',
+                        'state' => 'api_warmed',
+                        'status' => $delivery->status,
+                    ];
+                    CLI::write(sprintf('  OK %s/home (HTTP %d)', $locale, $delivery->status), 'green');
+                    continue;
+                }
+
+                $report[] = [
+                    'locale' => $locale,
+                    'route' => 'home',
+                    'state' => 'stale_or_failed',
+                    'status' => $delivery->status,
+                ];
+                CLI::write(sprintf('  WARN %s/home (HTTP %d)', $locale, $delivery->status), 'yellow');
+            }
+        } finally {
+            $config->pageDeliveryMode = $previousMode;
+            $request->setLocale($previousLocale);
+        }
+
+        $report['summary'] = [
+            'generated_at' => gmdate(DATE_ATOM),
+            'total' => count($targetLocales),
+            'successful' => $successful,
+            'mode' => 'api_fallback',
+        ];
+        $this->writeReport($report);
+
+        CLI::write(sprintf('Warm-up completed: %d/%d homepage variants composed.', $successful, count($targetLocales)), $successful === count($targetLocales) ? 'green' : 'yellow');
     }
 
     /** @param array<string, mixed> $params */

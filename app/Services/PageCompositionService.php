@@ -30,7 +30,7 @@ final class PageCompositionService
         array $seededItems = [],
     ): array {
         return [
-            'layout' => $this->layout->prefetchLayoutData($layoutContext),
+            'layout' => $this->layout->prefetchLayoutData($layoutContext, $locale),
             'block_context' => $this->blocks->prefetchContext($blockDefinitions, $locale, $seededItems),
         ];
     }

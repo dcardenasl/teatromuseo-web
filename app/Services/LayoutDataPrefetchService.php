@@ -13,11 +13,11 @@ class LayoutDataPrefetchService extends BaseSiteService
      * @param array<string, mixed> $data
      * @return array<string, mixed>
      */
-    public function prefetchLayoutData(array $data): array
+    public function prefetchLayoutData(array $data, ?string $locale = null): array
     {
         $requests = [];
         $keys = [];
-        $locale = (string) service('request')->getLocale();
+        $locale ??= (string) service('request')->getLocale();
         $menuKeys = [
             'main'   => 'mainMenu',
             'footer' => 'footerMenu',
@@ -72,7 +72,7 @@ class LayoutDataPrefetchService extends BaseSiteService
                     }
 
                     $output[$menuKey] = isset($navData[$location]) && is_array($navData[$location])
-                        ? $this->normalizeMenuPayload($navData[$location])
+                        ? $this->normalizeMenuPayload($navData[$location], $locale)
                         : ['items' => []];
                 }
             }
@@ -94,10 +94,8 @@ class LayoutDataPrefetchService extends BaseSiteService
      * @param array<string, mixed> $menu
      * @return array<string, mixed>
      */
-    private function normalizeMenuPayload(array $menu): array
+    private function normalizeMenuPayload(array $menu, string $locale): array
     {
-        $locale = (string) service('request')->getLocale();
-
         if (is_array($menu['items'] ?? null)) {
             $items = [];
             foreach ($menu['items'] as $rawItem) {

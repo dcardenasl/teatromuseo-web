@@ -133,4 +133,35 @@ final class LayoutDataPrefetchServiceTest extends CIUnitTestCase
 
         $this->assertSame('/festivales', $result['mainMenu']['items'][0]['custom_url']);
     }
+
+    public function testExplicitLocaleIsUsedOutsideAnHttpRequest(): void
+    {
+        $client = $this->createMock(WebApiClientInterface::class);
+        $client->expects($this->once())
+            ->method('multiGet')
+            ->with([
+                ['path' => 'public-read/en/navigation', 'cacheTtl' => 600, 'scope' => 'menus'],
+                ['path' => 'public-read/en/settings', 'cacheTtl' => 3600, 'scope' => 'settings'],
+            ])
+            ->willReturn([
+                [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => ['main' => ['items' => []]],
+                    'meta' => [],
+                    'messages' => [],
+                ],
+                [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => ['site_name' => 'TeatroMuseo'],
+                    'meta' => [],
+                    'messages' => [],
+                ],
+            ]);
+
+        $result = (new LayoutDataPrefetchService($client))->prefetchLayoutData(['socialLinks' => []], 'en');
+
+        $this->assertSame(['site_name' => 'TeatroMuseo'], $result['settings']);
+    }
 }

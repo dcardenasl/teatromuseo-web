@@ -120,7 +120,7 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
     private function layout(PageDeliveryRequest $request): array
     {
         try {
-            return $this->layoutPrefetch->prefetchLayoutData([]);
+            return $this->layoutPrefetch->prefetchLayoutData([], $request->locale);
         } catch (\Throwable $exception) {
             log_message('warning', 'Synchronous page layout composition failed: {message}', [
                 'message' => $exception->getMessage(),
