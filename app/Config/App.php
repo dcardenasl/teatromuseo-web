@@ -240,8 +240,14 @@ class App extends BaseConfig
     public string $pageSnapshotCompression = 'gzip';
     public bool $pageSnapshotShared = false;
 
-    /** @var list<string> */
-    public array $pageSnapshotManifestRoutes = ['home'];
+    /**
+     * Explicit route keys warmed by deploy/cron. `events` and `catalog` are
+     * resolved to their locale-specific public paths by PublicSnapshotManifest.
+     * CMS slugs must be appended explicitly in the deployment environment.
+     *
+     * @var list<string>
+     */
+    public array $pageSnapshotManifestRoutes = ['home', 'events', 'catalog'];
 
     /** @var list<string> */
     public array $pageSnapshotScopes = [
