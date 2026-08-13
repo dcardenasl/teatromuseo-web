@@ -257,6 +257,43 @@ final class BlockPrefetchServiceTest extends TestCase
         $this->assertSame(9, $result['0.0']['data'][0]['id']);
     }
 
+    /**
+     * Regression for docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md
+     * §2.C: the prefetch pipeline builds its own `include=listing_content.*`
+     * query independently of CollectionGridViewModel::entries()/
+     * CollectionTimelineViewModel::entries()/CmsCollectionSource::fetch() —
+     * if the two drift apart, the ViewModel's request misses the prefetch
+     * cache and both a prefetch and a redundant live fetch happen. Pins the
+     * exact sub-key set each block type must request, matching what each
+     * consumer actually reads.
+     */
+    public function testCmsListBlocksRequestOnlyTheListingContentSubKeysEachOneConsumes(): void
+    {
+        $cases = [
+            'collection_grid' => 'listing_content.fields',
+            'collection_listing' => 'listing_content.image,listing_content.secondary_action,listing_content.rich_text,listing_content.video,listing_content.publication_date,listing_content.date_fields,listing_content.fields',
+            'collection_timeline' => 'listing_content.publication_date,listing_content.documents',
+        ];
+
+        foreach ($cases as $blockKey => $expectedInclude) {
+            $client = $this->createMock(WebApiClientInterface::class);
+            $client->expects($this->once())
+                ->method('multiGet')
+                ->with($this->callback(static function (array $requests) use ($expectedInclude): bool {
+                    return ($requests[0]['query']['include'] ?? null) === $expectedInclude;
+                }))
+                ->willReturn([$this->success([['id' => 1]])]);
+
+            $service = new BlockPrefetchService(['cms' => $client]);
+            $result = $service->prefetch([[
+                'block_key' => $blockKey,
+                'block_config' => ['collection_key' => 'news'],
+            ]]);
+
+            $this->assertTrue($result['0']['ok'], "block_key={$blockKey}");
+        }
+    }
+
     /** @param list<array<string, mixed>> $data */
     private function success(array $data, array $meta = []): array
     {

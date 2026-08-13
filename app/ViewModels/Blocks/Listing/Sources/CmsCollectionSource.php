@@ -41,7 +41,19 @@ class CmsCollectionSource implements ListingSourceInterface
             'per_page' => $query->perPage,
             'order_by' => $query->orderBy,
             'order_direction' => $query->orderDirection,
-            'include' => 'listing_content',
+            // `documents` is normalized into prepareEntries()'s output but
+            // never actually read back out by collection_listing.php's
+            // template (grepped: no `listingContent['documents']`/
+            // `listing_content.documents` access in the view) — every other
+            // sub-key IS consumed (image/secondary_action/rich_text/video
+            // gated by per-instance show_extra_* toggles this shared source
+            // doesn't have access to; publication_date feeds normalizeEntry()'s
+            // display_date fallback; date_fields/fields back the flexible
+            // slot-projection system), so only `documents` is dropped here —
+            // conservative on purpose given how easy this file is to get
+            // subtly wrong (see git history of this comment). See
+            // docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
+            'include' => 'listing_content.image,listing_content.secondary_action,listing_content.rich_text,listing_content.video,listing_content.publication_date,listing_content.date_fields,listing_content.fields',
         ];
         if ($query->orderBy !== '' && (str_starts_with($query->orderBy, 'entry.') || str_starts_with($query->orderBy, 'block.') || str_starts_with($query->orderBy, 'taxonomy.'))) {
             $apiQuery['order_by'] = 'field:' . $query->orderBy;

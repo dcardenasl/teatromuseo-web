@@ -951,12 +951,24 @@ final class BlockPrefetchService
             return $query;
         }
 
+        // Mirrors the per-block-key listing_content sub-selection each
+        // ViewModel/Source actually consumes (CollectionGridViewModel::entries(),
+        // CollectionTimelineViewModel::entries(), CmsCollectionSource::fetch())
+        // — the prefetch query must match exactly, or the ViewModel's own
+        // (narrower) query misses this cache entry and both a prefetch and a
+        // live fetch happen. See
+        // docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
+        $include = match ($blockKey) {
+            'collection_grid' => 'listing_content.fields',
+            'collection_timeline' => 'listing_content.publication_date,listing_content.documents',
+            default => 'listing_content.image,listing_content.secondary_action,listing_content.rich_text,listing_content.video,listing_content.publication_date,listing_content.date_fields,listing_content.fields',
+        };
         $query = [
             'page' => $page,
             'per_page' => $limit,
             'order_by' => $this->cmsOrderField($orderBy),
             'order_direction' => $direction,
-            'include' => 'listing_content',
+            'include' => $include,
         ];
         if ($isListing) {
             foreach (['category', 'tag', 'q', 'filter_by', 'filter_value', 'filter_operator'] as $key) {

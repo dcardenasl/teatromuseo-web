@@ -132,7 +132,13 @@ class CollectionGridViewModel extends AbstractBlockViewModel
                 'per_page'        => $itemsLimit,
                 'order_by'        => $orderBy,
                 'order_direction' => $orderDirection,
-                'include'         => 'listing_content',
+                // normalizeCmsEntries()/projectionValue()/projectionMedia()
+                // only ever read listing_content.fields (the custom
+                // slot-projection dict) — never rich_text/image/hover_image/
+                // secondary_action/documents/publication_date/date_fields/
+                // video, so requesting the full blob here was pure overhead.
+                // See docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
+                'include'         => 'listing_content.fields',
                 // Projection sources are logical paths resolved from the
                 // listing envelope, not fields accepted by public-read.
                 'fields'          => 'id,slug,title,excerpt,published_at,featured_image,listing_content',

@@ -49,7 +49,13 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
                 'order_by' => 'published_at',
                 'order_direction' => $direction,
                 'fields' => 'id,slug,title,excerpt,published_at,created_at,localized,listing_content',
-                'include' => 'listing_content',
+                // Only publication_date (display_date fallback) and documents
+                // are read from listing_content below — never rich_text/image/
+                // hover_image/secondary_action/date_fields/fields/video. With
+                // items_limit defaulting to 100, this was the single largest
+                // listing_content over-fetch on the site. See
+                // docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
+                'include' => 'listing_content.publication_date,listing_content.documents',
             ];
             if ($categoryId > 0) {
                 $query['category_id'] = $categoryId;
