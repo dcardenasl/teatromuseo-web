@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\PageDelivery\PageDeliveryResponse;
+use App\Support\RequestContext;
 use CodeIgniter\HTTP\ResponseInterface;
 
 abstract class BasePublicWebController extends BaseController
@@ -14,6 +15,7 @@ abstract class BasePublicWebController extends BaseController
     {
         $cacheScopes = $this->normalizeCacheScopes($data['cacheScopes'] ?? []);
         unset($data['cacheScopes']);
+        $this->finishRouteResolution();
         $preview = $this->request->getGet('preview') === '1';
         $pageCacheTtl = config('App')->webPageCacheTtl;
         $cacheable = ! $preview && $pageCacheTtl > 0;
@@ -83,7 +85,10 @@ abstract class BasePublicWebController extends BaseController
         // saveData:false — Config\View::$saveData defaults to true and would
         // otherwise persist this render's data into the shared view store for
         // the rest of the process (e.g. across PHPUnit test cases).
-        $body = view('layouts/public', $data, ['saveData' => false]);
+        $body = RequestContext::measurePhase(
+            'view_render',
+            fn (): string => view('layouts/public', $data, ['saveData' => false]),
+        );
         if ($cacheable) {
             try {
                 $cacheKey = service('responsecache')->generateCacheKey($this->request);
@@ -186,6 +191,7 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function renderPageWithBlocks(array $pageData, array $blocks, string $lang, array $context = []): ResponseInterface
     {
+        $this->finishRouteResolution();
         $composition = $this->composePageContext($blocks, $lang, $context);
         $context = array_merge($context, $composition['block_context']);
         $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
@@ -206,6 +212,7 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function renderCmsPage(array $page, string $lang, array $context = []): ResponseInterface
     {
+        $this->finishRouteResolution();
         $composition = $this->composePageContext($this->pageBlocks($page), $lang, $context);
         $context = array_merge($context, $composition['block_context']);
         $data = $this->cmsPageData($page, $lang, $context);
@@ -225,6 +232,15 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function renderDeliveredPage(PageDeliveryResponse $delivery, string $lang): ResponseInterface
     {
+        $this->finishRouteResolution();
+        RequestContext::setPageDelivery([
+            'available' => $delivery->isAvailable(),
+            'status' => $delivery->status,
+            'cache' => $delivery->meta['cache'] ?? null,
+            'state' => $delivery->source['state'] ?? null,
+            'stale' => $delivery->source['stale'] ?? false,
+        ]);
+
         if (! $delivery->isAvailable() || $delivery->page === null) {
             if ($delivery->status === 404) {
                 return $this->notFound('Página de inicio no encontrada');
@@ -345,6 +361,7 @@ abstract class BasePublicWebController extends BaseController
         callable $fallbackBuilder,
         array $context = []
     ): ResponseInterface {
+        $this->beginRouteResolution();
         [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
         $page = \Config\Services::sitePageService()->getBySlug($lang, $slug, $preview, $previewExpires, $previewSig);
 
@@ -379,6 +396,7 @@ abstract class BasePublicWebController extends BaseController
         array $pageData,
         array $context = []
     ): ResponseInterface {
+        $this->beginRouteResolution();
         $page = \Config\Services::sitePageService()->getByType($lang, $templateType);
 
         if (! is_array($page)) {
@@ -392,6 +410,7 @@ abstract class BasePublicWebController extends BaseController
                 static fn (mixed $block): bool => is_array($block),
             ))
             : [];
+        $this->finishRouteResolution();
         $composition = $this->composePageContext($blocks, $lang, $context);
         $context = array_merge($context, $composition['block_context']);
         $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
@@ -457,6 +476,7 @@ abstract class BasePublicWebController extends BaseController
      */
     protected function composePageContext(array $blocks, string $lang, array $context = []): array
     {
+        $this->finishRouteResolution();
         try {
             return \Config\Services::pageCompositionService()->compose(
                 $blocks,
@@ -465,11 +485,31 @@ abstract class BasePublicWebController extends BaseController
                 $this->seededDetailItems($context),
             );
         } catch (\Throwable) {
-            return [
-                'layout' => [],
-                'block_context' => $this->prefetchBlockContext($blocks, $lang),
-            ];
+            $fallbackStartedAt = hrtime(true);
+            try {
+                return [
+                    'layout' => [],
+                    'block_context' => $this->prefetchBlockContext($blocks, $lang),
+                ];
+            } finally {
+                RequestContext::addPhaseDuration(
+                    'page_composition',
+                    (hrtime(true) - $fallbackStartedAt) / 1_000_000,
+                );
+            }
         }
+    }
+
+    /** Start measuring the route-resolution part of a public page request. */
+    protected function beginRouteResolution(): void
+    {
+        RequestContext::startPhase('route_resolution');
+    }
+
+    /** Stop route timing immediately before page composition begins. */
+    protected function finishRouteResolution(): void
+    {
+        RequestContext::stopPhase('route_resolution');
     }
 
     /**

@@ -47,6 +47,7 @@ class PageController extends BasePublicWebController
      */
     public function home(): ResponseInterface
     {
+        $this->beginRouteResolution();
         if ($redirect = $this->enforceLocale()) {
             return $redirect;
         }
@@ -68,6 +69,7 @@ class PageController extends BasePublicWebController
         if ($pageDeliveryEnabled) {
             $query = $this->request->getGet();
             $query = is_array($query) ? $query : [];
+            $this->finishRouteResolution();
 
             return $this->renderDeliveredPage(
                 Services::pageDelivery()->deliver(PageDeliveryRequest::home(
@@ -97,6 +99,7 @@ class PageController extends BasePublicWebController
      */
     public function resolve(string ...$segments): ResponseInterface
     {
+        $this->beginRouteResolution();
         if ($redirect = $this->enforceLocale()) {
             return $redirect;
         }
