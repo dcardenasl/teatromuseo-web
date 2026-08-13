@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\RequestContext;
+
 /**
  * Single composition seam for public HTML. Layout, forms and dynamic blocks
  * are planned before the view tree starts; detail seeds are passed through so
@@ -29,9 +31,12 @@ final class PageCompositionService
         array $layoutContext = [],
         array $seededItems = [],
     ): array {
-        return [
-            'layout' => $this->layout->prefetchLayoutData($layoutContext, $locale),
-            'block_context' => $this->blocks->prefetchContext($blockDefinitions, $locale, $seededItems),
-        ];
+        return RequestContext::measurePhase(
+            'page_composition',
+            fn (): array => [
+                'layout' => $this->layout->prefetchLayoutData($layoutContext, $locale),
+                'block_context' => $this->blocks->prefetchContext($blockDefinitions, $locale, $seededItems),
+            ],
+        );
     }
 }
