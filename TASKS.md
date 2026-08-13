@@ -6,6 +6,30 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-PERF-13 — Reutilizar conexión cURL entre llamadas secuenciales al
+  mismo cliente** — cerrada 2026-08-13. Diagnosticado en producción
+  (`beta.teatromuseo.cl`): con datos genuinamente fríos (slugs nunca
+  consultados en la sesión, para evitar el sesgo de buffer pool de MySQL ya
+  caliente), `page-bootstrap`/`layout` medidos *directo contra el dominio CMS*
+  ya eran ~2x más rápidos que la suma de los endpoints que reemplazan — el
+  endpoint compuesto (WEB-PERF-12) funciona. Pero la carga completa por Web
+  seguía sin bajar, y `/health` (que no llama a CMS) respondía rápido — la
+  brecha estaba específicamente en la conexión Web→CMS. Causa: cada
+  `WebApiClient::get()` hace `curl_init()`/`curl_close()` nuevo — sin
+  `CURLOPT_SHARE`, cada llamada paga su propia negociación TCP+TLS completa
+  aunque `PageResolverService` y `LayoutDataPrefetchService` compartan la
+  misma instancia de `WebApiClient` (`getSharedInstance()`, una por request) y
+  llamen al mismo host segundos aparte. Se agregó un `CurlShareHandle` lazy
+  por instancia (`CURL_LOCK_DATA_CONNECT` + `CURL_LOCK_DATA_SSL_SESSION` +
+  `CURL_LOCK_DATA_DNS`), adjuntado en los 3 puntos donde la clase crea un
+  handle (`execute()`, el `curl_multi` de `multiGet()`, el `curl_multi`
+  estático de `multiGetAcross()`) — la segunda llamada de una página
+  reutiliza la conexión/sesión TLS/caché DNS de la primera en vez de
+  renegociar desde cero. Verificado: 461/461 tests, PHPStan 0 errores,
+  CS-Fixer limpio (invisible a los tests unitarios, que mockean
+  `WebApiClientInterface` y nunca tocan la capa de transporte cURL real —
+  pendiente confirmar la mejora real en producción tras el deploy).
+
 - [x] **WEB-PERF-12 — Consumir los endpoints compuestos `layout` y
   `page-bootstrap` del CMS domain** — cerrada 2026-08-13. Enmienda ADR 004
   §1/§6 vía
