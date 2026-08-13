@@ -132,6 +132,10 @@ class PageController extends BasePublicWebController
             return $this->renderHomepage($lang, $preview, $previewExpires, $previewSig);
         }
 
+        if ($delivery = $this->deliverConfiguredPageRoute($lang, $path, $preview, $previewExpires, $previewSig)) {
+            return $delivery;
+        }
+
         // Steps 1 & 2: Resolve redirects and fetch page in parallel (independent calls).
         // After fetching, check redirect result first. If no redirect, use page result and proceed to fallbacks.
         $pageService = Services::sitePageService();

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\PageDelivery\PageDeliveryResponse;
+use App\PageDelivery\PublicSnapshotManifest;
 use App\Support\RequestContext;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Services;
 
 abstract class BasePublicWebController extends BaseController
 {
@@ -243,7 +245,11 @@ abstract class BasePublicWebController extends BaseController
 
         if (! $delivery->isAvailable() || $delivery->page === null) {
             if ($delivery->status === 404) {
-                return $this->notFound('Página de inicio no encontrada');
+                $message = ($delivery->meta['route'] ?? null) === 'home'
+                    ? 'Página de inicio no encontrada'
+                    : 'Página no encontrada';
+
+                return $this->notFound($message);
             }
 
             return $this->response
@@ -363,6 +369,11 @@ abstract class BasePublicWebController extends BaseController
     ): ResponseInterface {
         $this->beginRouteResolution();
         [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
+
+        if ($delivery = $this->deliverConfiguredPageRoute($lang, $slug, $preview, $previewExpires, $previewSig)) {
+            return $delivery;
+        }
+
         $page = \Config\Services::sitePageService()->getBySlug($lang, $slug, $preview, $previewExpires, $previewSig);
 
         if (is_array($page)) {
@@ -510,6 +521,41 @@ abstract class BasePublicWebController extends BaseController
     protected function finishRouteResolution(): void
     {
         RequestContext::stopPhase('route_resolution');
+    }
+
+    /**
+     * Deliver only routes explicitly present in the public snapshot manifest.
+     *
+     * Unknown paths and aliases deliberately return null so the existing
+     * redirect/404 resolver remains authoritative until a route has passed its
+     * production parity and load gates.
+     */
+    protected function deliverConfiguredPageRoute(
+        string $lang,
+        string $route,
+        bool $preview = false,
+        ?string $previewExpires = null,
+        ?string $previewSignature = null,
+    ): ?ResponseInterface {
+        if (! config('App')->pageDeliveryEnabled && ! $preview) {
+            return null;
+        }
+
+        $query = $this->request->getGet();
+        $query = is_array($query) ? $query : [];
+        $request = (new PublicSnapshotManifest())->requestFor(
+            locale: $lang,
+            route: $route,
+            preview: $preview,
+            previewExpires: $previewExpires,
+            previewSignature: $previewSignature,
+            query: $query,
+        );
+        if ($request === null) {
+            return null;
+        }
+
+        return $this->renderDeliveredPage(Services::pageDelivery()->deliver($request), $lang);
     }
 
     /**
