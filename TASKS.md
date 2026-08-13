@@ -6,6 +6,39 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-PERF-09 — Alerta de payload_bytes en WebApiClient** — cerrada
+  2026-08-13. Ejecuta la mitad "de bajo riesgo" de §2.E de
+  [`../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md`](../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md):
+  `recordTelemetry()` ya registraba `payload_bytes` por request; se agregó
+  un log `warning` cuando supera 200KB (umbral documentado, no un cap duro —
+  con §2.A-§2.C ya acotando el peor caso estructural, esto es una señal de
+  regresión, no algo que deba truncar silenciosamente). **No** implementado:
+  el lock single-flight (colapsar requests concurrentes en cache-miss) —
+  requiere una primitiva de lock bloqueante+polling nueva (lo único similar
+  en el repo, `FileRegenerationLock`, es "intenta una vez y si no, sigue sin
+  bloquear", semántica distinta) y diseño/tests dedicados que no debían
+  apurarse bajo presión de tiempo; queda como WEB-PERF-10 explícito en vez de
+  dejarlo implícito. Verificado: 373/373 tests, PHPStan 0 errores.
+
+- [x] **WEB-PERF-04 — Reducir payload/render de listados** — cerrada
+  2026-08-13. `SiteCatalogService`/`SiteEventService` exponen `GRID_FIELDS`
+  (subset mínimo card) además de `LIST_FIELDS`; `ListingQuery::$fields`
+  permite que `CollectionGridViewModel` lo pida vía
+  `CatalogItemsSource`/`EventItemsSource`. Del lado CMS,
+  `include=listing_content` (blob completo) se reemplazó por selección de
+  sub-claves real (`listing_content.<sub>`, soportado ahora por cms-domain —
+  ver PERF-01 de ese repo) en los tres consumidores:
+  `CollectionGridViewModel` (`fields` únicamente),
+  `CollectionTimelineViewModel` (`publication_date,documents` — el peor caso,
+  `items_limit` default 100), `CmsCollectionSource`/`collection_listing`
+  (todo menos `documents`, confirmado no leído en la vista). `BlockPrefetchService::listQuery()`
+  actualizado en paralelo para no perder la paridad de caché con estas
+  queries (si difieren, el prefetch cachea la query vieja y el ViewModel pide
+  una distinta — regresión cubierta por
+  `testCmsListBlocksRequestOnlyTheListingContentSubKeysEachOneConsumes`).
+  Verificado: 373/373 tests, PHPStan 0 errores, CS-Fixer limpio. Evidencia:
+  [`../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md`](../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md).
+
 - [x] **QA-01 — Contract tests y OpenAPI** — cerrada 2026-08-10. Contrato
   hermético, gate integrado de los tres dominios y estados de entrega
   verificados. Ver evidencia en [`../docs/audits/2026-08-10-qa-01-contractos-openapi.md`](../docs/audits/2026-08-10-qa-01-contractos-openapi.md).
@@ -45,8 +78,6 @@ absorben en QA cuando se solapan con el plan nuevo.
 
 - [ ] **WEB-PERF-03** — Consolidar caché API/HTML, hit rate, expiraciones e
   invalidaciones. Solapa con `CACHE-03` y `QA-03`.
-- [ ] **WEB-PERF-04** — Reducir payload/render de listados. Solapa con fieldsets
-  y `QA-01/QA-02`.
 - [ ] **WEB-PERF-05** — Reparar URLs, canonical y pantallas 404. Solapa con
   `QA-04`.
 - [ ] **WEB-PERF-06** — Corregir assets, `localhost`, `srcset` y bytes. Solapa
@@ -55,6 +86,13 @@ absorben en QA cuando se solapan con el plan nuevo.
   posterior al cutover.
 - [ ] **WEB-PERF-08** — Automatizar crawl/smoke/performance budget. Su resultado
   debe alimentar `QA-03/QA-04`, no reemplazarlos.
+- [ ] **WEB-PERF-10** — Lock single-flight en `WebApiClient::get()` para
+  colapsar requests concurrentes en cache-miss (§2.E de
+  `../docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md`).
+  Diferido explícitamente de WEB-PERF-09 — necesita una primitiva de lock
+  bloqueante+polling nueva (no la que ya existe en `FileRegenerationLock`,
+  que es "intenta una vez, si no sigue sin bloquear") y diseño/tests
+  dedicados.
 
 ### Backlog heredado del saneamiento 2026-08-05 — prioridad 3
 
