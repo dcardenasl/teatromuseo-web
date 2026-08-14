@@ -27,10 +27,10 @@ final class PageDeliveryHomepageTest extends HermeticFeatureTestCase
         $result->assertSee('Fixture homepage aa');
 
         $paths = $this->domainAdapter->requestedPaths();
-        // Navigation, collections and settings are one composite request
-        // since ADR 006 (teatromuseo-cms-domain) — was three separate reads.
-        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => $path === 'public-read/aa/layout')));
-        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => str_ends_with($path, '/pages/inicio'))));
+        // WEB-PAGE-01 composes the homepage through the BFF in one request.
+        $this->assertSame(1, count(array_filter($paths, static fn (string $path): bool => $path === 'public-read/aa/page-resolve/home')));
+        $this->assertNotContains('public-read/aa/layout', $paths);
+        $this->assertNotContains('public-read/aa/pages/inicio', $paths);
         $this->assertNotContains('public/aa/forms/contact', $paths);
     }
 }

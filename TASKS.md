@@ -6,6 +6,16 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-PAGE-01 — Home vía `page-resolve`.** Cerrada 2026-08-14.
+  `SynchronousPageDeliveryAdapter` consume el endpoint nuevo únicamente para
+  `PageDeliveryRequest::home()` y mapea su envelope a `PageDeliveryResponse`;
+  `PageDelivery`/snapshots no cambian. Verificado con 4 tests / 29 assertions
+  focales del adaptador, 7 tests / 34 assertions de rutas, quality completo
+  (465 tests, 5 skipped, PHPStan 0 errores, CS-Fixer/i18n/fixture-policy
+  verdes) y smoke HTTP real con `WEB_PAGE_DELIVERY_ENABLED=true`:
+  `/es/` y `/es/inicio` `200`, inexistente `404`, con una sola llamada
+  registrada a `public-read/es/page-resolve/home`.
+
 - [x] **WEB-BFF-04 — Retirar el camino de lectura legacy del Web.** Cerrada
   después de la ventana de verificación de `WEB-BFF-03`: se eliminaron los
   factories `webApiClient()`, `catalogWebApiClient()` y
@@ -255,6 +265,44 @@
   compartido, cron y EP/508.
 
 ## 🟡 Próximo
+
+### El BFF resuelve la página pública completa (2026-08-14) — ver `../docs/plan/2026-08-14-plan-bff-page-resolution.md`
+
+Extiende la lectura directa (abajo, ya cerrada) al objetivo final: una sola
+llamada HTTP de Web al BFF por página, en vez de hasta 2 en paralelo. El
+contrato de respuesta reutiliza `PageDeliveryResponse` — el sistema de
+snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
+`SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
+La Fase 1 del BFF (`BFF-PAGE-03..07`) está verificada end-to-end y
+`WEB-PAGE-01` ya está cerrada. Continúan los siguientes cortes reversibles:
+- [ ] **WEB-PAGE-02 — Páginas CMS simples.** Sin bloques dependientes de
+  otro bloque. Verificar paridad byte a byte (excluyendo `generated_at`)
+  contra el resultado del pipeline viejo.
+- [ ] **WEB-PAGE-03 — Páginas CMS con bloques dinámicos.**
+  `collection_grid`/`collection_listing`/`collection_timeline`, incluida la
+  danza de dependencias entre bloques (ahora resuelta del lado del BFF sin
+  oleadas HTTP).
+- [ ] **WEB-PAGE-04 — Entradas de colección.** `PageController::renderEntry()`
+  pasa a consumir `page.page_type === 'collection_entry'` con
+  `related_entries` ya resuelto dentro de la respuesta — se retira la
+  llamada aparte a `SiteEntryService::related()`.
+- [ ] **WEB-PAGE-05 — Índice de colección de respaldo.**
+  `renderFallbackCollectionIndex()` pasa a consumir
+  `page.page_type === 'collection_fallback_index'`.
+- [ ] **WEB-PAGE-06 — Preview de borradores, extremo a extremo.** Verificar
+  contra una página y una entrada no publicadas con firma HMAC válida e
+  inválida.
+- [ ] **WEB-PAGE-07 — Fase 3: retiro del pipeline de resolución legacy.**
+  Solo tras ventana de estabilidad (mismo gate que `WEB-BFF-04`). Borra
+  `app/Services/BlockPrefetchService.php` + `app/Services/BlockPrefetch/**`
+  (8 archivos), `LayoutDataPrefetchService`, `PageResolverService`,
+  `PageCompositionService`, `SiteRedirectService`,
+  `PublicListingPageBuilder`, el algoritmo de 6 pasos y métodos privados de
+  apoyo en `PageController::resolve()`/`renderEntry()`, y
+  `WebApiClient::multiGet()`/`multiGetAcross()`/`CurlShareHandle`/
+  `maxParallelRequests` (sin consumidores con una sola llamada por página).
+  Grep final cross-archivo de cero resultados como gate de cierre (ver lista
+  completa en el plan).
 
 ### BFF de lectura directa (2026-08-13) — ver `../docs/plan/2026-08-13-plan-bff-completo.md`
 

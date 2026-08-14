@@ -76,6 +76,7 @@ class Services extends BaseService
                 static::pageCompositionService(),
                 static::publicListingPageBuilder(),
                 static::siteRedirectService(),
+                static::bffWebApiClient(),
             ),
             snapshot: new SnapshotPageDeliveryAdapter(
                 static::pageSnapshotStore(),
@@ -143,6 +144,7 @@ class Services extends BaseService
                 static::pageCompositionService(),
                 static::publicListingPageBuilder(),
                 static::siteRedirectService(),
+                static::bffWebApiClient(),
             ),
             publisher: static::pageSnapshotStore(),
             lock: static::pageRegenerationLock(),

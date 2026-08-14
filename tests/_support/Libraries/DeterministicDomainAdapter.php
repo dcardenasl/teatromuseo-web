@@ -91,6 +91,44 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             ]);
         }
 
+        if (preg_match('#^public-read/([^/]+)/page-resolve/(.+)$#', $path, $matches) === 1) {
+            $page = $this->pageData($matches[1], $matches[2]);
+            if ($page === null) {
+                return $this->response([
+                    'outcome' => 'not_found',
+                    'redirect' => null,
+                    'page' => null,
+                    'layout' => [],
+                    'block_context' => [],
+                    'meta' => ['locale' => $matches[1], 'route' => $matches[2]],
+                    'source' => ['domain' => 'bff', 'state' => 'unavailable', 'stale' => false],
+                    'messages' => ['Public page was not found.'],
+                ]);
+            }
+
+            return $this->response([
+                'outcome' => 'page',
+                'redirect' => null,
+                'page' => $page,
+                'layout' => [
+                    'settings' => $this->settingsData($matches[1]),
+                    'mainMenu' => ['items' => []],
+                    'footerMenu' => ['items' => []],
+                    'legalMenu' => ['items' => []],
+                    'socialLinks' => [],
+                ],
+                'block_context' => [
+                    'block_prefetch' => [],
+                    'block_prefetch_complete' => true,
+                    'form_definitions' => [],
+                    'cacheScopes' => [],
+                ],
+                'meta' => ['locale' => $matches[1], 'route' => $matches[2]],
+                'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+                'messages' => [],
+            ]);
+        }
+
         if ($path === 'public/settings' || preg_match('#^public-read/([^/]+)/settings$#', $path) === 1) {
             $locale = preg_match('#^public-read/([^/]+)/settings$#', $path, $matches) === 1 ? $matches[1] : '';
 
