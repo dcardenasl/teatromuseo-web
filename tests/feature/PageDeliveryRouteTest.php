@@ -206,6 +206,70 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         self::assertSame(['public-read/aa/page-resolve/noticias/fixture-entry'], $this->domainAdapter->requestedPaths());
     }
 
+    public function testCollectionFallbackIndexUsesBffSyntheticPageContract(): void
+    {
+        config('App')->pageDeliveryEnabled = true;
+        config('App')->pageDeliveryMode = 'sync';
+        config('App')->pageDeliveryBffRoutes = ['fallback-collection'];
+
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/fallback-collection', [
+            'outcome' => 'page',
+            'redirect' => null,
+            'page' => [
+                'page_type' => 'collection_fallback_index',
+                'title' => 'Fixture fallback collection',
+                'excerpt' => 'Fixture fallback intro.',
+                'showPageHeading' => true,
+                'pageTitle' => 'Fixture fallback collection',
+                'metaDescription' => 'Fixture fallback intro.',
+                'canonicalUrl' => '/aa/fallback-collection',
+                'ogImage' => '',
+                'metaRobots' => 'index, follow',
+                'schemaData' => null,
+                'localized_urls' => [
+                    'aa' => '/aa/fallback-collection',
+                    'bb' => '/bb/fallback-collection',
+                ],
+                'blocks' => [[
+                    'block_key' => 'collection_listing',
+                    'block_config' => [
+                        'collection_key' => 'fallback-collection',
+                        'items_limit' => 12,
+                    ],
+                    'block_data' => [],
+                    'children' => [],
+                ]],
+            ],
+            'layout' => [
+                'settings' => [],
+                'mainMenu' => ['items' => []],
+                'footerMenu' => ['items' => []],
+                'legalMenu' => ['items' => []],
+                'socialLinks' => [],
+            ],
+            'block_context' => [
+                'block_prefetch' => [],
+                'block_prefetch_complete' => true,
+                'form_definitions' => [],
+                'cacheScopes' => ['collections', 'entries', 'collection_items'],
+            ],
+            'meta' => ['locale' => 'aa', 'route' => 'fallback-collection'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
+        ]);
+
+        $result = $this->get('aa/fallback-collection');
+
+        $result->assertStatus(200);
+        $result->assertSee('Fixture fallback collection');
+        $result->assertSee('Fixture fallback intro.');
+        self::assertStringContainsString(
+            'canonical" href="/aa/fallback-collection"',
+            $result->getBody(),
+        );
+        self::assertSame(['public-read/aa/page-resolve/fallback-collection'], $this->domainAdapter->requestedPaths());
+    }
+
     public function testRedirectOnAConfiguredRouteWinsOverItsOwnManifestContent(): void
     {
         config('App')->pageDeliveryEnabled = true;

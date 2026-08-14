@@ -278,7 +278,9 @@ abstract class BasePublicWebController extends BaseController
         $renderContext['settings'] = is_array($delivery->layout['settings'] ?? null)
             ? $delivery->layout['settings']
             : [];
-        $data = $this->cmsPageData($delivery->page, $lang, $renderContext);
+        $data = ($delivery->page['page_type'] ?? null) === 'collection_fallback_index'
+            ? $this->fallbackPageData($delivery->page, $lang, $renderContext)
+            : $this->cmsPageData($delivery->page, $lang, $renderContext);
         $data['__layout_data'] = $delivery->layout;
         $data['pageDelivery'] = $delivery->meta;
         $data['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
@@ -303,6 +305,40 @@ abstract class BasePublicWebController extends BaseController
             ->setStatusCode(503)
             ->setHeader('Cache-Control', 'no-store, private')
             ->setBody('Public collection entry delivery is temporarily unavailable.');
+    }
+
+    /**
+     * Normalize the BFF's synthetic collection-index contract to the standard
+     * page view model. Fallback pages intentionally have no CMS translation.
+     *
+     * @param array<string, mixed> $page
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function fallbackPageData(array $page, string $lang, array $context): array
+    {
+        $title = (string) ($page['title'] ?? '');
+        $excerpt = (string) ($page['excerpt'] ?? '');
+        $schemaData = $page['schemaData'] ?? null;
+        if (is_string($schemaData) && trim($schemaData) !== '') {
+            $schemaData = json_decode($schemaData, true);
+        } elseif (! is_array($schemaData)) {
+            $schemaData = null;
+        }
+
+        return [
+            'title' => $title,
+            'excerpt' => $excerpt,
+            'showPageHeading' => (bool) ($page['showPageHeading'] ?? true),
+            'pageTitle' => (string) ($page['pageTitle'] ?? $title),
+            'metaDescription' => (string) ($page['metaDescription'] ?? $excerpt),
+            'canonicalUrl' => (string) ($page['canonicalUrl'] ?? site_url($this->request->getPath())),
+            'ogImage' => (string) ($page['ogImage'] ?? ''),
+            'metaRobots' => (string) ($page['metaRobots'] ?? 'index, follow'),
+            'schemaData' => $schemaData,
+            'renderedBlocks' => Services::blockRenderer()->render($this->pageBlocks($page), $lang, $context),
+            'localized_urls' => is_array($page['localized_urls'] ?? null) ? $page['localized_urls'] : [],
+        ];
     }
 
     /**

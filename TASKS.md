@@ -311,7 +311,9 @@ La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
 reversibles:
 - [ ] **WEB-PAGE-05 — Índice de colección de respaldo.**
   `renderFallbackCollectionIndex()` pasa a consumir
-  `page.page_type === 'collection_fallback_index'`.
+  `page.page_type === 'collection_fallback_index'`. El renderer y el contrato
+  BFF ya están cubiertos herméticamente; falta smoke real porque los datos
+  actuales no tienen una colección sin página CMS dedicada.
 - [ ] **WEB-PAGE-06 — Preview de borradores, extremo a extremo.** Verificar
   contra una página y una entrada no publicadas con firma HMAC válida e
   inválida.
