@@ -44,8 +44,10 @@ Key environment variables:
 
 - `app.baseURL=http://localhost:8184/`
 - `app.defaultLocale=es`
-- `WEB_API_BASE_URL=http://localhost:8190`
-- `WEB_API_KEY=web_api_test_key`
+- `BFF_API_BASE_URL=http://localhost:8188`
+- `BFF_API_KEY=<registered BFF application key>`
+- `WEB_TRACKING_API_BASE_URL=http://localhost:8190` (analytics writes only)
+- `WEB_API_KEY=web_api_test_key` (analytics write key only)
 - `WEB_API_TIMEOUT=5`
 - `WEB_API_STALE_TTL=86400`
 - `CACHE_INVALIDATE_KEY=<strong-secret>`
@@ -126,7 +128,7 @@ arrays/null, and do not throw for upstream failures.
 In tests, inject a fake client with:
 
 ```php
-Services::injectMock('webApiClient', $fake);
+Services::injectMock('bffWebApiClient', $fake);
 ```
 
 ## Cache Invalidation
