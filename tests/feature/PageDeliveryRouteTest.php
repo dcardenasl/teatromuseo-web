@@ -77,6 +77,62 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         self::assertNotContains('public-read/aa/layout', $this->domainAdapter->requestedPaths());
     }
 
+    public function testSignedPreviewBypassesGlobalFlagAndForwardsToBff(): void
+    {
+        config('App')->pageDeliveryEnabled = false;
+        config('App')->pageDeliveryBffRoutes = ['about'];
+        $previewExpires = (string) (time() + 600);
+        $page = $this->page('about', 'Fixture draft page via signed preview');
+        $page['page_type'] = 'cms_page';
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/about', [
+            'outcome' => 'page',
+            'redirect' => null,
+            'page' => $page,
+            'layout' => [],
+            'block_context' => [],
+            'meta' => ['locale' => 'aa', 'route' => 'about'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
+        ]);
+
+        $result = $this->get('aa/about?preview=1&preview_expires=' . $previewExpires . '&preview_sig=' . str_repeat('a', 64));
+
+        $result->assertStatus(200);
+        $result->assertSee('Fixture draft page via signed preview');
+        self::assertSame(['public-read/aa/page-resolve/about'], $this->domainAdapter->requestedPaths());
+        self::assertSame([
+            'preview' => '1',
+            'preview_expires' => $previewExpires,
+            'preview_sig' => str_repeat('a', 64),
+        ], $this->domainAdapter->calls[0]['query']);
+        self::assertSame('page-resolve', $this->domainAdapter->calls[0]['scope']);
+    }
+
+    public function testInvalidSignedPreviewRemainsA404FromBff(): void
+    {
+        config('App')->pageDeliveryEnabled = false;
+        config('App')->pageDeliveryBffRoutes = ['about'];
+        $previewExpires = (string) (time() + 600);
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/about', [
+            'outcome' => 'not_found',
+            'redirect' => null,
+            'page' => null,
+            'layout' => [],
+            'block_context' => [],
+            'meta' => ['locale' => 'aa', 'route' => 'about'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => ['Public page was not found.'],
+        ]);
+
+        $result = $this->get('aa/about?preview=1&preview_expires=' . $previewExpires . '&preview_sig=' . str_repeat('b', 64));
+
+        $result->assertStatus(404);
+        self::assertSame(1, $this->countPath('public-read/aa/page-resolve/about'));
+        self::assertNotContains('public-read/aa/pages/about', $this->domainAdapter->requestedPaths());
+        self::assertNotContains('public-read/aa/page-bootstrap/about', $this->domainAdapter->requestedPaths());
+        self::assertSame(str_repeat('b', 64), $this->domainAdapter->calls[0]['query']['preview_sig']);
+    }
+
     public function testDynamicCmsRouteUsesBffBlockContextWithoutWebPrefetchCalls(): void
     {
         config('App')->pageDeliveryEnabled = true;

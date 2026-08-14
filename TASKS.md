@@ -307,16 +307,20 @@ contrato de respuesta reutiliza `PageDeliveryResponse` — el sistema de
 snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 `SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
 La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
-`WEB-PAGE-01..03` ya están cerradas. Continúan los siguientes cortes
+`WEB-PAGE-01..04` ya están cerradas. Continúan los siguientes cortes
 reversibles:
 - [ ] **WEB-PAGE-05 — Índice de colección de respaldo.**
   `renderFallbackCollectionIndex()` pasa a consumir
   `page.page_type === 'collection_fallback_index'`. El renderer y el contrato
   BFF ya están cubiertos herméticamente; falta smoke real porque los datos
   actuales no tienen una colección sin página CMS dedicada.
-- [ ] **WEB-PAGE-06 — Preview de borradores, extremo a extremo.** Verificar
-  contra una página y una entrada no publicadas con firma HMAC válida e
-  inválida.
+- [ ] **WEB-PAGE-06 — Preview de borradores, extremo a extremo.** El Web ya
+  reenvía preview firmado al BFF para rutas allow-listed: pruebas herméticas
+  cubren firma válida (`200`) e inválida (`404`), y smoke real de la página
+  plantilla fuera del tráfico público confirmó ambos estados. El dataset CMS
+  local tiene 0 páginas/entradas no publicadas (886 entradas, todas
+  `published`), por lo que falta la validación positiva real de una entrada
+  borrador; no se crea contenido artificial para cerrar el gate.
 - [ ] **WEB-PAGE-07 — Fase 3: retiro del pipeline de resolución legacy.**
   Solo tras ventana de estabilidad (mismo gate que `WEB-BFF-04`). Borra
   `app/Services/BlockPrefetchService.php` + `app/Services/BlockPrefetch/**`
