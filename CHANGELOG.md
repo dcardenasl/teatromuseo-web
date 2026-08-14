@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Single BFF client for all public reads** — the three domain-specific clients
+  (`webApiClient()`, `catalogWebApiClient()`, `eventWebApiClient()`) are replaced by
+  one `bffWebApiClient()` pointed at `BFF_API_BASE_URL`; `BlockPrefetchService` now
+  takes one injected client instead of a per-domain map. Analytics writes keep their
+  own `WEB_TRACKING_API_BASE_URL` straight to CMS, since tracking is a write and the
+  BFF is read-only.
+
 ### Added
 
 - **`WebApiClient` reuses its cURL connection/TLS session across sequential
