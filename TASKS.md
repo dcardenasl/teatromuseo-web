@@ -16,6 +16,17 @@
   `/es/` y `/es/inicio` `200`, inexistente `404`, con una sola llamada
   registrada a `public-read/es/page-resolve/home`.
 
+- [x] **WEB-PAGE-02 — Páginas CMS simples vía `page-resolve`.** Cerrada
+  2026-08-14. Se agregó la allow-list explícita
+  `WEB_PAGE_DELIVERY_BFF_ROUTES`, independiente del manifest, para habilitar
+  rutas solo después de su verificación. `/es/contacto` pasó a consumir una
+  única llamada `public-read/es/page-resolve/contacto`; el pipeline anterior
+  quedó fuera del proceso BFF. Smoke real: ambos caminos devolvieron `200`,
+  `49.759` bytes y SHA-256 idéntico
+  (`e399bd5e260056486c90c3de5996fedbe88204fd0343b9b9e88e508502890a77`).
+  Quality: 467 tests, 1.727 assertions, 5 skipped, PHPStan 0 errores,
+  CS-Fixer/i18n/fixture-policy verdes. Commit `66abba2`.
+
 - [x] **WEB-BFF-04 — Retirar el camino de lectura legacy del Web.** Cerrada
   después de la ventana de verificación de `WEB-BFF-03`: se eliminaron los
   factories `webApiClient()`, `catalogWebApiClient()` y
@@ -275,9 +286,6 @@ snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 `SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
 La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
 `WEB-PAGE-01` ya está cerrada. Continúan los siguientes cortes reversibles:
-- [ ] **WEB-PAGE-02 — Páginas CMS simples.** Sin bloques dependientes de
-  otro bloque. Verificar paridad byte a byte (excluyendo `generated_at`)
-  contra el resultado del pipeline viejo.
 - [ ] **WEB-PAGE-03 — Páginas CMS con bloques dinámicos.**
   `collection_grid`/`collection_listing`/`collection_timeline`, incluida la
   danza de dependencias entre bloques (ahora resuelta del lado del BFF sin
