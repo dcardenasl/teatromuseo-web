@@ -15,15 +15,20 @@ use App\Libraries\WebApiClientInterface;
 final class PublicReadDiagnosticsService
 {
     public function __construct(
-        private readonly WebApiClientInterface $cmsClient,
-        private readonly WebApiClientInterface $catalogClient,
-        private readonly WebApiClientInterface $eventClient,
+        private readonly WebApiClientInterface $bffClient,
     ) {
     }
 
     /** @return array<string, mixed> */
     public function report(): array
     {
+        $startedAt = hrtime(true);
+        $result = $this->bffClient->get('health', [], 0, 'diagnostics');
+        $health = is_array($result['data'] ?? null) ? $result['data'] : [];
+        $checks = is_array($health['checks']['databases'] ?? null)
+            ? $health['checks']['databases']
+            : [];
+
         return [
             'schema'               => 'public-read-diagnostics.v1',
             'generated_at'         => gmdate('c'),
@@ -32,9 +37,9 @@ final class PublicReadDiagnosticsService
                 'cache'       => $this->cache(),
             ],
             'domains'              => [
-                'cms'     => $this->probe('cms', $this->cmsClient),
-                'catalog' => $this->probe('catalog', $this->catalogClient),
-                'events'  => $this->probe('events', $this->eventClient),
+                'cms'     => $this->databaseReport('cms', $checks['cms'] ?? [], $result['status'], $startedAt),
+                'catalog' => $this->databaseReport('catalog', $checks['catalog'] ?? [], $result['status'], $startedAt),
+                'events'  => $this->databaseReport('events', $checks['event'] ?? [], $result['status'], $startedAt),
             ],
             'provider_visibility'  => [
                 'php_fpm_pool' => [
@@ -57,32 +62,34 @@ final class PublicReadDiagnosticsService
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function probe(string $name, WebApiClientInterface $client): array
+    /**
+     * The BFF health contract exposes database readiness, not content probes.
+     * Keep the historical diagnostics shape while making that limitation
+     * explicit instead of silently calling the retired domain HTTP surfaces.
+     *
+     * @param array<string, mixed> $check
+     * @return array<string, mixed>
+     */
+    private function databaseReport(string $name, array $check, int $httpStatus, int $startedAt): array
     {
-        $startedAt = hrtime(true);
-        $result = $client->get('diagnostics/public-read', [], 0, 'diagnostics');
-        $data = is_array($result['data'] ?? null) ? $result['data'] : null;
-        $status = $result['ok'] ? 'healthy' : 'unavailable';
-
-        if ($status === 'healthy') {
-            $database = is_array($data['database'] ?? null) ? $data['database'] : [];
-            $cache = is_array($data['cache'] ?? null) ? $data['cache'] : [];
-            $content = is_array($data['content'] ?? null) ? $data['content'] : [];
-            if (in_array($database['status'] ?? null, ['critical', 'degraded'], true)
-                || ($cache['probe'] ?? null) === 'failed'
-                || ($content['status'] ?? null) === 'empty') {
-                $status = 'degraded';
-            }
-        }
+        $databaseStatus = (string) ($check['status'] ?? 'unavailable');
+        $status = in_array($databaseStatus, ['healthy', 'skipped'], true)
+            ? 'healthy'
+            : 'unavailable';
 
         return [
             'name'             => $name,
             'status'           => $status,
-            'http_status'      => $result['status'],
-            'response_time_ms' => round((hrtime(true) - $startedAt) / 1_000_000, 2),
-            'data'             => $data,
-            'error'            => $result['ok'] ? null : 'diagnostics_unavailable',
+            'http_status'      => $httpStatus,
+            'response_time_ms' => isset($check['response_time_ms']) && is_numeric($check['response_time_ms'])
+                ? (float) $check['response_time_ms']
+                : round((hrtime(true) - $startedAt) / 1_000_000, 2),
+            'data'             => [
+                'database' => $check,
+                'cache'    => ['probe' => 'not_probed_by_bff'],
+                'content'  => ['status' => 'not_probed_by_bff'],
+            ],
+            'error'            => $status === 'healthy' ? null : 'diagnostics_unavailable',
         ];
     }
 

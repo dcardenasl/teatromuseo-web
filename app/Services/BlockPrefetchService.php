@@ -48,15 +48,13 @@ final class BlockPrefetchService
     private readonly PrefetchRequestExecutor $executor;
     private readonly RequestQueryReader $requestQuery;
 
-    /**
-     * @param array<string, WebApiClientInterface> $clients
-     */
-    public function __construct(array $clients)
+    public function __construct(WebApiClientInterface $client)
     {
-        $this->clients = array_filter(
-            $clients,
-            static fn (mixed $client): bool => $client instanceof WebApiClientInterface,
-        );
+        $this->clients = [
+            'cms' => $client,
+            'catalog' => $client,
+            'event' => $client,
+        ];
 
         $this->requestQuery = new RequestQueryReader();
         $this->results = new BlockResultMaterializer($this->requestQuery);
@@ -124,9 +122,6 @@ final class BlockPrefetchService
         $formIndexes = [];
         if ($includeForms) {
             foreach ($this->plans->formKeys($blocks) as $formKey) {
-                if (! isset($this->clients['cms'])) {
-                    break;
-                }
                 $formIndexes[$formKey] = $queue->add(
                     'cms',
                     'public/' . rawurlencode($locale) . '/forms/' . rawurlencode($formKey),

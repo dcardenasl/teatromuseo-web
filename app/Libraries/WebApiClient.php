@@ -66,15 +66,15 @@ class WebApiClient implements WebApiClientInterface
     ) {
         if (trim($baseUrl) === '') {
             throw new \LogicException(
-                'Missing WEB_API_BASE_URL. Set it in .env. '
-                . 'Example: WEB_API_BASE_URL=http://localhost:8190'
+                'Missing public-read API base URL. Set BFF_API_BASE_URL in .env. '
+                . 'Example: BFF_API_BASE_URL=http://localhost:8188'
             );
         }
 
         if (trim($apiKey) === '') {
             throw new \LogicException(
-                'Missing WEB_API_KEY. Set it in .env. '
-                . 'This should be a registered API key from your domain API.'
+                'Missing BFF_API_KEY. Set it in .env. '
+                . 'This should be the key registered for the BFF public-read surface.'
             );
         }
 

@@ -6,7 +6,6 @@ namespace Tests\Unit\Services;
 
 use App\Libraries\WebApiClientInterface;
 use App\Services\BlockPrefetchService;
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 final class BlockPrefetchServiceTest extends TestCase
@@ -30,7 +29,7 @@ final class BlockPrefetchServiceTest extends TestCase
                 $this->success([['id' => 2, 'title' => 'Archive item']]),
             ]);
 
-        $service = new BlockPrefetchService(['cms' => $client]);
+        $service = new BlockPrefetchService($client);
         $result = $service->prefetch([
             ['block_key' => 'collection_grid', 'block_config' => [
                 'collection_key' => 'news',
@@ -55,21 +54,21 @@ final class BlockPrefetchServiceTest extends TestCase
 
     public function testRoutesCatalogAndEventGridsToTheirOwningClients(): void
     {
-        /** @var WebApiClientInterface&MockObject $catalog */
-        $catalog = $this->createMock(WebApiClientInterface::class);
-        /** @var WebApiClientInterface&MockObject $event */
-        $event = $this->createMock(WebApiClientInterface::class);
-
-        $catalog->expects($this->once())
+        $client = $this->createMock(WebApiClientInterface::class);
+        $client->expects($this->exactly(2))
             ->method('multiGet')
-            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public-read/es/collection-items'))
-            ->willReturn([$this->success([['id' => 7]])]);
-        $event->expects($this->once())
-            ->method('multiGet')
-            ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public-read/es/events'))
-            ->willReturn([$this->success([['id' => 8]])]);
+            ->with($this->callback(static fn (array $requests): bool => in_array(
+                $requests[0]['path'] ?? '',
+                ['public-read/es/collection-items', 'public-read/es/events'],
+                true,
+            )))
+            ->willReturnCallback(function (array $requests): array {
+                return [($requests[0]['path'] ?? '') === 'public-read/es/collection-items'
+                    ? $this->success([['id' => 7]])
+                    : $this->success([['id' => 8]])];
+            });
 
-        $service = new BlockPrefetchService(['catalog' => $catalog, 'event' => $event]);
+        $service = new BlockPrefetchService($client);
         $result = $service->prefetch([
             ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'museo']],
             ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'cartelera']],
@@ -94,7 +93,7 @@ final class BlockPrefetchServiceTest extends TestCase
                 $this->success([['id' => 4, 'slug' => 'works', 'name' => 'Works']]),
             ]);
 
-        $service = new BlockPrefetchService(['catalog' => $client]);
+        $service = new BlockPrefetchService($client);
         $result = $service->prefetch([[
             'block_key' => 'collection_listing',
             'block_config' => [
@@ -117,7 +116,7 @@ final class BlockPrefetchServiceTest extends TestCase
             ->with($this->callback(static fn (array $requests): bool => ($requests[0]['path'] ?? '') === 'public-read/es/events/201'))
             ->willReturn([$this->success([['id' => 201, 'title' => 'Prefetched event']])]);
 
-        $service = new BlockPrefetchService(['event' => $event]);
+        $service = new BlockPrefetchService($event);
         $result = $service->prefetch([[
             'block_key' => 'event_item_header',
             'block_data' => ['event_id' => 201],
@@ -132,7 +131,7 @@ final class BlockPrefetchServiceTest extends TestCase
         $event = $this->createMock(WebApiClientInterface::class);
         $event->expects($this->never())->method('multiGet');
 
-        $service = new BlockPrefetchService(['event' => $event]);
+        $service = new BlockPrefetchService($event);
         $result = $service->prefetchContext([
             ['block_key' => 'event_item_header', 'block_data' => ['event_slug' => 'festival-uno']],
         ], 'es', [
@@ -164,7 +163,7 @@ final class BlockPrefetchServiceTest extends TestCase
                 $this->success(['fields' => [['name' => 'email']]]),
             ]);
 
-        $service = new BlockPrefetchService(['cms' => $client]);
+        $service = new BlockPrefetchService($client);
         $context = $service->prefetchContext([
             ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'news']],
             ['block_key' => 'form_embed', 'block_config' => ['form_key' => 'contact']],
@@ -175,7 +174,7 @@ final class BlockPrefetchServiceTest extends TestCase
 
     public function testContextExposesAllDynamicContentScopesForHtmlInvalidation(): void
     {
-        $service = new BlockPrefetchService([]);
+        $service = new BlockPrefetchService($this->createMock(WebApiClientInterface::class));
 
         $context = $service->prefetchContext([
             ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'cartelera']],
@@ -204,7 +203,7 @@ final class BlockPrefetchServiceTest extends TestCase
             ->with($this->callback(static fn (array $requests): bool => count($requests) === 1))
             ->willReturn([$this->success([['id' => 1]])]);
 
-        $service = new BlockPrefetchService(['cms' => $client]);
+        $service = new BlockPrefetchService($client);
         $result = $service->prefetch([
             ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'news']],
             ['block_key' => 'collection_grid', 'block_config' => ['collection_key' => 'news']],
@@ -226,7 +225,7 @@ final class BlockPrefetchServiceTest extends TestCase
                 'messages' => ['Not found'],
             ]]);
 
-        $service = new BlockPrefetchService(['cms' => $client]);
+        $service = new BlockPrefetchService($client);
         $result = $service->prefetch([[
             'block_key' => 'collection_grid',
             'block_config' => ['collection_key' => 'missing'],
@@ -245,7 +244,7 @@ final class BlockPrefetchServiceTest extends TestCase
             ->method('multiGet')
             ->willReturn([$this->success([['id' => 9]])]);
 
-        $service = new BlockPrefetchService(['cms' => $client]);
+        $service = new BlockPrefetchService($client);
         $result = $service->prefetch([[
             'block_key' => 'container',
             'children' => [[
@@ -284,7 +283,7 @@ final class BlockPrefetchServiceTest extends TestCase
                 }))
                 ->willReturn([$this->success([['id' => 1]])]);
 
-            $service = new BlockPrefetchService(['cms' => $client]);
+            $service = new BlockPrefetchService($client);
             $result = $service->prefetch([[
                 'block_key' => $blockKey,
                 'block_config' => ['collection_key' => 'news'],

@@ -48,13 +48,22 @@ final class DiagnosticsControllerTest extends CIUnitTestCase
         $client->method('get')->willReturn([
             'ok'       => true,
             'status'   => 200,
-            'data'     => ['schema' => 'public-read-diagnostics.v1'],
+            'data'     => [
+                'status' => 'healthy',
+                'checks' => [
+                    'databases' => [
+                        'cms'     => ['status' => 'healthy', 'response_time_ms' => 1.1],
+                        'catalog' => ['status' => 'healthy', 'response_time_ms' => 1.2],
+                        'event'   => ['status' => 'healthy', 'response_time_ms' => 1.3],
+                    ],
+                ],
+            ],
             'meta'     => [],
             'messages' => [],
         ]);
         Services::injectMock(
             'publicReadDiagnostics',
-            new PublicReadDiagnosticsService($client, $client, $client),
+            new PublicReadDiagnosticsService($client),
         );
 
         $result = $this->withHeaders(['X-Diagnostics-Key' => self::VALID_KEY])
@@ -71,6 +80,7 @@ final class DiagnosticsControllerTest extends CIUnitTestCase
         $this->assertSame('public-read-diagnostics.v1', $payload['schema'] ?? null);
         $this->assertArrayHasKey('web', $payload);
         $this->assertArrayHasKey('domains', $payload);
+        $this->assertSame('healthy', $payload['domains']['cms']['status'] ?? null);
         $this->assertArrayHasKey('provider_visibility', $payload);
     }
 

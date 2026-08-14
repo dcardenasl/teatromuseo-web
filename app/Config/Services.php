@@ -54,11 +54,7 @@ class Services extends BaseService
             return static::getSharedInstance('publicReadDiagnostics');
         }
 
-        return new PublicReadDiagnosticsService(
-            static::webApiClient(),
-            static::catalogWebApiClient(),
-            static::eventWebApiClient(),
-        );
+        return new PublicReadDiagnosticsService(static::bffWebApiClient());
     }
 
     public static function pageDelivery(bool $getShared = true): PageDeliveryInterface
@@ -156,18 +152,22 @@ class Services extends BaseService
         );
     }
 
-    public static function webApiClient(bool $getShared = true): WebApiClientInterface
+    /**
+     * Single public-read client. CMS, Catalog and Event paths are routed by the
+     * BFF, so the website no longer needs one HTTP client per domain database.
+     */
+    public static function bffWebApiClient(bool $getShared = true): WebApiClientInterface
     {
         if ($getShared) {
             /** @var WebApiClientInterface */
-            return static::getSharedInstance('webApiClient');
+            return static::getSharedInstance('bffWebApiClient');
         }
 
         $config = config('App');
 
         return new WebApiClient(
-            $config->webApiBaseUrl,
-            $config->webApiKey,
+            $config->bffApiBaseUrl,
+            $config->bffApiKey,
             $config->webApiTimeout,
             $config->webApiStaleTtl,
             $config->webApiMaxParallelRequests,
@@ -188,7 +188,7 @@ class Services extends BaseService
             directory: $config->analyticsQueueDirectory,
             maxAttempts: $config->trackingQueueMaxAttempts,
             transport: new CurlAnalyticsTransport(
-                trackUrl: rtrim($config->webApiBaseUrl, '/') . '/api/v1/public/track',
+                trackUrl: rtrim($config->trackingApiBaseUrl, '/') . '/api/v1/public/track',
                 apiKey: $config->webApiKey,
                 timeoutMs: $config->trackingQueueTimeoutMs,
                 connectTimeoutMs: $config->trackingQueueConnectTimeoutMs,
@@ -203,7 +203,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteSettingsService');
         }
 
-        return new SiteSettingsService(static::webApiClient());
+        return new SiteSettingsService(static::bffWebApiClient());
     }
 
     public static function siteLanguageService(bool $getShared = true): SiteLanguageService
@@ -213,7 +213,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteLanguageService');
         }
 
-        return new SiteLanguageService(static::webApiClient());
+        return new SiteLanguageService(static::bffWebApiClient());
     }
 
     public static function siteMenuService(bool $getShared = true): SiteMenuService
@@ -223,7 +223,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteMenuService');
         }
 
-        return new SiteMenuService(static::webApiClient());
+        return new SiteMenuService(static::bffWebApiClient());
     }
 
     public static function sitePageService(bool $getShared = true): SitePageService
@@ -233,7 +233,7 @@ class Services extends BaseService
             return static::getSharedInstance('sitePageService');
         }
 
-        return new SitePageService(static::webApiClient());
+        return new SitePageService(static::bffWebApiClient());
     }
 
     public static function siteCollectionService(bool $getShared = true): SiteCollectionService
@@ -243,7 +243,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteCollectionService');
         }
 
-        return new SiteCollectionService(static::webApiClient());
+        return new SiteCollectionService(static::bffWebApiClient());
     }
 
     public static function siteEntryService(bool $getShared = true): SiteEntryService
@@ -253,7 +253,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteEntryService');
         }
 
-        return new SiteEntryService(static::webApiClient());
+        return new SiteEntryService(static::bffWebApiClient());
     }
 
     public static function siteCategoryService(bool $getShared = true): SiteCategoryService
@@ -263,7 +263,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteCategoryService');
         }
 
-        return new SiteCategoryService(static::webApiClient());
+        return new SiteCategoryService(static::bffWebApiClient());
     }
 
     public static function siteTagService(bool $getShared = true): SiteTagService
@@ -273,7 +273,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteTagService');
         }
 
-        return new SiteTagService(static::webApiClient());
+        return new SiteTagService(static::bffWebApiClient());
     }
 
     public static function siteRedirectService(bool $getShared = true): SiteRedirectService
@@ -283,7 +283,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteRedirectService');
         }
 
-        return new SiteRedirectService(static::webApiClient());
+        return new SiteRedirectService(static::bffWebApiClient());
     }
 
     public static function layoutDataPrefetchService(bool $getShared = true): LayoutDataPrefetchService
@@ -293,7 +293,7 @@ class Services extends BaseService
             return static::getSharedInstance('layoutDataPrefetchService');
         }
 
-        return new LayoutDataPrefetchService(static::webApiClient());
+        return new LayoutDataPrefetchService(static::bffWebApiClient());
     }
 
     public static function pageResolverService(bool $getShared = true): PageResolverService
@@ -303,7 +303,7 @@ class Services extends BaseService
             return static::getSharedInstance('pageResolverService');
         }
 
-        return new PageResolverService(static::webApiClient());
+        return new PageResolverService(static::bffWebApiClient());
     }
 
     public static function blockRenderer(bool $getShared = true): BlockRenderer
@@ -323,11 +323,7 @@ class Services extends BaseService
             return static::getSharedInstance('blockPrefetchService');
         }
 
-        return new BlockPrefetchService([
-            'cms' => static::webApiClient(),
-            'catalog' => static::catalogWebApiClient(),
-            'event' => static::eventWebApiClient(),
-        ]);
+        return new BlockPrefetchService(static::bffWebApiClient());
     }
 
     public static function pageCompositionService(bool $getShared = true): PageCompositionService
@@ -350,7 +346,7 @@ class Services extends BaseService
             return static::getSharedInstance('aliasResolverService');
         }
 
-        return new ParallelAliasResolver(static::webApiClient());
+        return new ParallelAliasResolver(static::bffWebApiClient());
     }
 
     public static function cacheInvalidator(bool $getShared = true): CacheInvalidator
@@ -390,7 +386,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteFormService');
         }
 
-        return new SiteFormService(static::webApiClient());
+        return new SiteFormService(static::bffWebApiClient());
     }
 
     public static function socialLinksService(bool $getShared = true): SocialLinksService
@@ -400,26 +396,7 @@ class Services extends BaseService
             return static::getSharedInstance('socialLinksService');
         }
 
-        return new SocialLinksService(static::webApiClient());
-    }
-
-    public static function catalogWebApiClient(bool $getShared = true): WebApiClientInterface
-    {
-        if ($getShared) {
-            /** @var WebApiClientInterface */
-            return static::getSharedInstance('catalogWebApiClient');
-        }
-
-        $config = config('App');
-
-        return new WebApiClient(
-            $config->catalogApiBaseUrl,
-            $config->webApiKey,
-            $config->webApiTimeout,
-            $config->webApiStaleTtl,
-            $config->webApiMaxParallelRequests,
-            $config->webApiConnectTimeout,
-        );
+        return new SocialLinksService(static::bffWebApiClient());
     }
 
     public static function siteCatalogService(bool $getShared = true): \App\Services\SiteCatalogService
@@ -429,26 +406,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteCatalogService');
         }
 
-        return new \App\Services\SiteCatalogService(static::catalogWebApiClient());
-    }
-
-    public static function eventWebApiClient(bool $getShared = true): WebApiClientInterface
-    {
-        if ($getShared) {
-            /** @var WebApiClientInterface */
-            return static::getSharedInstance('eventWebApiClient');
-        }
-
-        $config = config('App');
-
-        return new WebApiClient(
-            $config->eventApiBaseUrl,
-            $config->webApiKey,
-            $config->webApiTimeout,
-            $config->webApiStaleTtl,
-            $config->webApiMaxParallelRequests,
-            $config->webApiConnectTimeout,
-        );
+        return new \App\Services\SiteCatalogService(static::bffWebApiClient());
     }
 
     public static function siteEventService(bool $getShared = true): \App\Services\SiteEventService
@@ -458,6 +416,6 @@ class Services extends BaseService
             return static::getSharedInstance('siteEventService');
         }
 
-        return new \App\Services\SiteEventService(static::eventWebApiClient());
+        return new \App\Services\SiteEventService(static::bffWebApiClient());
     }
 }

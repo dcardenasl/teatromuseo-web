@@ -158,13 +158,18 @@ class App extends BaseConfig
      * Website Builder API Configuration
      * --------------------------------------------------------------------------
      *
-     * Configuration for communicating with the ci4-website-builder-domain API
-     * Configured via environment variables: WEB_API_BASE_URL and WEB_API_KEY
+     * Configuration for BFF public reads and the separate analytics write
+     * surface. Public reads use only the BFF settings below; analytics keeps
+     * its own CMS write endpoint and key.
      */
-    public string $webApiBaseUrl = '';
+    public string $trackingApiBaseUrl = '';
     public string $webApiKey = '';
-    public string $catalogApiBaseUrl = 'http://localhost:8191';
-    public string $eventApiBaseUrl = 'http://localhost:8193';
+
+    /** Base URL for the direct public-read BFF. */
+    public string $bffApiBaseUrl = 'http://localhost:8188';
+
+    /** Shared application key registered for the BFF public-read surface. */
+    public string $bffApiKey = '';
 
     /**
      * Timeout (seconds) for requests against the Domain API.
@@ -369,22 +374,16 @@ class App extends BaseConfig
             );
         }
 
-        // Load Website Builder API configuration from .env
-        $webApiBaseUrl = env('WEB_API_BASE_URL');
-        if (! is_string($webApiBaseUrl) || trim($webApiBaseUrl) === '') {
+        // Load the separate analytics write endpoint from .env.
+        $trackingApiBaseUrl = env('WEB_TRACKING_API_BASE_URL');
+        if (! is_string($trackingApiBaseUrl) || trim($trackingApiBaseUrl) === '') {
             throw new \LogicException(
-                'Missing WEB_API_BASE_URL in .env. '
-                . 'Set WEB_API_BASE_URL to your domain API server URL. '
-                . 'Example: WEB_API_BASE_URL=http://localhost:8190'
+                'Missing WEB_TRACKING_API_BASE_URL in .env. '
+                . 'Set WEB_TRACKING_API_BASE_URL to the CMS write endpoint. '
+                . 'Example: WEB_TRACKING_API_BASE_URL=http://localhost:8190'
             );
         }
-        $this->webApiBaseUrl = $webApiBaseUrl;
-
-        $catalogApiBaseUrl = env('CATALOG_API_BASE_URL') ?: env('CATALOG_DOMAIN_API_BASE_URL') ?: $this->catalogApiBaseUrl;
-        $this->catalogApiBaseUrl = $catalogApiBaseUrl;
-
-        $eventApiBaseUrl = env('EVENT_API_BASE_URL') ?: env('EVENT_DOMAIN_API_BASE_URL') ?: $this->eventApiBaseUrl;
-        $this->eventApiBaseUrl = $eventApiBaseUrl;
+        $this->trackingApiBaseUrl = rtrim($trackingApiBaseUrl, '/');
 
         $webApiKey = env('WEB_API_KEY');
         if (! is_string($webApiKey) || trim($webApiKey) === '') {
@@ -395,6 +394,17 @@ class App extends BaseConfig
             );
         }
         $this->webApiKey = $webApiKey;
+
+        $bffApiBaseUrl = env('BFF_API_BASE_URL') ?: $this->bffApiBaseUrl;
+        $this->bffApiBaseUrl = rtrim((string) $bffApiBaseUrl, '/');
+
+        $bffApiKey = env('BFF_API_KEY') ?: $webApiKey;
+        if (! is_string($bffApiKey) || trim($bffApiKey) === '') {
+            throw new \LogicException(
+                'Missing BFF_API_KEY in .env. Set the application key registered in the BFF.'
+            );
+        }
+        $this->bffApiKey = $bffApiKey;
 
         // Optional tuning knobs — silently keep defaults when absent.
         $webApiTimeout = env('WEB_API_TIMEOUT');
