@@ -30,6 +30,8 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         private readonly ?PublicListingPageBuilder $listingBuilder = null,
         private readonly ?SiteRedirectService $redirects = null,
         private readonly ?WebApiClientInterface $bff = null,
+        /** @var list<string> */
+        private readonly array $bffRoutes = ['home'],
     ) {
     }
 
@@ -38,7 +40,7 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         // WEB-PAGE-01 rolls out the new full-page contract for the homepage
         // first. Other routes keep the existing synchronous seam until their
         // renderer-specific migration tasks are verified.
-        if ($this->bff !== null && $request->route === 'home') {
+        if ($this->bff !== null && $this->usesBff($request)) {
             return $this->deliverFromBff($request);
         }
 
@@ -158,6 +160,26 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
         $segments = array_values(array_filter(explode('/', trim($route, '/')), static fn (string $segment): bool => $segment !== ''));
 
         return implode('/', array_map('rawurlencode', $segments));
+    }
+
+    private function usesBff(PageDeliveryRequest $request): bool
+    {
+        foreach ($this->bffRoutes as $configuredRoute) {
+            $configuredRoute = trim($configuredRoute, '/');
+            if ($configuredRoute === '') {
+                continue;
+            }
+
+            $resolvedRoute = $configuredRoute === 'home'
+                ? 'home'
+                : (PublicPaths::routePath($configuredRoute, $request->locale) ?? $configuredRoute);
+
+            if ($resolvedRoute === $request->route) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

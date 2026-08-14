@@ -236,6 +236,16 @@ class App extends BaseConfig
     public bool $pageDeliveryEnabled = false;
     public string $pageDeliveryMode = 'snapshot';
     public bool $pageDeliveryAllowSynchronousFallback = false;
+
+    /**
+     * Explicit subset of manifest routes already verified against the BFF's
+     * full-page resolver. Routes remain on the synchronous legacy seam until
+     * they are added here, keeping rollout reversible by configuration.
+     *
+     * @var list<string>
+     */
+    public array $pageDeliveryBffRoutes = ['home'];
+
     public string $pageSnapshotDirectory = '';
     public int $pageSnapshotStaleTtl = 86400;
     public int $pageSnapshotTtl = 300;
@@ -488,6 +498,16 @@ class App extends BaseConfig
             env('WEB_PAGE_DELIVERY_ALLOW_SYNC_FALLBACK'),
             false,
         );
+        $bffRoutes = env('WEB_PAGE_DELIVERY_BFF_ROUTES');
+        if (is_string($bffRoutes) && trim($bffRoutes) !== '') {
+            $routes = array_values(array_filter(
+                array_map(static fn (string $route): string => trim($route, " /\t\n\r\0\x0B"), explode(',', $bffRoutes)),
+                static fn (string $route): bool => $route !== '',
+            ));
+            if ($routes !== []) {
+                $this->pageDeliveryBffRoutes = $routes;
+            }
+        }
         $pageSnapshotDirectory = env('WEB_PAGE_SNAPSHOT_DIR');
         if (is_string($pageSnapshotDirectory) && trim($pageSnapshotDirectory) !== '') {
             $this->pageSnapshotDirectory = rtrim(trim($pageSnapshotDirectory), DIRECTORY_SEPARATOR);

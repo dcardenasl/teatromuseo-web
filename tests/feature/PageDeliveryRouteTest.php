@@ -16,11 +16,15 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
     /** @var list<string> */
     private array $originalManifestRoutes = [];
 
+    /** @var list<string> */
+    private array $originalBffRoutes = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->configureLocales(['aa', 'bb']);
         $this->originalManifestRoutes = config('App')->pageSnapshotManifestRoutes;
+        $this->originalBffRoutes = config('App')->pageDeliveryBffRoutes;
         config('App')->pageSnapshotManifestRoutes = ['about'];
     }
 
@@ -34,6 +38,7 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         config('App')->pageSnapshotShared = false;
         config('App')->pageDeliveryAllowSynchronousFallback = false;
         config('App')->pageSnapshotManifestRoutes = $this->originalManifestRoutes;
+        config('App')->pageDeliveryBffRoutes = $this->originalBffRoutes;
 
         parent::tearDown();
     }
@@ -53,6 +58,23 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         // it is for the legacy resolver — with no redirect fixture registered
         // it resolves to "no redirect" and the manifest page renders.
         self::assertContains('public/redirects/about', $this->domainAdapter->requestedPaths());
+    }
+
+    public function testSimpleCmsRouteUsesBffPageResolutionWhenOptedIn(): void
+    {
+        config('App')->pageDeliveryEnabled = true;
+        config('App')->pageDeliveryMode = 'sync';
+        config('App')->pageDeliveryBffRoutes = ['about'];
+        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about via BFF'));
+
+        $result = $this->get('aa/about');
+
+        $result->assertStatus(200);
+        $result->assertSee('Fixture about via BFF');
+        self::assertSame(1, $this->countPath('public-read/aa/page-resolve/about'));
+        self::assertNotContains('public-read/aa/pages/about', $this->domainAdapter->requestedPaths());
+        self::assertNotContains('public-read/aa/page-bootstrap/about', $this->domainAdapter->requestedPaths());
+        self::assertNotContains('public-read/aa/layout', $this->domainAdapter->requestedPaths());
     }
 
     public function testRedirectOnAConfiguredRouteWinsOverItsOwnManifestContent(): void

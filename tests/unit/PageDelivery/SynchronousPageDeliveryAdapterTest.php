@@ -84,6 +84,37 @@ final class SynchronousPageDeliveryAdapterTest extends TestCase
         self::assertSame('collection_entry', $response->page['page_type']);
     }
 
+    public function testConfiguredNonHomepageBffRouteUsesTheFullPageResolver(): void
+    {
+        $client = $this->createMock(WebApiClientInterface::class);
+        $client->expects(self::once())
+            ->method('get')
+            ->with('public-read/es/page-resolve/contacto', [], 300, 'page-resolve')
+            ->willReturn($this->bffResult([
+                'outcome' => 'page',
+                'redirect' => null,
+                'page' => ['page_type' => 'cms_page', 'title' => 'Contacto'],
+                'layout' => [],
+                'block_context' => [],
+                'meta' => ['locale' => 'es', 'route' => 'contacto'],
+                'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+                'messages' => [],
+            ]));
+
+        $response = (new SynchronousPageDeliveryAdapter(
+            $this->createStub(SitePageService::class),
+            $this->createStub(LayoutDataPrefetchService::class),
+            new BlockPrefetchService($client),
+            new AdapterClock(),
+            bff: $client,
+            bffRoutes: ['contacto'],
+        ))->deliver(new PageDeliveryRequest('es', 'contacto'));
+
+        self::assertTrue($response->isAvailable());
+        self::assertSame('cms_page', $response->page['page_type']);
+        self::assertSame('contacto', $response->meta['route']);
+    }
+
     public function testHomepageRedirectAndNotFoundOutcomesRemainNonPageResponses(): void
     {
         $redirectClient = $this->createMock(WebApiClientInterface::class);
