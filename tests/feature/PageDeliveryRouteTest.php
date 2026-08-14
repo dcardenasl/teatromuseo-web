@@ -77,6 +77,63 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         self::assertNotContains('public-read/aa/layout', $this->domainAdapter->requestedPaths());
     }
 
+    public function testDynamicCmsRouteUsesBffBlockContextWithoutWebPrefetchCalls(): void
+    {
+        config('App')->pageDeliveryEnabled = true;
+        config('App')->pageDeliveryMode = 'sync';
+        config('App')->pageDeliveryBffRoutes = ['teatroescuela'];
+        config('App')->pageSnapshotManifestRoutes = ['teatroescuela'];
+
+        $page = $this->page('teatroescuela', 'Fixture TeatroEscuela via BFF');
+        $page['page_type'] = 'cms_page';
+        $page['blocks'] = [[
+            'block_key' => 'collection_listing',
+            'block_config' => [
+                'source_type' => 'cms_collection',
+                'collection_key' => 'teatroescuela',
+                'items_limit' => 12,
+            ],
+            'block_data' => [],
+            'children' => [],
+        ]];
+
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/teatroescuela', [
+            'outcome' => 'page',
+            'redirect' => null,
+            'page' => $page,
+            'layout' => [
+                'settings' => [],
+                'mainMenu' => ['items' => []],
+                'footerMenu' => ['items' => []],
+                'legalMenu' => ['items' => []],
+                'socialLinks' => [],
+            ],
+            'block_context' => [
+                'block_prefetch' => [
+                    '1' => [
+                        'ok' => true,
+                        'status' => 200,
+                        'data' => [],
+                        'meta' => [],
+                        'stale' => false,
+                    ],
+                ],
+                'block_prefetch_complete' => true,
+                'form_definitions' => [],
+                'cacheScopes' => ['collections', 'entries', 'collection_items'],
+            ],
+            'meta' => ['locale' => 'aa', 'route' => 'teatroescuela'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
+        ]);
+
+        $result = $this->get('aa/teatroescuela');
+
+        $result->assertStatus(200);
+        $result->assertSee('Fixture TeatroEscuela via BFF');
+        self::assertSame(['public-read/aa/page-resolve/teatroescuela'], $this->domainAdapter->requestedPaths());
+    }
+
     public function testRedirectOnAConfiguredRouteWinsOverItsOwnManifestContent(): void
     {
         config('App')->pageDeliveryEnabled = true;

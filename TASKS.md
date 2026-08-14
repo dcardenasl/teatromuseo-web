@@ -27,6 +27,16 @@
   Quality: 467 tests, 1.727 assertions, 5 skipped, PHPStan 0 errores,
   CS-Fixer/i18n/fixture-policy verdes. Commit `66abba2`.
 
+- [x] **WEB-PAGE-03 — Páginas CMS con bloques dinámicos vía `page-resolve`.**
+  Cerrada 2026-08-14. La ruta canónica `/es/teatroescuela`, con
+  `collection_listing` y dependencias de entradas, devolvió `200`, 100.866
+  bytes y el mismo SHA-256 (`6ea691c070ede2346d14fd0913c1d0f3c87e73e08a62003cea5acec17645cd3b`)
+  que el pipeline anterior. El BFF resolvió el árbol y el contexto en una
+  única llamada `page-resolve`; el camino anterior necesitó `pages`, `layout`
+  y `entries`. La prueba feature valida el `block_prefetch` y cero llamadas
+  secundarias del Web. Quality: 468 tests, 1.733 assertions, 5 skipped,
+  PHPStan 0 errores, CS-Fixer/i18n/fixture-policy verdes.
+
 - [x] **WEB-BFF-04 — Retirar el camino de lectura legacy del Web.** Cerrada
   después de la ventana de verificación de `WEB-BFF-03`: se eliminaron los
   factories `webApiClient()`, `catalogWebApiClient()` y
@@ -285,11 +295,8 @@ contrato de respuesta reutiliza `PageDeliveryResponse` — el sistema de
 snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 `SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
 La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
-`WEB-PAGE-01` ya está cerrada. Continúan los siguientes cortes reversibles:
-- [ ] **WEB-PAGE-03 — Páginas CMS con bloques dinámicos.**
-  `collection_grid`/`collection_listing`/`collection_timeline`, incluida la
-  danza de dependencias entre bloques (ahora resuelta del lado del BFF sin
-  oleadas HTTP).
+`WEB-PAGE-01..03` ya están cerradas. Continúan los siguientes cortes
+reversibles:
 - [ ] **WEB-PAGE-04 — Entradas de colección.** `PageController::renderEntry()`
   pasa a consumir `page.page_type === 'collection_entry'` con
   `related_entries` ya resuelto dentro de la respuesta — se retira la
