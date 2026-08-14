@@ -6,6 +6,31 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-BFF-04 — Retirar el camino de lectura legacy del Web.** Cerrada
+  después de la ventana de verificación de `WEB-BFF-03`: se eliminaron los
+  factories `webApiClient()`, `catalogWebApiClient()` y
+  `eventWebApiClient()`, junto con sus configuraciones y env vars de lectura.
+  Todos los servicios públicos y el diagnóstico interno usan únicamente
+  `bffWebApiClient()`. El diagnóstico consulta una sola vez `/health` del BFF;
+  no conserva llamadas HTTP directas a dominios. La escritura de analytics se
+  mantiene separada mediante `WEB_TRACKING_API_BASE_URL` hacia CMS, porque es
+  una operación de escritura y no puede pasar por el BFF read-only. Verificado:
+  `composer quality` verde, 461 tests, 1.684 assertions, 5 skipped, PHPStan 0
+  errores y CS-Fixer limpio.
+
+- [x] **WEB-BFF-03 — Rollout por tipo de página + verificación de contrato.**
+  Cerrada con Fase 1 del BFF verificada y el Web consumiendo una sola base URL.
+  El smoke real contra `start-dev.sh` devolvió `200` en home, `/es/nosotros`,
+  `/es/cartelera`, `/es/museo/coleccion`, detalle de evento y
+  `/es/teatroescuela`; la URL inexistente devolvió `404`. Comparaciones reales
+  contra los dominios: CMS, Catalog y Event coinciden byte a byte después de
+  excluir únicamente `meta.generated_at`, incluido Event listado/detalle y
+  Catalog vacío/404. Validaciones inválidas devuelven `422`. Los logs
+  `web_api_request` confirman `remote_endpoint` en `127.0.0.1:8188` para las
+  lecturas BFF. Se corrigieron además los adaptadores legacy de Catalog/Event
+  para conservar un rollback sano. `WEB-BFF-04` y Fase 3 siguen esperando la
+  ventana de estabilidad requerida; no se borraron factories ni HTTP de dominio.
+
 - [x] **WEB-PERF-13 — Reutilizar conexión cURL entre llamadas secuenciales al
   mismo cliente** — cerrada 2026-08-13. Diagnosticado en producción
   (`beta.teatromuseo.cl`): con datos genuinamente fríos (slugs nunca
@@ -231,6 +256,28 @@
 
 ## 🟡 Próximo
 
+### BFF de lectura directa (2026-08-13) — ver `../docs/plan/2026-08-13-plan-bff-completo.md`
+
+Repunta el consumo de los 3 dominios (hoy 3 base URLs distintas) a una sola
+base URL del BFF. La Fase 2 y la limpieza del Web ya están verificadas; queda
+la ventana de estabilidad antes de retirar el HTTP público de los dominios.
+
+- [x] **WEB-BFF-01 — Cliente único `bffWebApiClient()`.** Reemplazar los 3
+  factories actuales (`webApiClient()`, `catalogWebApiClient()`,
+  `eventWebApiClient()`) por uno solo apuntando a `BFF_API_BASE_URL` (nueva
+  env var; reusar el valor actual de `WEB_API_KEY` para `BFF_API_KEY` en el
+  corte inicial). Migrar todos los servicios que hoy usan alguno de los 3
+  (`layoutDataPrefetchService`, `pageResolverService`, `siteCatalogService`,
+  `siteEventService`, `siteCategoryService`, `siteTagService`,
+  `blockPrefetchService`, etc.) al cliente único. No borrar los 3 factories
+  viejos todavía (ver WEB-BFF-04).
+- [x] **WEB-BFF-02 — Simplificar `BlockPrefetchService` a un solo cliente.**
+  Su constructor recibe hoy `['cms'=>.., 'catalog'=>.., 'event'=>..]` porque
+  son 3 hosts distintos; con un solo host colapsa a un único cliente
+  inyectado. La lógica de ruteo por dominio en `BlockRequestPlanner`/
+  `ListQueryBuilder` no cambia. `WebApiClient::multiGetAcross()` se mantiene
+  sin cambios (sigue siendo válido para ráfagas paralelas contra un mismo
+  host).
 ### Plan vigente — PublicRead/PageDelivery/Snapshots (2026-08-09)
 
 `PUB-00`, `PUB-01/02`, `WEB-01..04` y `CACHE-01..04` están cerradas y
