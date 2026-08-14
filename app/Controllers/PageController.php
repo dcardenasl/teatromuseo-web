@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\PageDelivery\PageDeliveryRequest;
+use App\PageDelivery\PageDeliveryResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
 
@@ -130,6 +131,10 @@ class PageController extends BasePublicWebController
             }
 
             return $this->renderHomepage($lang, $preview, $previewExpires, $previewSig);
+        }
+
+        if ($delivery = $this->deliverBffPageRoute($lang, $path, $preview, $previewExpires, $previewSig)) {
+            return $delivery;
         }
 
         if ($delivery = $this->deliverConfiguredPageRoute($lang, $path, $preview, $previewExpires, $previewSig)) {
@@ -273,15 +278,40 @@ class PageController extends BasePublicWebController
         return $this->notFound("No se encontró la página: {$path}");
     }
 
+    protected function renderDeliveredCollectionEntry(PageDeliveryResponse $delivery, string $lang): ResponseInterface
+    {
+        $entry = $delivery->page ?? [];
+        $collection = is_array($entry['collection'] ?? null) ? $entry['collection'] : [];
+        $relatedEntries = is_array($entry['related_entries'] ?? null) ? $entry['related_entries'] : [];
+
+        return $this->renderEntry(
+            $entry,
+            $collection,
+            $lang,
+            $delivery->blockContext,
+            $delivery->layout,
+            $relatedEntries,
+        );
+    }
+
 
     /**
      * Render a collection entry (single item).
      *
      * @param array<string, mixed> $entry
      * @param array<string, mixed> $collection
+     * @param array<string, mixed>|null $prefetchedBlockContext
+     * @param array<string, mixed>|null $prefetchedLayout
+     * @param array<array-key, mixed>|null $resolvedRelatedEntries
      */
-    private function renderEntry(array $entry, array $collection, string $lang): ResponseInterface
-    {
+    private function renderEntry(
+        array $entry,
+        array $collection,
+        string $lang,
+        ?array $prefetchedBlockContext = null,
+        ?array $prefetchedLayout = null,
+        ?array $resolvedRelatedEntries = null,
+    ): ResponseInterface {
         $blockRenderer = Services::blockRenderer();
 
         // Get the translation for the current language
@@ -317,16 +347,19 @@ class PageController extends BasePublicWebController
         $updatedAtRaw = $entry['updated_at'] ?? null;
         $articleModifiedTime = is_array($updatedAtRaw) ? ($updatedAtRaw['date'] ?? null) : $updatedAtRaw;
 
-        $relatedEntries = [];
-        try {
-            $relatedEntries = Services::siteEntryService()->related(
-                $lang,
-                $collection['collection_key'],
-                ['slug' => $resolvedSlug, 'categories' => $entry['categories'] ?? []],
-                3
-            );
-        } catch (\Throwable) {
+        $relatedEntries = $resolvedRelatedEntries;
+        if ($relatedEntries === null) {
             $relatedEntries = [];
+            try {
+                $relatedEntries = Services::siteEntryService()->related(
+                    $lang,
+                    $collection['collection_key'],
+                    ['slug' => $resolvedSlug, 'categories' => $entry['categories'] ?? []],
+                    3
+                );
+            } catch (\Throwable) {
+                $relatedEntries = [];
+            }
         }
 
         // Entries whose own blocks already render a heading/hero image must not
@@ -381,8 +414,14 @@ class PageController extends BasePublicWebController
         ];
         $entryBlocks = $entry['blocks'] ?? [];
 
-        // Resolve all dynamic block data through one page-level prefetch pass.
-        $composition = $this->composePageContext($entryBlocks, $lang, $blockContext);
+        // BFF-delivered entries already contain layout and block context. The
+        // legacy path keeps composing them locally until its rollout gate.
+        $composition = $prefetchedBlockContext !== null
+            ? [
+                'layout' => $prefetchedLayout ?? [],
+                'block_context' => $prefetchedBlockContext,
+            ]
+            : $this->composePageContext($entryBlocks, $lang, $blockContext);
         $renderContext = array_merge($blockContext, $composition['block_context']);
 
         $data = [

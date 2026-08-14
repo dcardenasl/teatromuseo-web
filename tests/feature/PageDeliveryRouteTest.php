@@ -134,6 +134,78 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         self::assertSame(['public-read/aa/page-resolve/teatroescuela'], $this->domainAdapter->requestedPaths());
     }
 
+    public function testCollectionEntryUsesBffRelatedEntriesWithoutLegacyEntryReads(): void
+    {
+        config('App')->pageDeliveryEnabled = true;
+        config('App')->pageDeliveryMode = 'sync';
+        config('App')->pageDeliveryBffRoutes = ['noticias/fixture-entry'];
+
+        $entry = [
+            'page_type' => 'collection_entry',
+            'entry_id' => 10,
+            'id' => 10,
+            'title' => 'Fixture entry via BFF',
+            'slug' => 'fixture-entry',
+            'localized_slugs' => ['aa' => 'fixture-entry', 'bb' => 'fixture-entry'],
+            'excerpt' => 'Fixture entry excerpt.',
+            'published_at' => '2026-08-01 00:00:00',
+            'updated_at' => '2026-08-01 00:00:00',
+            'featured_image' => [],
+            'og_image' => [],
+            'og_type' => 'article',
+            'categories' => [],
+            'tags' => [],
+            'blocks' => [],
+            'collection' => [
+                'id' => 1,
+                'collection_key' => 'noticias',
+                'name' => 'Noticias',
+                'localized_slugs' => ['aa' => 'noticias', 'bb' => 'noticias'],
+                'index_page' => [
+                    'localized_slugs' => ['aa' => 'noticias', 'bb' => 'noticias'],
+                ],
+            ],
+            'related_entries' => [[
+                'id' => 11,
+                'title' => 'Fixture related from BFF',
+                'slug' => 'fixture-related',
+                'excerpt' => 'Related fixture excerpt.',
+                'published_at' => '2026-08-01 00:00:00',
+                'featured_image' => [],
+                'categories' => [],
+            ]],
+        ];
+
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/noticias/fixture-entry', [
+            'outcome' => 'page',
+            'redirect' => null,
+            'page' => $entry,
+            'layout' => [
+                'settings' => [],
+                'mainMenu' => ['items' => []],
+                'footerMenu' => ['items' => []],
+                'legalMenu' => ['items' => []],
+                'socialLinks' => [],
+            ],
+            'block_context' => [
+                'block_prefetch' => [],
+                'block_prefetch_complete' => true,
+                'form_definitions' => [],
+                'cacheScopes' => [],
+            ],
+            'meta' => ['locale' => 'aa', 'route' => 'noticias/fixture-entry'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
+        ]);
+
+        $result = $this->get('aa/noticias/fixture-entry');
+
+        $result->assertStatus(200);
+        $result->assertSee('Fixture entry via BFF');
+        $result->assertSee('Fixture related from BFF');
+        self::assertSame(['public-read/aa/page-resolve/noticias/fixture-entry'], $this->domainAdapter->requestedPaths());
+    }
+
     public function testRedirectOnAConfiguredRouteWinsOverItsOwnManifestContent(): void
     {
         config('App')->pageDeliveryEnabled = true;

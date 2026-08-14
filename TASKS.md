@@ -37,6 +37,18 @@
   secundarias del Web. Quality: 468 tests, 1.733 assertions, 5 skipped,
   PHPStan 0 errores, CS-Fixer/i18n/fixture-policy verdes.
 
+- [x] **WEB-PAGE-04 — Entradas de colección vía `page-resolve`.** Cerrada
+  2026-08-14. `PageController` selecciona la vista `collection/show` para
+  `page_type=collection_entry`, usa el `collection` y los
+  `related_entries` incluidos por el BFF, y conserva el prefetched layout y
+  block context sin volver a consultar Web. Smoke real de
+  `/es/noticias/lanzamiento-del-libro-los-horribles`: ambos caminos devolvieron
+  `200`, 53.353 bytes y SHA-256 idéntico
+  (`75a078db0e1f366b2252442f23708cc21f99b26fa03c72d2a7ba573a3d057598`). El
+  BFF usó una llamada `page-resolve`; el legacy mantuvo su rollback con
+  `entries`, `related` y `layout`. Quality: 469 tests, 1.738 assertions,
+  5 skipped, PHPStan 0 errores, CS-Fixer/i18n/fixture-policy verdes.
+
 - [x] **WEB-BFF-04 — Retirar el camino de lectura legacy del Web.** Cerrada
   después de la ventana de verificación de `WEB-BFF-03`: se eliminaron los
   factories `webApiClient()`, `catalogWebApiClient()` y
@@ -297,10 +309,6 @@ snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
 `WEB-PAGE-01..03` ya están cerradas. Continúan los siguientes cortes
 reversibles:
-- [ ] **WEB-PAGE-04 — Entradas de colección.** `PageController::renderEntry()`
-  pasa a consumir `page.page_type === 'collection_entry'` con
-  `related_entries` ya resuelto dentro de la respuesta — se retira la
-  llamada aparte a `SiteEntryService::related()`.
 - [ ] **WEB-PAGE-05 — Índice de colección de respaldo.**
   `renderFallbackCollectionIndex()` pasa a consumir
   `page.page_type === 'collection_fallback_index'`.

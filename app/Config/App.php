@@ -238,9 +238,9 @@ class App extends BaseConfig
     public bool $pageDeliveryAllowSynchronousFallback = false;
 
     /**
-     * Explicit subset of manifest routes already verified against the BFF's
-     * full-page resolver. Routes remain on the synchronous legacy seam until
-     * they are added here, keeping rollout reversible by configuration.
+     * Explicit routes already verified against the BFF's full-page resolver.
+     * This is independent from snapshot warm-up so a route can roll out in
+     * synchronous mode before it is eligible for persisted snapshots.
      *
      * @var list<string>
      */

@@ -270,6 +270,10 @@ abstract class BasePublicWebController extends BaseController
                 ->setBody('Public page delivery is temporarily unavailable.');
         }
 
+        if (($delivery->page['page_type'] ?? null) === 'collection_entry') {
+            return $this->renderDeliveredCollectionEntry($delivery, $lang);
+        }
+
         $renderContext = $delivery->blockContext;
         $renderContext['settings'] = is_array($delivery->layout['settings'] ?? null)
             ? $delivery->layout['settings']
@@ -285,6 +289,20 @@ abstract class BasePublicWebController extends BaseController
         ));
 
         return $this->render('page', $data);
+    }
+
+    /**
+     * Render an entry resolved by the BFF without reopening Web-side reads.
+     * PageController supplies the entry-specific presentation because the
+     * public entry view differs from a CMS page view.
+     */
+    protected function renderDeliveredCollectionEntry(PageDeliveryResponse $delivery, string $lang): ResponseInterface
+    {
+        return $this->response
+            ->removeHeader('Cache-Control')
+            ->setStatusCode(503)
+            ->setHeader('Cache-Control', 'no-store, private')
+            ->setBody('Public collection entry delivery is temporarily unavailable.');
     }
 
     /**
@@ -557,6 +575,40 @@ abstract class BasePublicWebController extends BaseController
         $request = (new PublicSnapshotManifest())->requestFor(
             locale: $lang,
             route: $route,
+            preview: $preview,
+            previewExpires: $previewExpires,
+            previewSignature: $previewSignature,
+            query: $query,
+        );
+        if ($request === null) {
+            return null;
+        }
+
+        return $this->renderDeliveredPage(Services::pageDelivery()->deliver($request), $lang);
+    }
+
+    /**
+     * Deliver a route explicitly approved for the BFF before the legacy
+     * resolver runs. This allow-list is independent from snapshot warming so
+     * collection entries and fallback indexes can roll out synchronously.
+     */
+    protected function deliverBffPageRoute(
+        string $lang,
+        string $route,
+        bool $preview = false,
+        ?string $previewExpires = null,
+        ?string $previewSignature = null,
+    ): ?ResponseInterface {
+        if (! config('App')->pageDeliveryEnabled && ! $preview) {
+            return null;
+        }
+
+        $query = $this->request->getGet();
+        $query = is_array($query) ? $query : [];
+        $request = (new PublicSnapshotManifest())->requestForRoutes(
+            locale: $lang,
+            route: $route,
+            configuredRoutes: config('App')->pageDeliveryBffRoutes,
             preview: $preview,
             previewExpires: $previewExpires,
             previewSignature: $previewSignature,

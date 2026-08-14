@@ -29,6 +29,36 @@ final class PublicSnapshotManifest
         ?string $previewSignature = null,
         array $query = [],
     ): ?PageDeliveryRequest {
+        return $this->requestForRoutes(
+            locale: $locale,
+            route: $route,
+            configuredRoutes: config('App')->pageSnapshotManifestRoutes,
+            preview: $preview,
+            previewExpires: $previewExpires,
+            previewSignature: $previewSignature,
+            query: $query,
+        );
+    }
+
+    /**
+     * Build a delivery identity from an explicit route allow-list.
+     *
+     * BFF rollout routes are intentionally separate from snapshot warm-up
+     * routes: an entry may be delivered synchronously before it is safe to
+     * persist it as a public snapshot.
+     *
+     * @param list<string> $configuredRoutes
+     * @param array<string, mixed> $query
+     */
+    public function requestForRoutes(
+        string $locale,
+        string $route,
+        array $configuredRoutes,
+        bool $preview = false,
+        ?string $previewExpires = null,
+        ?string $previewSignature = null,
+        array $query = [],
+    ): ?PageDeliveryRequest {
         $config = config('App');
         $locale = strtolower(trim($locale));
         $route = trim($route, '/');
@@ -36,7 +66,7 @@ final class PublicSnapshotManifest
             return null;
         }
 
-        foreach ($config->pageSnapshotManifestRoutes as $configuredRoute) {
+        foreach ($configuredRoutes as $configuredRoute) {
             $resolvedRoute = $this->resolveRoute((string) $configuredRoute, $locale);
             if ($resolvedRoute !== $route) {
                 continue;
