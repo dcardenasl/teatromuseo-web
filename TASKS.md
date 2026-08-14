@@ -273,7 +273,7 @@ llamada HTTP de Web al BFF por página, en vez de hasta 2 en paralelo. El
 contrato de respuesta reutiliza `PageDeliveryResponse` — el sistema de
 snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 `SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
-La Fase 1 del BFF (`BFF-PAGE-03..07`) está verificada end-to-end y
+La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
 `WEB-PAGE-01` ya está cerrada. Continúan los siguientes cortes reversibles:
 - [ ] **WEB-PAGE-02 — Páginas CMS simples.** Sin bloques dependientes de
   otro bloque. Verificar paridad byte a byte (excluyendo `generated_at`)
