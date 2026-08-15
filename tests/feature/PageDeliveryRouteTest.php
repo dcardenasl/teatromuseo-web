@@ -19,12 +19,15 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
     /** @var list<string> */
     private array $originalBffRoutes = [];
 
+    private bool $originalBffAllRoutes = false;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->configureLocales(['aa', 'bb']);
         $this->originalManifestRoutes = config('App')->pageSnapshotManifestRoutes;
         $this->originalBffRoutes = config('App')->pageDeliveryBffRoutes;
+        $this->originalBffAllRoutes = config('App')->pageDeliveryBffAllRoutes;
         config('App')->pageSnapshotManifestRoutes = ['about'];
     }
 
@@ -39,6 +42,7 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
         config('App')->pageDeliveryAllowSynchronousFallback = false;
         config('App')->pageSnapshotManifestRoutes = $this->originalManifestRoutes;
         config('App')->pageDeliveryBffRoutes = $this->originalBffRoutes;
+        config('App')->pageDeliveryBffAllRoutes = $this->originalBffAllRoutes;
 
         parent::tearDown();
     }
@@ -106,6 +110,44 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
             'preview_sig' => str_repeat('a', 64),
         ], $this->domainAdapter->calls[0]['query']);
         self::assertSame('page-resolve', $this->domainAdapter->calls[0]['scope']);
+    }
+
+    public function testFullSiteBffPolicyRoutesUnlistedPagesWithoutLegacyReadsOrSnapshots(): void
+    {
+        config('App')->pageDeliveryEnabled = true;
+        config('App')->pageDeliveryMode = 'snapshot';
+        config('App')->pageDeliveryAllowSynchronousFallback = true;
+        config('App')->pageDeliveryBffAllRoutes = true;
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/noticias/entrada', [
+            'outcome' => 'page',
+            'redirect' => null,
+            'page' => $this->page('noticias/entrada', 'Fixture unlisted page via BFF'),
+            'layout' => [
+                'settings' => [],
+                'mainMenu' => ['items' => []],
+                'footerMenu' => ['items' => []],
+                'legalMenu' => ['items' => []],
+                'socialLinks' => [],
+            ],
+            'block_context' => [
+                'block_prefetch' => [],
+                'block_prefetch_complete' => true,
+                'form_definitions' => [],
+            ],
+            'meta' => ['locale' => 'aa', 'route' => 'noticias/entrada'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
+        ]);
+
+        $first = $this->get('aa/noticias/entrada');
+        $second = $this->get('aa/noticias/entrada');
+
+        $first->assertStatus(200);
+        $second->assertStatus(200);
+        $first->assertSee('Fixture unlisted page via BFF');
+        self::assertSame(2, $this->countPath('public-read/aa/page-resolve/noticias/entrada'));
+        self::assertNotContains('public-read/aa/pages/noticias/entrada', $this->domainAdapter->requestedPaths());
+        self::assertNotContains('public-read/aa/page-bootstrap/noticias/entrada', $this->domainAdapter->requestedPaths());
     }
 
     public function testInvalidSignedPreviewRemainsA404FromBff(): void

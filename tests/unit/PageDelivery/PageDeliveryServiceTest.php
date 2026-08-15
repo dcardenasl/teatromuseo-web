@@ -127,6 +127,34 @@ final class PageDeliveryServiceTest extends TestCase
         $this->assertSame(0, $snapshot->calls);
     }
 
+    public function testRoutePolicyBypassesSnapshotForUnlistedFullSiteBffRoutes(): void
+    {
+        $synchronous = new RecordingDelivery(PageDeliveryResponse::success(
+            ['title' => 'BFF route'],
+            [],
+            [],
+            ['locale' => 'es', 'route' => 'noticias/entrada'],
+        ));
+        $snapshot = new RecordingDelivery(PageDeliveryResponse::failure(503, ['must not be called']));
+        $service = new PageDeliveryService(
+            synchronous: $synchronous,
+            snapshot: $snapshot,
+            lock: new RecordingLock(),
+            mode: 'snapshot',
+            allowSynchronousFallback: true,
+        );
+
+        $result = $service->deliver(new PageDeliveryRequest(
+            locale: 'es',
+            route: 'noticias/entrada',
+            snapshotEligible: false,
+        ));
+
+        $this->assertSame('BFF route', $result->page['title']);
+        $this->assertSame(1, $synchronous->calls);
+        $this->assertSame(0, $snapshot->calls);
+    }
+
     public function testSkippedBuildReReadsSnapshotPublishedByAnotherWorker(): void
     {
         $synchronous = new RecordingDelivery(PageDeliveryResponse::failure(503, ['must not be called']));

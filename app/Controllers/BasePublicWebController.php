@@ -624,9 +624,9 @@ abstract class BasePublicWebController extends BaseController
     }
 
     /**
-     * Deliver a route explicitly approved for the BFF before the legacy
-     * resolver runs. This allow-list is independent from snapshot warming so
-     * collection entries and fallback indexes can roll out synchronously.
+     * Deliver a public route through the BFF before the legacy resolver runs.
+     * The route policy supports both a staged allow-list and a full-site
+     * cutover; snapshot eligibility remains controlled by the manifest.
      */
     protected function deliverBffPageRoute(
         string $lang,
@@ -641,10 +641,9 @@ abstract class BasePublicWebController extends BaseController
 
         $query = $this->request->getGet();
         $query = is_array($query) ? $query : [];
-        $request = (new PublicSnapshotManifest())->requestForRoutes(
+        $request = (new PublicSnapshotManifest())->requestForBff(
             locale: $lang,
             route: $route,
-            configuredRoutes: config('App')->pageDeliveryBffRoutes,
             preview: $preview,
             previewExpires: $previewExpires,
             previewSignature: $previewSignature,

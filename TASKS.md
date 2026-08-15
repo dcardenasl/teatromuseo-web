@@ -333,6 +333,16 @@ snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 `SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
 La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
 `WEB-PAGE-01..06` ya están cerradas. Continúa el siguiente corte reversible:
+- [x] **WEB-PAGE-06-HARDEN — Política de cobertura BFF sin crecimiento de
+  snapshots.** Cerrada 2026-08-15. Se añadió `WEB_PAGE_DELIVERY_BFF_ALL_ROUTES`
+  para enviar cualquier ruta pública localizada al endpoint `page-resolve`.
+  Las rutas fuera de `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES` se entregan de forma
+  síncrona mediante el BFF y nunca se persisten como snapshots; las rutas del
+  manifest conservan snapshot-first. La decisión viaja en la request tipada y
+  el adaptador no mantiene un segundo allow-list. Verificado con 33 tests /
+  116 assertions focales y quality completo (478 tests / 1.781 assertions,
+  PHPStan e i18n sin errores). Falta activar la bandera en beta después del
+  despliegue y repetir el canary/smoke del servidor.
 - [ ] **WEB-PAGE-07 — Fase 3: retiro del pipeline de resolución legacy.**
   Solo tras ventana de estabilidad (mismo gate que `WEB-BFF-04`). Borra
   `app/Services/BlockPrefetchService.php` + `app/Services/BlockPrefetch/**`

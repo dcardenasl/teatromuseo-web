@@ -164,6 +164,10 @@ final class SynchronousPageDeliveryAdapter implements PageDeliveryInterface
 
     private function usesBff(PageDeliveryRequest $request): bool
     {
+        if ($request->useBff) {
+            return true;
+        }
+
         foreach ($this->bffRoutes as $configuredRoute) {
             $configuredRoute = trim($configuredRoute, '/');
             if ($configuredRoute === '') {

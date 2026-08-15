@@ -246,6 +246,15 @@ class App extends BaseConfig
      */
     public array $pageDeliveryBffRoutes = ['home'];
 
+    /**
+     * Route every localized public path through the BFF page resolver.
+     *
+     * Routes outside the explicit snapshot manifest remain synchronous BFF
+     * deliveries, so enabling the full-site cutover cannot create an
+     * unbounded snapshot identity space.
+     */
+    public bool $pageDeliveryBffAllRoutes = false;
+
     public string $pageSnapshotDirectory = '';
     public int $pageSnapshotStaleTtl = 86400;
     public int $pageSnapshotTtl = 300;
@@ -496,6 +505,10 @@ class App extends BaseConfig
         }
         $this->pageDeliveryAllowSynchronousFallback = $this->parseBoolean(
             env('WEB_PAGE_DELIVERY_ALLOW_SYNC_FALLBACK'),
+            false,
+        );
+        $this->pageDeliveryBffAllRoutes = $this->parseBoolean(
+            env('WEB_PAGE_DELIVERY_BFF_ALL_ROUTES'),
             false,
         );
         $bffRoutes = env('WEB_PAGE_DELIVERY_BFF_ROUTES');

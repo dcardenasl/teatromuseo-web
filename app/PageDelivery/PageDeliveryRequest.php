@@ -63,6 +63,8 @@ final readonly class PageDeliveryRequest
     public readonly bool $preview;
     public readonly ?string $previewExpires;
     public readonly ?string $previewSignature;
+    public readonly bool $snapshotEligibleByRoute;
+    public readonly bool $useBff;
 
     /** @var array<string, string> */
     public readonly array $query;
@@ -75,12 +77,16 @@ final readonly class PageDeliveryRequest
         ?string $previewExpires = null,
         ?string $previewSignature = null,
         array $query = [],
+        bool $snapshotEligible = true,
+        bool $useBff = false,
     ) {
         $this->locale = strtolower(trim($locale));
         $this->route = trim($route, '/');
         $this->preview = $preview;
         $this->previewExpires = $previewExpires;
         $this->previewSignature = $previewSignature;
+        $this->snapshotEligibleByRoute = $snapshotEligible;
+        $this->useBff = $useBff;
         $this->query = self::normalizeQuery($query);
     }
 
@@ -129,6 +135,10 @@ final readonly class PageDeliveryRequest
      */
     public function isSnapshotEligible(): bool
     {
+        if (! $this->snapshotEligibleByRoute) {
+            return false;
+        }
+
         foreach (self::UNBOUNDED_VARIANT_QUERY_KEYS as $key) {
             if (array_key_exists($key, $this->query)) {
                 return false;

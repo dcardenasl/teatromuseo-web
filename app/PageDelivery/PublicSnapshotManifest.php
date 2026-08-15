@@ -66,23 +66,63 @@ final class PublicSnapshotManifest
             return null;
         }
 
-        foreach ($configuredRoutes as $configuredRoute) {
-            $resolvedRoute = $this->resolveRoute((string) $configuredRoute, $locale);
-            if ($resolvedRoute !== $route) {
-                continue;
-            }
-
-            return new PageDeliveryRequest(
-                locale: $locale,
-                route: $resolvedRoute,
-                preview: $preview,
-                previewExpires: $previewExpires,
-                previewSignature: $previewSignature,
-                query: $query,
-            );
+        $resolvedRoute = $this->matchConfiguredRoute($route, $locale, $configuredRoutes);
+        if ($resolvedRoute === null) {
+            return null;
         }
 
-        return null;
+        return $this->buildRequest(
+            locale: $locale,
+            route: $resolvedRoute,
+            preview: $preview,
+            previewExpires: $previewExpires,
+            previewSignature: $previewSignature,
+            query: $query,
+        );
+    }
+
+    /**
+     * Build the BFF delivery identity for an explicitly approved route or,
+     * when enabled, for any localized public route.
+     *
+     * Only routes in the snapshot manifest are snapshot-eligible. This keeps
+     * the full-site BFF cutover independent from snapshot storage growth while
+     * preserving snapshot-first delivery for the bounded manifest.
+     *
+     * @param array<string, mixed> $query
+     */
+    public function requestForBff(
+        string $locale,
+        string $route,
+        bool $preview = false,
+        ?string $previewExpires = null,
+        ?string $previewSignature = null,
+        array $query = [],
+    ): ?PageDeliveryRequest {
+        $config = config('App');
+        $locale = strtolower(trim($locale));
+        $route = trim($route, '/');
+        if (! in_array($locale, $config->supportedLocales, true) || $route === '') {
+            return null;
+        }
+
+        $resolvedRoute = $config->pageDeliveryBffAllRoutes
+            ? $route
+            : $this->matchConfiguredRoute($route, $locale, $config->pageDeliveryBffRoutes);
+        if ($resolvedRoute === null) {
+            return null;
+        }
+
+        return new PageDeliveryRequest(
+            locale: $locale,
+            route: $resolvedRoute,
+            preview: $preview,
+            previewExpires: $previewExpires,
+            previewSignature: $previewSignature,
+            query: $query,
+            snapshotEligible: $this->manifestContains($resolvedRoute, $locale),
+            useBff: true,
+        );
     }
 
     /** @return list<PageDeliveryRequest> */
@@ -166,5 +206,39 @@ final class PublicSnapshotManifest
 
         return PublicPaths::routePath($configuredRoute, $locale)
             ?? $configuredRoute;
+    }
+
+    /**
+     * @param list<string> $configuredRoutes
+     */
+    private function matchConfiguredRoute(string $route, string $locale, array $configuredRoutes): ?string
+    {
+        foreach ($configuredRoutes as $configuredRoute) {
+            $resolvedRoute = $this->resolveRoute((string) $configuredRoute, $locale);
+            if ($resolvedRoute === $route) {
+                return $resolvedRoute;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $query */
+    private function buildRequest(
+        string $locale,
+        string $route,
+        bool $preview,
+        ?string $previewExpires,
+        ?string $previewSignature,
+        array $query,
+    ): PageDeliveryRequest {
+        return new PageDeliveryRequest(
+            locale: $locale,
+            route: $route,
+            preview: $preview,
+            previewExpires: $previewExpires,
+            previewSignature: $previewSignature,
+            query: $query,
+        );
     }
 }

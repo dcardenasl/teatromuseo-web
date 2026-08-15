@@ -57,6 +57,20 @@ final class PageDeliveryRequestTest extends TestCase
         $this->assertTrue($request->isSnapshotEligible());
     }
 
+    public function testRoutePolicyCanDisableSnapshotsWithoutChangingTheRequestIdentity(): void
+    {
+        $request = new PageDeliveryRequest(
+            locale: 'es',
+            route: 'noticias/entrada',
+            snapshotEligible: false,
+        );
+
+        $this->assertFalse($request->isSnapshotEligible());
+        $this->assertFalse($request->useBff);
+        $this->assertSame('es', $request->locale);
+        $this->assertSame('noticias/entrada', $request->route);
+    }
+
     /** @return iterable<string, array{string}> */
     public static function unboundedVariantKeys(): iterable
     {

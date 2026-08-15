@@ -15,6 +15,11 @@ final class PublicSnapshotManifestTest extends TestCase
     /** @var list<string> */
     private array $originalRoutes;
 
+    /** @var list<string> */
+    private array $originalBffRoutes;
+
+    private bool $originalBffAllRoutes;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,8 +27,12 @@ final class PublicSnapshotManifestTest extends TestCase
         $config = config('App');
         $this->originalLocales = $config->supportedLocales;
         $this->originalRoutes = $config->pageSnapshotManifestRoutes;
+        $this->originalBffRoutes = $config->pageDeliveryBffRoutes;
+        $this->originalBffAllRoutes = $config->pageDeliveryBffAllRoutes;
         $config->supportedLocales = ['es', 'en'];
         $config->pageSnapshotManifestRoutes = ['home', 'events', 'catalog', 'about'];
+        $config->pageDeliveryBffRoutes = ['home', 'about'];
+        $config->pageDeliveryBffAllRoutes = false;
     }
 
     protected function tearDown(): void
@@ -31,6 +40,8 @@ final class PublicSnapshotManifestTest extends TestCase
         $config = config('App');
         $config->supportedLocales = $this->originalLocales;
         $config->pageSnapshotManifestRoutes = $this->originalRoutes;
+        $config->pageDeliveryBffRoutes = $this->originalBffRoutes;
+        $config->pageDeliveryBffAllRoutes = $this->originalBffAllRoutes;
 
         parent::tearDown();
     }
@@ -62,5 +73,31 @@ final class PublicSnapshotManifestTest extends TestCase
     public function testUnlistedCmsRouteCannotEnterPageDelivery(): void
     {
         self::assertNull((new PublicSnapshotManifest())->requestFor('es', 'not-listed'));
+    }
+
+    public function testBffRouteUsesSnapshotEligibilityOnlyWhenAlsoInTheManifest(): void
+    {
+        $request = (new PublicSnapshotManifest())->requestForBff('es', 'about');
+
+        self::assertNotNull($request);
+        self::assertTrue($request->isSnapshotEligible());
+        self::assertTrue($request->useBff);
+
+        config('App')->pageSnapshotManifestRoutes = ['home'];
+        $request = (new PublicSnapshotManifest())->requestForBff('es', 'about');
+
+        self::assertNotNull($request);
+        self::assertFalse($request->isSnapshotEligible());
+    }
+
+    public function testFullSiteBffPolicyAcceptsUnlistedRoutesWithoutCreatingSnapshotCandidates(): void
+    {
+        config('App')->pageDeliveryBffAllRoutes = true;
+
+        $request = (new PublicSnapshotManifest())->requestForBff('en', 'noticias/entrada');
+
+        self::assertNotNull($request);
+        self::assertSame('noticias/entrada', $request->route);
+        self::assertFalse($request->isSnapshotEligible());
     }
 }

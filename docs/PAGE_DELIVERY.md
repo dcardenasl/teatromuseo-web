@@ -17,6 +17,11 @@ synchronous composition or a snapshot.
 - Synchronous fallback is disabled by default. If deliberately enabled, it is
   protected by `RegenerationLockInterface` so a cache miss cannot create one
   composer per visitor.
+- `WEB_PAGE_DELIVERY_BFF_ALL_ROUTES=true` is the controlled full-site cutover:
+  every localized public path is resolved by the BFF's `page-resolve` endpoint
+  before the legacy resolver. Only routes explicitly present in
+  `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES` can use snapshots; all other BFF routes
+  are synchronous and therefore cannot create an unbounded snapshot store.
 
 The feature is disabled by default with `WEB_PAGE_DELIVERY_ENABLED=false` until
 the shared snapshot backend and the load budget have been verified. This keeps
