@@ -326,6 +326,14 @@
 
 ## 🟡 Próximo
 
+- [ ] **REL-02 — Preparación de migración gradual.** La auditoría local
+  [`docs/audits/2026-08-15-rel-02-readiness.md`](docs/audits/2026-08-15-rel-02-readiness.md)
+  confirma que el código vigente ya cubre home, páginas CMS, bloques,
+  entradas, fallback, detalles, listados y preview mediante `page-resolve`.
+  Las pruebas focales Web/BFF pasaron `23/23` (`86` assertions) y `28/28`
+  (`135` assertions), respectivamente. No se ejecuta rollout en producción
+  hasta cerrar la ventana limpia de cPanel exigida por REL-01.
+
 ### El BFF resuelve la página pública completa (2026-08-14) — ver `../docs/plan/2026-08-14-plan-bff-page-resolution.md`
 
 Extiende la lectura directa (abajo, ya cerrada) al objetivo final: una sola
