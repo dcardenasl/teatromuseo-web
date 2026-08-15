@@ -85,11 +85,26 @@ por separado.
   el snapshot activo estaba vigente y no necesitaba regeneración; no es un
   error ni una omisión del cron.
 
+## Incidencia operativa de cPanel
+
+- La captura de Resource Usage del 2026-08-15 a las 15:50 hora local muestra
+  límites alcanzados de CPU e I/O y `451` eventos de límite de Entry Processes
+  en las últimas 24 horas.
+- La primera prueba sintética de esta ventana tuvo un error en el arnés y
+  superó la concurrencia objetivo; esa prueba produjo `508` y probablemente
+  contribuyó a la alerta de cPanel. No se atribuye ese pico al código de
+  producción sin una ventana limpia posterior.
+- La matriz corregida, estrictamente limitada a 1–4 solicitudes, registró
+  `204/204` respuestas `200` y ningún `508`, pero no sustituye el contador
+  histórico de cPanel.
+- No se ejecutarán más pruebas de carga hasta que desaparezca la ventana de
+  saturación y se pueda observar el uso sin tráfico sintético.
+
 ## Limitaciones y pendientes
 
-- La matriz HTTP no puede leer los contadores EP del cPanel; no se observaron
-  `508` en las 204 solicitudes válidas, pero el contador de Entry Processes
-  requiere revisión en el panel del hosting.
+- La ventana actual de cPanel sí muestra saturación: CPU e I/O limitados y 451
+  eventos EP. Se requiere una nueva observación sin pruebas sintéticas antes
+  de cerrar `REL-01`.
 - El cron de `cache:warmup` ya quedó confirmado con su log; no requiere cambio.
   Mantiene `flock`, ejecución serial y cubre el manifest completo, incluida la
   homepage. FTP no permite inspeccionar el contador de Entry Processes del

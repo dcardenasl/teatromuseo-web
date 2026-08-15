@@ -319,8 +319,10 @@
   [`docs/audits/2026-08-15-rel-01-homepage-cutover.md`](docs/audits/2026-08-15-rel-01-homepage-cutover.md).
   El log del cron confirmó `Snapshot warm-up: 16 manifest entries (serial)` y
   `Warm-up completed: 16/16 successful or skipped`, incluyendo `es/home`; no
-  requiere cambios. El cierre sigue pendiente únicamente de revisar en cPanel
-  los contadores EP, que FTP no puede consultar.
+  requiere cambios. La captura de cPanel posterior muestra CPU e I/O limitados
+  y `451` eventos de Entry Processes; la primera prueba sintética de esta
+  ventana tuvo un arnés defectuoso y probablemente contribuyó al pico. No se
+  cierra REL-01 hasta observar una ventana limpia sin pruebas de carga.
 
 ## 🟡 Próximo
 
