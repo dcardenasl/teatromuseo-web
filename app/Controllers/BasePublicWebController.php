@@ -34,34 +34,21 @@ abstract class BasePublicWebController extends BaseController
             $data['canonicalUrl'] = site_url($this->request->getPath());
         }
 
-        // PageDelivery supplies layout data before rendering. Other legacy
-        // controllers keep the same pre-render layout fallback.
+        // PageDelivery supplies layout data before rendering. Error and form
+        // views may render without a delivery envelope, so they receive a
+        // deterministic empty layout instead of reopening domain reads.
         $prefetchedLayout = $data['__layout_data'] ?? null;
         unset($data['__layout_data']);
         if (is_array($prefetchedLayout)) {
             $data = array_merge($data, $prefetchedLayout);
         } else {
-            try {
-                $layoutData = \Config\Services::layoutDataPrefetchService()->prefetchLayoutData($data);
-                $data = array_merge($data, $layoutData);
-            } catch (\Throwable) {
-                // Fallback to empty data if prefetch fails
-                if (! isset($data['mainMenu'])) {
-                    $data['mainMenu'] = ['items' => []];
-                }
-                if (! isset($data['footerMenu'])) {
-                    $data['footerMenu'] = ['items' => []];
-                }
-                if (! isset($data['legalMenu'])) {
-                    $data['legalMenu'] = ['items' => []];
-                }
-                if (! isset($data['settings'])) {
-                    $data['settings'] = [];
-                }
-                if (! isset($data['socialLinks'])) {
-                    $data['socialLinks'] = [];
-                }
-            }
+            $data = array_merge([
+                'mainMenu' => ['items' => []],
+                'footerMenu' => ['items' => []],
+                'legalMenu' => ['items' => []],
+                'settings' => [],
+                'socialLinks' => [],
+            ], $data);
         }
 
         // Snapshots may contain menu URLs normalized by an older runtime (for
@@ -185,50 +172,6 @@ abstract class BasePublicWebController extends BaseController
     }
 
     /**
-     * Render a standard public page that is composed from one or more blocks.
-     *
-     * @param array<string, mixed> $pageData
-     * @param list<array<string, mixed>> $blocks
-     * @param array<string, mixed> $context
-     */
-    protected function renderPageWithBlocks(array $pageData, array $blocks, string $lang, array $context = []): ResponseInterface
-    {
-        $this->finishRouteResolution();
-        $composition = $this->composePageContext($blocks, $lang, $context);
-        $context = array_merge($context, $composition['block_context']);
-        $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
-        $pageData['__layout_data'] = $composition['layout'];
-        $pageData['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
-            ['pages', 'settings', 'menus'],
-            is_array($context['cacheScopes'] ?? null) ? $context['cacheScopes'] : [],
-        ));
-
-        return $this->render('page', $pageData);
-    }
-
-    /**
-     * Render a CMS-owned public page with consistent metadata and localized URLs.
-     *
-     * @param array<string, mixed> $page
-     * @param array<string, mixed> $context
-     */
-    protected function renderCmsPage(array $page, string $lang, array $context = []): ResponseInterface
-    {
-        $this->finishRouteResolution();
-        $composition = $this->composePageContext($this->pageBlocks($page), $lang, $context);
-        $context = array_merge($context, $composition['block_context']);
-        $data = $this->cmsPageData($page, $lang, $context);
-        $data['__layout_data'] = $composition['layout'];
-        $data['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
-            ['pages'],
-            ['settings', 'menus'],
-            is_array($context['cacheScopes'] ?? null) ? $context['cacheScopes'] : [],
-        ));
-
-        return $this->render('page', $data);
-    }
-
-    /**
      * Render a page already composed by PageDelivery. No API or cache reads are
      * performed between this method and the view renderer.
      */
@@ -236,8 +179,7 @@ abstract class BasePublicWebController extends BaseController
     {
         $this->finishRouteResolution();
 
-        // A redirect ends the request before any page is rendered — same as
-        // the legacy resolver's own redirect branch, it must not emit a
+        // A redirect ends the request before any page is rendered — it must not emit a
         // page_render_phase event (RequestContext::pageRenderSummary() stays
         // null while setPageDelivery() is never called for this response).
         if ($delivery->isRedirect()) {
@@ -420,160 +362,10 @@ abstract class BasePublicWebController extends BaseController
             : [];
     }
 
-    /**
-     * Resolve a CMS page first and fall back to a generated listing page when absent.
-     *
-     * @param callable(string): array{page: array<string, mixed>, blocks: list<array<string, mixed>>} $fallbackBuilder
-     * @param array<string, mixed> $context
-     */
-    protected function renderCmsPageOrFallbackListing(
-        string $lang,
-        string $slug,
-        callable $fallbackBuilder,
-        array $context = []
-    ): ResponseInterface {
-        $this->beginRouteResolution();
-        [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
-
-        if ($delivery = $this->deliverConfiguredPageRoute($lang, $slug, $preview, $previewExpires, $previewSig)) {
-            return $delivery;
-        }
-
-        $page = \Config\Services::sitePageService()->getBySlug($lang, $slug, $preview, $previewExpires, $previewSig);
-
-        if (is_array($page)) {
-            return $this->renderCmsPage($page, $lang, $context);
-        }
-
-        $listing = $fallbackBuilder($lang);
-        if (! is_array($listing)) {
-            return $this->notFound();
-        }
-
-        $pageData = $listing['page'] ?? null;
-        $blocks = $listing['blocks'] ?? null;
-
-        if (! is_array($pageData) || ! is_array($blocks)) {
-            return $this->notFound();
-        }
-
-        return $this->renderPageWithBlocks($pageData, $blocks, $lang, $context);
-    }
-
-    /**
-     * Render a CMS-backed template page using a dedicated type and runtime context.
-     *
-     * @param array<string, mixed> $pageData
-     * @param array<string, mixed> $context
-     */
-    protected function renderTemplatePage(
-        string $templateType,
-        string $lang,
-        array $pageData,
-        array $context = []
-    ): ResponseInterface {
-        $this->beginRouteResolution();
-        $page = \Config\Services::sitePageService()->getByType($lang, $templateType);
-
-        if (! is_array($page)) {
-            log_message('error', "Template page not found for type: {$templateType} in lang: {$lang}");
-            return $this->notFound();
-        }
-
-        $blocks = is_array($page['blocks'] ?? null)
-            ? array_values(array_filter(
-                $page['blocks'],
-                static fn (mixed $block): bool => is_array($block),
-            ))
-            : [];
-        $this->finishRouteResolution();
-        $composition = $this->composePageContext($blocks, $lang, $context);
-        $context = array_merge($context, $composition['block_context']);
-        $pageData['renderedBlocks'] = \Config\Services::blockRenderer()->render($blocks, $lang, $context);
-        $pageData['__layout_data'] = $composition['layout'];
-        $pageData['cacheScopes'] = $this->normalizeCacheScopes(array_merge(
-            ['pages', 'settings', 'menus'],
-            is_array($context['cacheScopes'] ?? null) ? $context['cacheScopes'] : [],
-            isset($context['event_item']) ? ['events'] : [],
-            isset($context['catalog_item']) ? ['collection_items'] : [],
-        ));
-
-        return $this->render('page', $pageData);
-    }
-
     protected function notFound(string $message = 'Página no encontrada'): ResponseInterface
     {
         return $this->render('errors/404', ['message' => $message])
             ->setStatusCode(404);
-    }
-
-    /**
-     * Resolve dynamic blocks before ViewModels render the page.
-     *
-     * The public page must remain renderable if a domain is unavailable; the
-     * individual ViewModels already handle an empty prefetched result.
-     *
-     * @param list<array<string, mixed>> $blocks
-     * @return array<string, mixed>
-     */
-    protected function prefetchBlockContext(array $blocks, string $lang): array
-    {
-        try {
-            return \Config\Services::blockPrefetchService()->prefetchContext($blocks, $lang);
-        } catch (\Throwable) {
-            // Mark the prefetch phase as complete even on an internal planner
-            // failure so ViewModels render an explicit empty state instead of
-            // reopening the old per-block HTTP fallback path.
-            return [
-                'block_prefetch' => [],
-                'block_prefetch_complete' => true,
-                'cacheScopes' => [
-                    'collections',
-                    'entries',
-                    'taxonomies',
-                    'events',
-                    'event_types',
-                    'collection_items',
-                    'categories',
-                    'forms',
-                ],
-            ];
-        }
-    }
-
-    /**
-     * Compose layout and blocks at the controller boundary. The existing
-     * fallback remains available if the combined seam fails, while detail
-     * entities loaded by Museum/Event controllers become prefetch seeds.
-     *
-     * @param list<array<string, mixed>> $blocks
-     * @param array<string, mixed> $context
-     * @return array{layout: array<string, mixed>, block_context: array<string, mixed>}
-     */
-    protected function composePageContext(array $blocks, string $lang, array $context = []): array
-    {
-        $this->finishRouteResolution();
-        try {
-            return \Config\Services::pageCompositionService()->compose(
-                $blocks,
-                $lang,
-                $context,
-                $this->seededDetailItems($context),
-            );
-        } catch (\Throwable) {
-            $fallbackStartedAt = hrtime(true);
-            try {
-                return [
-                    'layout' => [],
-                    'block_context' => $this->prefetchBlockContext($blocks, $lang),
-                ];
-            } finally {
-                RequestContext::addPhaseDuration(
-                    'page_composition',
-                    (hrtime(true) - $fallbackStartedAt) / 1_000_000,
-                );
-            }
-        }
     }
 
     /** Start measuring the route-resolution part of a public page request. */
@@ -589,44 +381,9 @@ abstract class BasePublicWebController extends BaseController
     }
 
     /**
-     * Deliver only routes explicitly present in the public snapshot manifest.
-     *
-     * Unknown paths and aliases deliberately return null so the existing
-     * redirect/404 resolver remains authoritative until a route has passed its
-     * production parity and load gates.
-     */
-    protected function deliverConfiguredPageRoute(
-        string $lang,
-        string $route,
-        bool $preview = false,
-        ?string $previewExpires = null,
-        ?string $previewSignature = null,
-    ): ?ResponseInterface {
-        if (! config('App')->pageDeliveryEnabled && ! $preview) {
-            return null;
-        }
-
-        $query = $this->request->getGet();
-        $query = is_array($query) ? $query : [];
-        $request = (new PublicSnapshotManifest())->requestFor(
-            locale: $lang,
-            route: $route,
-            preview: $preview,
-            previewExpires: $previewExpires,
-            previewSignature: $previewSignature,
-            query: $query,
-        );
-        if ($request === null) {
-            return null;
-        }
-
-        return $this->renderDeliveredPage(Services::pageDelivery()->deliver($request), $lang);
-    }
-
-    /**
-     * Deliver a public route through the BFF before the legacy resolver runs.
-     * The route policy supports both a staged allow-list and a full-site
-     * cutover; snapshot eligibility remains controlled by the manifest.
+     * Deliver a public route through the BFF. Snapshot eligibility remains
+     * controlled by the manifest, while every public route uses the same BFF
+     * page-resolve contract.
      */
     protected function deliverBffPageRoute(
         string $lang,
@@ -634,11 +391,7 @@ abstract class BasePublicWebController extends BaseController
         bool $preview = false,
         ?string $previewExpires = null,
         ?string $previewSignature = null,
-    ): ?ResponseInterface {
-        if (! config('App')->pageDeliveryEnabled && ! $preview) {
-            return null;
-        }
-
+    ): ResponseInterface {
         $query = $this->request->getGet();
         $query = is_array($query) ? $query : [];
         $request = (new PublicSnapshotManifest())->requestForBff(
@@ -650,26 +403,23 @@ abstract class BasePublicWebController extends BaseController
             query: $query,
         );
         if ($request === null) {
-            return null;
+            return $this->response
+                ->removeHeader('Cache-Control')
+                ->setStatusCode(503)
+                ->setHeader('Cache-Control', 'no-store, private')
+                ->setBody('Public page delivery is temporarily unavailable.');
         }
 
         return $this->renderDeliveredPage(Services::pageDelivery()->deliver($request), $lang);
     }
 
-    /**
-     * @param array<string, mixed> $context
-     * @return array<string, list<array<string, mixed>>>
-     */
-    private function seededDetailItems(array $context): array
+    protected function deliverPublicRoute(string $route): ResponseInterface
     {
-        $seeds = [];
-        foreach (['catalog_item' => 'catalog_items', 'event_item' => 'event_items'] as $contextKey => $sourceType) {
-            if (is_array($context[$contextKey] ?? null)) {
-                $seeds[$sourceType] = [$context[$contextKey]];
-            }
-        }
+        $lang = $this->request->getLocale();
+        $this->beginRouteResolution();
+        [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
 
-        return $seeds;
+        return $this->deliverBffPageRoute($lang, $route, $preview, $previewExpires, $previewSig);
     }
 
     /**

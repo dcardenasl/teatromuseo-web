@@ -31,8 +31,9 @@ class WebApiClient implements WebApiClientInterface
     // v9 invalidates entry payloads cached before schema-declared listing
     // fields (including TeatroEscuela start_date) were exposed. v11 also
     // invalidates responses that may contain the removed frontend file URL
-    // fallback.
-    private const CACHE_SCHEMA_VERSION = 11;
+    // fallback. v12 switches full-page delivery to the BFF page-resolve
+    // envelope and must not reuse any pre-cutover response shape.
+    private const CACHE_SCHEMA_VERSION = 12;
 
     /**
      * Above this size, a response is worth a human looking at — either a
@@ -50,17 +51,14 @@ class WebApiClient implements WebApiClientInterface
     private int $timeout;
     private int $connectTimeout;
     private int $staleTtl;
-    private int $maxParallelRequests;
     private int $lastPayloadBytes = 0;
     private SingleFlightLock $singleFlightLock;
-    private ?\CurlShareHandle $curlShare = null;
 
     public function __construct(
         string $baseUrl,
         string $apiKey,
         int $timeout = 5,
         int $staleTtl = 86400,
-        int $maxParallelRequests = 2,
         int $connectTimeout = 1,
         ?SingleFlightLock $singleFlightLock = null,
     ) {
@@ -82,34 +80,8 @@ class WebApiClient implements WebApiClientInterface
         $this->apiKey   = $apiKey;
         $this->timeout  = max(1, $timeout);
         $this->staleTtl = max(0, $staleTtl);
-        $this->maxParallelRequests = min(16, max(1, $maxParallelRequests));
         $this->connectTimeout = min($this->timeout, max(1, $connectTimeout));
         $this->singleFlightLock = $singleFlightLock ?? new SingleFlightLock(defined('WRITABLEPATH') ? WRITABLEPATH . 'cache/locks' : '');
-    }
-
-    /**
-     * A page render commonly issues several sequential (not batched) GET
-     * calls to this same client within one request — e.g. PageResolverService's
-     * page-bootstrap call followed by LayoutDataPrefetchService's layout call.
-     * Each `curl_init()`/`curl_close()` pair in this class discards its
-     * connection on close by default, so every one of those calls pays its
-     * own full TCP+TLS handshake to the same host even though the previous
-     * call just finished talking to it. Attaching one shared handle (this
-     * client instance is itself request-scoped via Config\Services'
-     * getSharedInstance()) lets libcurl reuse the connection, TLS session and
-     * DNS lookup across calls instead of re-negotiating each time.
-     */
-    private function curlShare(): \CurlShareHandle
-    {
-        if ($this->curlShare === null) {
-            $share = curl_share_init();
-            curl_share_setopt($share, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
-            curl_share_setopt($share, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
-            curl_share_setopt($share, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
-            $this->curlShare = $share;
-        }
-
-        return $this->curlShare;
     }
 
     /**
@@ -265,443 +237,6 @@ class WebApiClient implements WebApiClientInterface
     }
 
     /**
-     * Batch GET requests executed in parallel when missing from cache.
-     *
-     * @param list<array{path: string, query?: array<string, mixed>, cacheTtl?: int, scope?: string}> $requests
-     *
-     * @return list<array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}>
-     */
-    public function multiGet(array $requests): array
-    {
-        if ($requests === []) {
-            return [];
-        }
-
-        $batchStartedAt = hrtime(true);
-        $results = [];
-        $cache   = \Config\Services::cache();
-
-        // First pass: check cache for all requests
-        foreach ($requests as $index => $req) {
-            $path     = $req['path'] ?? '';
-            $query    = is_array($req['query'] ?? null) ? $req['query'] : [];
-            $cacheTtl = (int) ($req['cacheTtl'] ?? 300);
-            $scope    = (string) ($req['scope'] ?? 'general');
-
-            $url       = $this->buildUrl($path, $query);
-            $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
-            $cacheKey  = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
-
-            $cached = $cache->get($cacheKey);
-            if (is_array($cached)) {
-                $results[$index] = $this->resultFromArray($cached);
-                $this->recordTelemetry($this->telemetryEvent(
-                    'GET',
-                    $path,
-                    $url,
-                    $scope,
-                    $results[$index]['status'],
-                    'hit',
-                    false,
-                    false,
-                    $this->elapsedMilliseconds($batchStartedAt),
-                    $this->payloadBytes($results[$index]),
-                    $this->sourceRevision($results[$index]),
-                    $this->snapshotRevision($results[$index]),
-                ));
-            }
-        }
-
-        // If all are cached, return early
-        $misses = array_diff_key(array_flip(array_keys($requests)), $results);
-        if ($misses === []) {
-            ksort($results);
-            return array_values($results);
-        }
-
-        // Shared hosting may reject a burst of simultaneous upstream
-        // requests with provider-level 508 responses. Keep the batch API but
-        // execute bounded chunks so one page render cannot exhaust the
-        // account's process/connection quota.
-        if (count($misses) > $this->maxParallelRequests) {
-            foreach (array_chunk(array_keys($misses), $this->parallelChunkSize()) as $chunk) {
-                $chunkRequests = array_map(
-                    fn (int $index): array => $requests[$index],
-                    $chunk,
-                );
-                $chunkResults = $this->multiGet($chunkRequests);
-                foreach ($chunk as $offset => $index) {
-                    $results[$index] = $chunkResults[$offset] ?? $this->errorResult(503, 'Missing batch response.');
-                }
-            }
-
-            ksort($results);
-
-            return array_values($results);
-        }
-
-        // Second pass: fetch missing requests in parallel
-        $mh = curl_multi_init();
-        $handles = [];
-        $headers = [
-            'Accept: application/json',
-            'Content-Type: application/json',
-            'Accept-Language: ' . $this->currentLocale(),
-        ];
-
-        $requestId = RequestContext::requestId();
-        if ($requestId !== null) {
-            $headers[] = 'X-Request-ID: ' . $requestId;
-        }
-
-        if ($this->apiKey !== '') {
-            $headers[] = 'X-App-Key: ' . $this->apiKey;
-        }
-
-        foreach (array_keys($misses) as $idx) {
-            $req   = $requests[$idx];
-            $path  = $req['path'] ?? '';
-            $query = is_array($req['query'] ?? null) ? $req['query'] : [];
-            $url   = $this->buildUrl($path, $query);
-
-            if (trim($url) === '') {
-                continue;
-            }
-
-            $ch = curl_init($url);
-            if ($ch instanceof \CurlHandle) {
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_TIMEOUT        => $this->timeout,
-                    CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
-                    CURLOPT_NOSIGNAL       => true,
-                    CURLOPT_HTTPHEADER     => $headers,
-                    CURLOPT_SHARE          => $this->curlShare(),
-                ]);
-                curl_multi_add_handle($mh, $ch);
-                $handles[$idx] = $ch;
-            }
-        }
-
-        // Execute parallel requests
-        if ($handles !== []) {
-            $running = null;
-            do {
-                curl_multi_exec($mh, $running);
-                if ($running > 0) {
-                    curl_multi_select($mh, 0.05);
-                }
-            } while ($running > 0);
-
-            foreach ($handles as $idx => $ch) {
-                $req      = $requests[$idx];
-                $raw      = curl_multi_getcontent($ch);
-                $status   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $error    = curl_error($ch);
-                $response = [
-                    'raw'       => is_string($raw) ? $raw : false,
-                    'status'    => $status,
-                    'error'     => $error,
-                    'timed_out' => curl_errno($ch) === CURLE_OPERATION_TIMEDOUT,
-                ];
-                $duration = (float) curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000;
-                $result   = $this->parseResponse($response);
-                $timeout  = $this->isTimeoutResult($result, $response);
-
-                curl_multi_remove_handle($mh, $ch);
-                curl_close($ch);
-
-                // Cache successful results
-                if ($result['ok']) {
-                    $cacheTtl = (int) ($req['cacheTtl'] ?? 300);
-                    $scope    = (string) ($req['scope'] ?? 'general');
-                    if ($cacheTtl > 0) {
-                        $path      = $req['path'] ?? '';
-                        $query     = is_array($req['query'] ?? null) ? $req['query'] : [];
-                        $url       = $this->buildUrl($path, $query);
-                        $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
-                        $cacheKey  = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
-                        $cache->save($cacheKey, $result, $cacheTtl);
-
-                        if ($this->staleTtl > 0) {
-                            $staleKey = 'web_api_stale_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
-                            $cache->save($staleKey, $result, $this->staleTtl);
-                        }
-                    }
-                } elseif ($result['status'] === 0 || $result['status'] >= 500) {
-                    // Keep the same stale-on-outage contract as get(). This is
-                    // especially important for block prefetch, which uses
-                    // multiGet() for all block data.
-                    $path      = $req['path'] ?? '';
-                    $query     = is_array($req['query'] ?? null) ? $req['query'] : [];
-                    $scope     = (string) ($req['scope'] ?? 'general');
-                    $url       = $this->buildUrl($path, $query);
-                    $keySuffix = $scope . '_' . md5($url . '|' . $this->currentLocale());
-                    $staleKey  = 'web_api_stale_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
-                    $stale     = $cache->get($staleKey);
-
-                    if (is_array($stale)) {
-                        $staleResult                  = $this->resultFromArray($stale);
-                        $staleResult['meta']['stale'] = true;
-                        $staleResult['meta']['source'] = $this->staleSource($staleResult['meta']['source'] ?? null);
-                        $result                        = $staleResult;
-                    }
-                }
-
-                $path      = $req['path'] ?? '';
-                $query     = is_array($req['query'] ?? null) ? $req['query'] : [];
-                $scope     = (string) ($req['scope'] ?? 'general');
-                $url       = $this->buildUrl($path, $query);
-                $cacheTtl  = (int) ($req['cacheTtl'] ?? 300);
-                $isStale   = (bool) ($result['meta']['stale'] ?? false);
-                $cacheMode = $isStale ? 'stale' : ($cacheTtl > 0 ? 'miss' : 'bypass');
-                if ($duration <= 0) {
-                    $duration = $this->elapsedMilliseconds($batchStartedAt);
-                }
-
-                $this->recordTelemetry($this->telemetryEvent(
-                    'GET',
-                    $path,
-                    $url,
-                    $scope,
-                    $status,
-                    $cacheMode,
-                    $isStale,
-                    $timeout,
-                    $duration,
-                    is_string($raw) ? strlen($raw) : $this->payloadBytes($result),
-                    $this->sourceRevision($result),
-                    $this->snapshotRevision($result),
-                ));
-
-                $results[$idx] = $result;
-            }
-        }
-
-        curl_multi_close($mh);
-        ksort($results);
-        return array_values($results);
-    }
-
-    /**
-     * Execute one concurrent batch across clients with different base URLs.
-     * Each request keeps the cache, API key, timeout and telemetry policy of its
-     * owning WebApiClient instance.
-     *
-     * @param list<array{client: self, path: string, query?: array<string, mixed>, cacheTtl?: int, scope?: string}> $requests
-     * @return list<array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}>
-     */
-    public static function multiGetAcross(array $requests): array
-    {
-        if ($requests === []) {
-            return [];
-        }
-
-        $startedAt = hrtime(true);
-        $cache = \Config\Services::cache();
-        $results = [];
-        $misses = [];
-
-        foreach ($requests as $index => $request) {
-            $client = $request['client'] ?? null;
-            if (! $client instanceof self) {
-                $results[$index] = [
-                    'ok' => false,
-                    'status' => 503,
-                    'data' => null,
-                    'meta' => [],
-                    'messages' => ['Invalid cross-domain prefetch client.'],
-                ];
-                continue;
-            }
-
-            $path = (string) ($request['path'] ?? '');
-            $query = is_array($request['query'] ?? null) ? $request['query'] : [];
-            $scope = (string) ($request['scope'] ?? 'general');
-            $url = $client->buildUrl($path, $query);
-            $keySuffix = $scope . '_' . md5($url . '|' . $client->currentLocale());
-            $cacheKey = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
-            $cached = $cache->get($cacheKey);
-
-            if (is_array($cached)) {
-                $results[$index] = $client->resultFromArray($cached);
-                $client->recordTelemetry($client->telemetryEvent(
-                    'GET',
-                    $path,
-                    $url,
-                    $scope,
-                    $results[$index]['status'],
-                    'hit',
-                    false,
-                    false,
-                    $client->elapsedMilliseconds($startedAt),
-                    $client->payloadBytes($results[$index]),
-                    $client->sourceRevision($results[$index]),
-                    $client->snapshotRevision($results[$index]),
-                ));
-                continue;
-            }
-
-            $misses[$index] = [
-                'request' => $request,
-                'client' => $client,
-                'url' => $url,
-                'startedAt' => hrtime(true),
-            ];
-        }
-
-        if ($misses === []) {
-            ksort($results);
-            return array_values($results);
-        }
-
-        $maxParallelRequests = self::maxParallelRequestsFor($misses);
-        if (count($misses) > $maxParallelRequests) {
-            foreach (array_chunk(array_keys($misses), $maxParallelRequests) as $chunk) {
-                $chunkRequests = array_map(
-                    fn (int $index): array => $requests[$index],
-                    $chunk,
-                );
-                $chunkResults = self::multiGetAcross($chunkRequests);
-                foreach ($chunk as $offset => $index) {
-                    $results[$index] = $chunkResults[$offset] ?? [
-                        'ok' => false,
-                        'status' => 503,
-                        'data' => null,
-                        'meta' => [],
-                        'messages' => ['Missing cross-domain batch response.'],
-                    ];
-                }
-            }
-
-            ksort($results);
-
-            return array_values($results);
-        }
-
-        $multiHandle = curl_multi_init();
-        $handles = [];
-        foreach ($misses as $index => $miss) {
-            /** @var self $client */
-            $client = $miss['client'];
-            $request = $miss['request'];
-            $handle = curl_init($miss['url']);
-            if (! $handle instanceof \CurlHandle) {
-                $results[$index] = [
-                    'ok' => false,
-                    'status' => 0,
-                    'data' => null,
-                    'meta' => [],
-                    'messages' => ['Could not initialize cURL.'],
-                ];
-                continue;
-            }
-
-            $headers = [
-                'Accept: application/json',
-                'Content-Type: application/json',
-                'Accept-Language: ' . $client->currentLocale(),
-            ];
-            $requestId = RequestContext::requestId();
-            if ($requestId !== null) {
-                $headers[] = 'X-Request-ID: ' . $requestId;
-            }
-            if ($client->apiKey !== '') {
-                $headers[] = 'X-App-Key: ' . $client->apiKey;
-            }
-            curl_setopt_array($handle, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => $client->timeout,
-                CURLOPT_CONNECTTIMEOUT => $client->connectTimeout,
-                CURLOPT_NOSIGNAL => true,
-                CURLOPT_HTTPHEADER => $headers,
-                CURLOPT_SHARE => $client->curlShare(),
-            ]);
-            curl_multi_add_handle($multiHandle, $handle);
-            $handles[$index] = $handle;
-            unset($request);
-        }
-
-        if ($handles !== []) {
-            $running = null;
-            do {
-                curl_multi_exec($multiHandle, $running);
-                if ($running > 0) {
-                    curl_multi_select($multiHandle, 0.05);
-                }
-            } while ($running > 0);
-        }
-
-        foreach ($handles as $index => $handle) {
-            /** @var self $client */
-            $client = $misses[$index]['client'];
-            $request = $misses[$index]['request'];
-            $path = (string) ($request['path'] ?? '');
-            $query = is_array($request['query'] ?? null) ? $request['query'] : [];
-            $scope = (string) ($request['scope'] ?? 'general');
-            $cacheTtl = (int) ($request['cacheTtl'] ?? 300);
-            $raw = curl_multi_getcontent($handle);
-            $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
-            $error = curl_error($handle);
-            $transportResponse = [
-                'raw' => is_string($raw) ? $raw : false,
-                'status' => $status,
-                'error' => $error,
-                'timed_out' => curl_errno($handle) === CURLE_OPERATION_TIMEDOUT,
-            ];
-            $result = $client->parseResponse($transportResponse);
-            $timeout = $client->isTimeoutResult($result, $transportResponse);
-            $url = $client->buildUrl($path, $query);
-
-            curl_multi_remove_handle($multiHandle, $handle);
-            curl_close($handle);
-
-            $keySuffix = $scope . '_' . md5($url . '|' . $client->currentLocale());
-            $cacheKey = 'web_api_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
-            $staleKey = 'web_api_stale_v' . self::CACHE_SCHEMA_VERSION . '_' . $keySuffix;
-            if ($result['ok']) {
-                if ($cacheTtl > 0) {
-                    $cache->save($cacheKey, $result, $cacheTtl);
-                    if ($client->staleTtl > 0) {
-                        $cache->save($staleKey, $result, $client->staleTtl);
-                    }
-                }
-            } elseif ($result['status'] === 0 || $result['status'] >= 500) {
-                $stale = $cache->get($staleKey);
-                if (is_array($stale)) {
-                    $staleResult = $client->resultFromArray($stale);
-                    $staleResult['meta']['stale'] = true;
-                    $staleResult['meta']['source'] = $client->staleSource($staleResult['meta']['source'] ?? null);
-                    $result = $staleResult;
-                }
-            }
-
-            $isStale = (bool) ($result['meta']['stale'] ?? false);
-            $cacheMode = $isStale ? 'stale' : ($cacheTtl > 0 ? 'miss' : 'bypass');
-            $client->recordTelemetry($client->telemetryEvent(
-                'GET',
-                $path,
-                $url,
-                $scope,
-                $status,
-                $cacheMode,
-                $isStale,
-                $timeout,
-                $client->elapsedMilliseconds((int) $misses[$index]['startedAt']),
-                is_string($raw) ? strlen($raw) : $client->payloadBytes($result),
-                $client->sourceRevision($result),
-                $client->snapshotRevision($result),
-            ));
-            $results[$index] = $result;
-        }
-
-        curl_multi_close($multiHandle);
-        ksort($results);
-
-        return array_values($results);
-    }
-
-    /**
      * POST request — not cached (used for form submissions).
      *
      * @param array<string, mixed> $data
@@ -795,7 +330,6 @@ class WebApiClient implements WebApiClientInterface
             CURLOPT_NOSIGNAL       => true,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_CUSTOMREQUEST  => $method,
-            CURLOPT_SHARE          => $this->curlShare(),
         ]);
 
         if ($jsonBody !== null) {
@@ -979,29 +513,6 @@ class WebApiClient implements WebApiClientInterface
         $locale = service('request')->getLocale();
 
         return $locale !== '' ? $locale : (string) config('App')->defaultLocale;
-    }
-
-    /**
-     * @param array<int, array{client: self}> $misses
-     * @return positive-int
-     */
-    private static function maxParallelRequestsFor(array $misses): int
-    {
-        $limits = [];
-        foreach ($misses as $miss) {
-            $client = $miss['client'] ?? null;
-            if ($client instanceof self) {
-                $limits[] = $client->maxParallelRequests;
-            }
-        }
-
-        return max(1, min($limits !== [] ? $limits : [1]));
-    }
-
-    /** @return positive-int */
-    private function parallelChunkSize(): int
-    {
-        return max(1, $this->maxParallelRequests);
     }
 
     /** @param array{data:mixed,meta:array<string,mixed>} $result */

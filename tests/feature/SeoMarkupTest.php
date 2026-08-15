@@ -243,11 +243,35 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
     public function testMainMenuPublishesTheLocalizedHomepageSlug(): void
     {
         $locale = $this->locale();
-        $this->domainAdapter->fakeGet('public/menus/main', [
-            'items' => [
-                ['label' => 'Inicio', 'custom_url' => '/' . $locale . '/inicio'],
-                ['label' => 'Destino editorial', 'custom_url' => '/custom-destination'],
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/page-resolve/home', [
+            'outcome' => 'page',
+            'page' => [
+                'page_type' => 'home',
+                'title' => 'Fixture homepage',
+                'excerpt' => 'Fixture homepage excerpt.',
+                'meta_title' => 'Fixture homepage',
+                'meta_description' => 'Fixture homepage description.',
+                'slug' => 'inicio',
+                'localized_slugs' => array_fill_keys($this->locales(), 'inicio'),
+                'canonical_url' => site_url('/' . $locale . '/inicio'),
+                'blocks' => [],
             ],
+            'layout' => [
+                'settings' => [],
+                'mainMenu' => [
+                    'items' => [
+                        ['label' => 'Inicio', 'custom_url' => '/' . $locale . '/inicio'],
+                        ['label' => 'Destino editorial', 'custom_url' => '/custom-destination'],
+                    ],
+                ],
+                'footerMenu' => ['items' => []],
+                'legalMenu' => ['items' => []],
+                'socialLinks' => [],
+            ],
+            'block_context' => ['block_prefetch' => [], 'block_prefetch_complete' => true],
+            'meta' => ['locale' => $locale, 'route' => 'home'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
         ]);
 
         $result = $this->get('/' . $locale . '/');
@@ -575,35 +599,36 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $entryTitle = 'Fixture SEO Entry ' . $locale;
         $entryExcerpt = 'Fixture SEO excerpt ' . $locale;
 
-        // 1. Mock collections (so resolving routes works)
-        $collection = [
-            'id'                       => $collectionId,
-            'collection_key'           => $collectionKey,
-            'slug'                     => $collectionSlug,
-            'name'                     => 'Fixture SEO Collection',
-            'listing_title'            => 'Fixture SEO Collection',
-            'listing_intro'            => '',
-            'default_meta_description' => 'Fixture SEO collection description',
-            'index_page'               => [
-                'localized_slugs' => [
-                    ...array_fill_keys($this->locales(), $collectionSlug),
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/page-resolve/' . $collectionSlug . '/' . $entrySlug, [
+            'outcome' => 'page',
+            'page' => [
+                'page_type' => 'collection_entry',
+                'title' => $entryTitle,
+                'slug' => $entrySlug,
+                'excerpt' => $entryExcerpt,
+                'meta_title' => '   ',
+                'meta_description' => '',
+                'robots' => '',
+                'canonical_url' => '',
+                'published_at' => '2024-10-07 04:15:23',
+                'blocks' => [],
+                'localized_slugs' => array_fill_keys($this->locales(), $entrySlug),
+                'featured_image' => [],
+                'categories' => [],
+                'tags' => [],
+                'collection' => [
+                    'id' => $collectionId,
+                    'collection_key' => $collectionKey,
+                    'name' => 'Fixture SEO Collection',
+                    'localized_slugs' => array_fill_keys($this->locales(), $collectionSlug),
                 ],
+                'related_entries' => [],
             ],
-        ];
-        $this->domainAdapter->fakeGet('public/' . $locale . '/collections', [$collection]);
-
-        // 2. Mock a collection entry with empty/whitespace SEO fields
-        $this->domainAdapter->fakeGet('public/' . $locale . '/entries/' . $collectionKey . '/' . $entrySlug, [
-            'title'              => $entryTitle,
-            'slug'               => $entrySlug,
-            'excerpt'            => $entryExcerpt,
-            'meta_title'         => '   ', // whitespace
-            'meta_description'   => '',    // empty
-            'robots'             => '',    // empty
-            'canonical_url'      => '',
-            'published_at'       => '2024-10-07 04:15:23',
-            'blocks'             => [],
-            'localized_slugs'    => array_fill_keys($this->locales(), $entrySlug),
+            'layout' => ['settings' => [], 'mainMenu' => ['items' => []], 'footerMenu' => ['items' => []], 'legalMenu' => ['items' => []], 'socialLinks' => []],
+            'block_context' => ['block_prefetch' => [], 'block_prefetch_complete' => true],
+            'meta' => ['locale' => $locale, 'route' => $collectionSlug . '/' . $entrySlug],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
         ]);
 
         // Act: GET the page

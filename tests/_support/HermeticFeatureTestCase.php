@@ -20,9 +20,9 @@ abstract class HermeticFeatureTestCase extends CIUnitTestCase
         $config = config('App');
         $config->supportedLocales = ['es', 'en'];
         $config->defaultLocale = 'es';
-        $config->pageDeliveryEnabled = false;
-        $config->pageDeliveryMode = 'snapshot';
-        $config->pageDeliveryAllowSynchronousFallback = false;
+        $config->pageDeliveryEnabled = true;
+        $config->pageDeliveryMode = 'sync';
+        $config->pageDeliveryAllowSynchronousFallback = true;
         $config->trackingEnabled = false;
         $this->domainAdapter = new DeterministicDomainAdapter();
         Services::injectMock('bffWebApiClient', $this->domainAdapter);

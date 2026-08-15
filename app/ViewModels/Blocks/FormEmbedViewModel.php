@@ -41,9 +41,15 @@ class FormEmbedViewModel extends AbstractBlockViewModel
      */
     private function resolveFormDefinition(string $formKey): ?array
     {
-        $injected = $this->context['formDefinition'] ?? null;
-        if (is_array($injected)) {
-            return $injected;
+        if (array_key_exists('formDefinition', $this->context)) {
+            return is_array($this->context['formDefinition']) ? $this->context['formDefinition'] : null;
+        }
+
+        if (is_array($this->context['form_definitions'] ?? null)
+            && array_key_exists($formKey, $this->context['form_definitions'])) {
+            $definition = $this->context['form_definitions'][$formKey];
+
+            return is_array($definition) ? $definition : null;
         }
 
         try {

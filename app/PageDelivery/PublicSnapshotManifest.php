@@ -82,12 +82,9 @@ final class PublicSnapshotManifest
     }
 
     /**
-     * Build the BFF delivery identity for an explicitly approved route or,
-     * when enabled, for any localized public route.
-     *
-     * Only routes in the snapshot manifest are snapshot-eligible. This keeps
-     * the full-site BFF cutover independent from snapshot storage growth while
-     * preserving snapshot-first delivery for the bounded manifest.
+     * Build the BFF delivery identity for any localized public route.
+     * Only routes in the snapshot manifest are snapshot-eligible; all other
+     * routes remain synchronous BFF requests and never create snapshots.
      *
      * @param array<string, mixed> $query
      */
@@ -106,21 +103,14 @@ final class PublicSnapshotManifest
             return null;
         }
 
-        $resolvedRoute = $config->pageDeliveryBffAllRoutes
-            ? $route
-            : $this->matchConfiguredRoute($route, $locale, $config->pageDeliveryBffRoutes);
-        if ($resolvedRoute === null) {
-            return null;
-        }
-
         return new PageDeliveryRequest(
             locale: $locale,
-            route: $resolvedRoute,
+            route: $route,
             preview: $preview,
             previewExpires: $previewExpires,
             previewSignature: $previewSignature,
             query: $query,
-            snapshotEligible: $this->manifestContains($resolvedRoute, $locale),
+            snapshotEligible: $this->manifestContains($route, $locale),
             useBff: true,
         );
     }

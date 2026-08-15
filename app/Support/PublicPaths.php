@@ -7,10 +7,9 @@ namespace App\Support;
 /**
  * Centralized constants for public routing paths.
  *
- * `EVENTS`/`CATALOG` are the invariant Spanish identifiers used to look up
- * the CMS-owned index page for each section (see
- * BasePublicWebController::renderCmsPageOrFallbackListing()). That lookup is
- * a content key, not a URL — it stays fixed across locales on purpose.
+ * `EVENTS`/`CATALOG` are the invariant Spanish route keys used by the public
+ * controllers when building BFF page-resolve requests. They stay fixed across
+ * locales; the visitor-facing URL segment is locale-aware below.
  *
  * The actual public URL segment (what a visitor types/sees) is locale-aware
  * and comes from `eventsSegment()`/`catalogSegment()` below. New locales
@@ -121,10 +120,9 @@ class PublicPaths
      * Turn a domain redirect record ({new_url, redirect_type}) into an
      * absolute-or-relative target path and its HTTP status.
      *
-     * Shared by the legacy resolver (`PageController::resolve()`) and
-     * PageDelivery (`SynchronousPageDeliveryAdapter`) so both honor the same
-     * external-vs-internal detection and locale-aware canonical
-     * normalization — one implementation, not two that can drift apart.
+     * Shared by the Web URL policy and PageDelivery so redirects received in
+     * the BFF envelope use one external-vs-internal and locale-aware
+     * normalization implementation.
      *
      * @param array<string, mixed> $redirect
      * @return array{path: string, status: int}

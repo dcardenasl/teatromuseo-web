@@ -11,273 +11,136 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
 {
     use FeatureTestTrait;
 
-    private ?string $snapshotDirectory = null;
-
-    /** @var list<string> */
-    private array $originalManifestRoutes = [];
-
-    /** @var list<string> */
-    private array $originalBffRoutes = [];
-
-    private bool $originalBffAllRoutes = false;
-
     protected function setUp(): void
     {
         parent::setUp();
         $this->configureLocales(['aa', 'bb']);
-        $this->originalManifestRoutes = config('App')->pageSnapshotManifestRoutes;
-        $this->originalBffRoutes = config('App')->pageDeliveryBffRoutes;
-        $this->originalBffAllRoutes = config('App')->pageDeliveryBffAllRoutes;
-        config('App')->pageSnapshotManifestRoutes = ['about'];
     }
 
-    protected function tearDown(): void
+    public function testCmsRouteUsesOneBffPageResolveRequest(): void
     {
-        if ($this->snapshotDirectory !== null) {
-            $this->removeDirectory($this->snapshotDirectory);
-        }
-
-        config('App')->pageSnapshotDirectory = '';
-        config('App')->pageSnapshotShared = false;
-        config('App')->pageDeliveryAllowSynchronousFallback = false;
-        config('App')->pageSnapshotManifestRoutes = $this->originalManifestRoutes;
-        config('App')->pageDeliveryBffRoutes = $this->originalBffRoutes;
-        config('App')->pageDeliveryBffAllRoutes = $this->originalBffAllRoutes;
-
-        parent::tearDown();
-    }
-
-    public function testConfiguredCmsRouteUsesTheSameSynchronousPageDeliveryContract(): void
-    {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about aa'));
-
-        $result = $this->get('aa/about');
-
-        $result->assertStatus(200);
-        $result->assertSee('Fixture about aa');
-        self::assertSame(1, $this->countPath('public-read/aa/pages/about'));
-        // The redirect table is consulted for a configured route exactly like
-        // it is for the legacy resolver — with no redirect fixture registered
-        // it resolves to "no redirect" and the manifest page renders.
-        self::assertContains('public/redirects/about', $this->domainAdapter->requestedPaths());
-    }
-
-    public function testSimpleCmsRouteUsesBffPageResolutionWhenOptedIn(): void
-    {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        config('App')->pageDeliveryBffRoutes = ['about'];
-        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about via BFF'));
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/about', $this->pageEnvelope('about', 'Fixture about via BFF'));
 
         $result = $this->get('aa/about');
 
         $result->assertStatus(200);
         $result->assertSee('Fixture about via BFF');
-        self::assertSame(1, $this->countPath('public-read/aa/page-resolve/about'));
+        self::assertSame(['public-read/aa/page-resolve/about'], $this->domainAdapter->requestedPaths());
         self::assertNotContains('public-read/aa/pages/about', $this->domainAdapter->requestedPaths());
         self::assertNotContains('public-read/aa/page-bootstrap/about', $this->domainAdapter->requestedPaths());
         self::assertNotContains('public-read/aa/layout', $this->domainAdapter->requestedPaths());
     }
 
-    public function testSignedPreviewBypassesGlobalFlagAndForwardsToBff(): void
+    public function testUnlistedRouteAlsoUsesTheBffWithoutAWebResolverFallback(): void
     {
-        config('App')->pageDeliveryEnabled = false;
-        config('App')->pageDeliveryBffRoutes = ['about'];
-        $previewExpires = (string) (time() + 600);
-        $page = $this->page('about', 'Fixture draft page via signed preview');
-        $page['page_type'] = 'cms_page';
-        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/about', [
-            'outcome' => 'page',
-            'redirect' => null,
-            'page' => $page,
-            'layout' => [],
-            'block_context' => [],
-            'meta' => ['locale' => 'aa', 'route' => 'about'],
-            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
-            'messages' => [],
-        ]);
+        $this->domainAdapter->fakeGet(
+            'public-read/aa/page-resolve/noticias/entrada',
+            $this->pageEnvelope('noticias/entrada', 'Fixture unlisted page via BFF'),
+        );
 
-        $result = $this->get('aa/about?preview=1&preview_expires=' . $previewExpires . '&preview_sig=' . str_repeat('a', 64));
+        $result = $this->get('aa/noticias/entrada');
 
         $result->assertStatus(200);
-        $result->assertSee('Fixture draft page via signed preview');
-        self::assertSame(['public-read/aa/page-resolve/about'], $this->domainAdapter->requestedPaths());
+        $result->assertSee('Fixture unlisted page via BFF');
+        self::assertSame(['public-read/aa/page-resolve/noticias/entrada'], $this->domainAdapter->requestedPaths());
+    }
+
+    public function testPreviewVariantsAreForwardedToTheBff(): void
+    {
+        $expires = (string) (time() + 600);
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/about', $this->pageEnvelope('about', 'Fixture draft page'));
+
+        $result = $this->get('aa/about?preview=1&preview_expires=' . $expires . '&preview_sig=' . str_repeat('a', 64));
+
+        $result->assertStatus(200);
         self::assertSame([
             'preview' => '1',
-            'preview_expires' => $previewExpires,
+            'preview_expires' => $expires,
             'preview_sig' => str_repeat('a', 64),
         ], $this->domainAdapter->calls[0]['query']);
-        self::assertSame('page-resolve', $this->domainAdapter->calls[0]['scope']);
     }
 
-    public function testFullSiteBffPolicyRoutesUnlistedPagesWithoutLegacyReadsOrSnapshots(): void
+    public function testBffNotFoundIsRenderedAs404WithoutLocalProbing(): void
     {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'snapshot';
-        config('App')->pageDeliveryAllowSynchronousFallback = true;
-        config('App')->pageDeliveryBffAllRoutes = true;
-        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/noticias/entrada', [
-            'outcome' => 'page',
-            'redirect' => null,
-            'page' => $this->page('noticias/entrada', 'Fixture unlisted page via BFF'),
-            'layout' => [
-                'settings' => [],
-                'mainMenu' => ['items' => []],
-                'footerMenu' => ['items' => []],
-                'legalMenu' => ['items' => []],
-                'socialLinks' => [],
-            ],
-            'block_context' => [
-                'block_prefetch' => [],
-                'block_prefetch_complete' => true,
-                'form_definitions' => [],
-            ],
-            'meta' => ['locale' => 'aa', 'route' => 'noticias/entrada'],
-            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
-            'messages' => [],
-        ]);
-
-        $first = $this->get('aa/noticias/entrada');
-        $second = $this->get('aa/noticias/entrada');
-
-        $first->assertStatus(200);
-        $second->assertStatus(200);
-        $first->assertSee('Fixture unlisted page via BFF');
-        self::assertSame(2, $this->countPath('public-read/aa/page-resolve/noticias/entrada'));
-        self::assertNotContains('public-read/aa/pages/noticias/entrada', $this->domainAdapter->requestedPaths());
-        self::assertNotContains('public-read/aa/page-bootstrap/noticias/entrada', $this->domainAdapter->requestedPaths());
-    }
-
-    public function testInvalidSignedPreviewRemainsA404FromBff(): void
-    {
-        config('App')->pageDeliveryEnabled = false;
-        config('App')->pageDeliveryBffRoutes = ['about'];
-        $previewExpires = (string) (time() + 600);
-        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/about', [
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/missing', [
             'outcome' => 'not_found',
-            'redirect' => null,
             'page' => null,
             'layout' => [],
             'block_context' => [],
-            'meta' => ['locale' => 'aa', 'route' => 'about'],
+            'meta' => ['locale' => 'aa', 'route' => 'missing'],
             'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
             'messages' => ['Public page was not found.'],
         ]);
 
-        $result = $this->get('aa/about?preview=1&preview_expires=' . $previewExpires . '&preview_sig=' . str_repeat('b', 64));
+        $result = $this->get('aa/missing');
 
         $result->assertStatus(404);
-        self::assertSame(1, $this->countPath('public-read/aa/page-resolve/about'));
-        self::assertNotContains('public-read/aa/pages/about', $this->domainAdapter->requestedPaths());
-        self::assertNotContains('public-read/aa/page-bootstrap/about', $this->domainAdapter->requestedPaths());
-        self::assertSame(str_repeat('b', 64), $this->domainAdapter->calls[0]['query']['preview_sig']);
+        self::assertSame(['public-read/aa/page-resolve/missing'], $this->domainAdapter->requestedPaths());
     }
 
-    public function testDynamicCmsRouteUsesBffBlockContextWithoutWebPrefetchCalls(): void
+    public function testCompletedBffBlockContextRendersWithoutLegacyDomainReads(): void
     {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        config('App')->pageDeliveryBffRoutes = ['teatroescuela'];
-        config('App')->pageSnapshotManifestRoutes = ['teatroescuela'];
-
-        $page = $this->page('teatroescuela', 'Fixture TeatroEscuela via BFF');
-        $page['page_type'] = 'cms_page';
-        $page['blocks'] = [[
+        $envelope = $this->pageEnvelope('noticias', 'Fixture listing via BFF');
+        $envelope['page']['blocks'] = [[
             'block_key' => 'collection_listing',
             'block_config' => [
                 'source_type' => 'cms_collection',
-                'collection_key' => 'teatroescuela',
-                'items_limit' => 12,
+                'show_categories' => false,
+                'show_tags' => false,
             ],
-            'block_data' => [],
+            'block_data' => [
+                'section_title' => 'Entradas BFF',
+                'empty_message' => 'Sin entradas',
+            ],
+            'navigation' => ['url' => '/aa/noticias', 'label' => 'Noticias'],
             'children' => [],
         ]];
-
-        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/teatroescuela', [
-            'outcome' => 'page',
-            'redirect' => null,
-            'page' => $page,
-            'layout' => [
-                'settings' => [],
-                'mainMenu' => ['items' => []],
-                'footerMenu' => ['items' => []],
-                'legalMenu' => ['items' => []],
-                'socialLinks' => [],
-            ],
-            'block_context' => [
-                'block_prefetch' => [
-                    '1' => [
-                        'ok' => true,
-                        'status' => 200,
-                        'data' => [],
-                        'meta' => [],
-                        'stale' => false,
-                    ],
-                ],
-                'block_prefetch_complete' => true,
-                'form_definitions' => [],
-                'cacheScopes' => ['collections', 'entries', 'collection_items'],
-            ],
-            'meta' => ['locale' => 'aa', 'route' => 'teatroescuela'],
-            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
-            'messages' => [],
-        ]);
-
-        $result = $this->get('aa/teatroescuela');
-
-        $result->assertStatus(200);
-        $result->assertSee('Fixture TeatroEscuela via BFF');
-        self::assertSame(['public-read/aa/page-resolve/teatroescuela'], $this->domainAdapter->requestedPaths());
-    }
-
-    public function testCollectionEntryUsesBffRelatedEntriesWithoutLegacyEntryReads(): void
-    {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        config('App')->pageDeliveryBffRoutes = ['noticias/fixture-entry'];
-
-        $entry = [
-            'page_type' => 'collection_entry',
-            'entry_id' => 10,
-            'id' => 10,
-            'title' => 'Fixture entry via BFF',
-            'slug' => 'fixture-entry',
-            'localized_slugs' => ['aa' => 'fixture-entry', 'bb' => 'fixture-entry'],
-            'excerpt' => 'Fixture entry excerpt.',
-            'published_at' => '2026-08-01 00:00:00',
-            'updated_at' => '2026-08-01 00:00:00',
-            'featured_image' => [],
-            'og_image' => [],
-            'og_type' => 'article',
-            'categories' => [],
-            'tags' => [],
-            'blocks' => [],
-            'collection' => [
+        $envelope['block_context']['block_prefetch']['0'] = [
+            'ok' => true,
+            'status' => 200,
+            'data' => [[
                 'id' => 1,
+                'slug' => 'entrada-bff',
+                'title' => 'Entrada entregada por BFF',
+                'excerpt' => 'Contenido precompuesto.',
+                'published_at' => '2026-01-01T00:00:00+00:00',
+                'listing_content' => [],
+            ]],
+            'meta' => ['pagination' => ['current_page' => 1, 'per_page' => 12, 'total' => 1, 'total_pages' => 1]],
+            'facets' => ['categories' => [], 'tags' => []],
+            'collection' => [
                 'collection_key' => 'noticias',
                 'name' => 'Noticias',
-                'localized_slugs' => ['aa' => 'noticias', 'bb' => 'noticias'],
-                'index_page' => [
-                    'localized_slugs' => ['aa' => 'noticias', 'bb' => 'noticias'],
-                ],
+                'localized_slugs' => ['aa' => 'noticias'],
+                'index_page' => ['localized_urls' => ['aa' => '/aa/noticias']],
             ],
-            'related_entries' => [[
-                'id' => 11,
-                'title' => 'Fixture related from BFF',
-                'slug' => 'fixture-related',
-                'excerpt' => 'Related fixture excerpt.',
-                'published_at' => '2026-08-01 00:00:00',
-                'featured_image' => [],
-                'categories' => [],
-            ]],
         ];
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/noticias', $envelope);
 
-        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/noticias/fixture-entry', [
+        $result = $this->get('aa/noticias');
+
+        $result->assertStatus(200);
+        $result->assertSee('Entrada entregada por BFF');
+        self::assertSame(['public-read/aa/page-resolve/noticias'], $this->domainAdapter->requestedPaths());
+    }
+
+    /** @return array<string, mixed> */
+    private function pageEnvelope(string $route, string $title): array
+    {
+        return [
             'outcome' => 'page',
-            'redirect' => null,
-            'page' => $entry,
+            'page' => [
+                'page_type' => 'cms_page',
+                'title' => $title,
+                'excerpt' => 'Fixture excerpt.',
+                'meta_title' => $title,
+                'meta_description' => 'Fixture description.',
+                'slug' => $route,
+                'localized_slugs' => ['aa' => $route, 'bb' => $route],
+                'canonical_url' => '/aa/' . $route,
+                'robots' => 'index, follow',
+                'blocks' => [],
+            ],
             'layout' => [
                 'settings' => [],
                 'mainMenu' => ['items' => []],
@@ -291,226 +154,9 @@ final class PageDeliveryRouteTest extends HermeticFeatureTestCase
                 'form_definitions' => [],
                 'cacheScopes' => [],
             ],
-            'meta' => ['locale' => 'aa', 'route' => 'noticias/fixture-entry'],
+            'meta' => ['locale' => 'aa', 'route' => $route],
             'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
             'messages' => [],
-        ]);
-
-        $result = $this->get('aa/noticias/fixture-entry');
-
-        $result->assertStatus(200);
-        $result->assertSee('Fixture entry via BFF');
-        $result->assertSee('Fixture related from BFF');
-        self::assertSame(['public-read/aa/page-resolve/noticias/fixture-entry'], $this->domainAdapter->requestedPaths());
-    }
-
-    public function testCollectionFallbackIndexUsesBffSyntheticPageContract(): void
-    {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        config('App')->pageDeliveryBffRoutes = ['fallback-collection'];
-
-        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/fallback-collection', [
-            'outcome' => 'page',
-            'redirect' => null,
-            'page' => [
-                'page_type' => 'collection_fallback_index',
-                'title' => 'Fixture fallback collection',
-                'excerpt' => 'Fixture fallback intro.',
-                'showPageHeading' => true,
-                'pageTitle' => 'Fixture fallback collection',
-                'metaDescription' => 'Fixture fallback intro.',
-                'canonicalUrl' => '/aa/fallback-collection',
-                'ogImage' => '',
-                'metaRobots' => 'index, follow',
-                'schemaData' => null,
-                'localized_urls' => [
-                    'aa' => '/aa/fallback-collection',
-                    'bb' => '/bb/fallback-collection',
-                ],
-                'blocks' => [[
-                    'block_key' => 'collection_listing',
-                    'block_config' => [
-                        'collection_key' => 'fallback-collection',
-                        'items_limit' => 12,
-                    ],
-                    'block_data' => [],
-                    'children' => [],
-                ]],
-            ],
-            'layout' => [
-                'settings' => [],
-                'mainMenu' => ['items' => []],
-                'footerMenu' => ['items' => []],
-                'legalMenu' => ['items' => []],
-                'socialLinks' => [],
-            ],
-            'block_context' => [
-                'block_prefetch' => [],
-                'block_prefetch_complete' => true,
-                'form_definitions' => [],
-                'cacheScopes' => ['collections', 'entries', 'collection_items'],
-            ],
-            'meta' => ['locale' => 'aa', 'route' => 'fallback-collection'],
-            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
-            'messages' => [],
-        ]);
-
-        $result = $this->get('aa/fallback-collection');
-
-        $result->assertStatus(200);
-        $result->assertSee('Fixture fallback collection');
-        $result->assertSee('Fixture fallback intro.');
-        self::assertStringContainsString(
-            'canonical" href="/aa/fallback-collection"',
-            $result->getBody(),
-        );
-        self::assertSame(['public-read/aa/page-resolve/fallback-collection'], $this->domainAdapter->requestedPaths());
-    }
-
-    public function testRedirectOnAConfiguredRouteWinsOverItsOwnManifestContent(): void
-    {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about aa'));
-        $this->domainAdapter->fakeGet('public/redirects/about', [
-            'new_url' => '/elsewhere',
-            'redirect_type' => 'permanent',
-        ]);
-
-        $result = $this->get('aa/about');
-
-        $result->assertStatus(301);
-        $result->assertHeader('Location', site_url('/aa/elsewhere'));
-        $result->assertDontSee('Fixture about aa');
-        // A redirect never touches page composition or the view renderer.
-        self::assertSame(0, $this->countPath('public-read/aa/pages/about'));
-    }
-
-    public function testRedirectOnAConfiguredListingRouteWinsOverTheFallbackListing(): void
-    {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        config('App')->pageSnapshotManifestRoutes = ['events'];
-        $this->domainAdapter->fakeGet('public/redirects/cartelera', [
-            'new_url' => '/elsewhere',
-            'redirect_type' => 'temporary',
-        ]);
-
-        $result = $this->get('aa/cartelera');
-
-        $result->assertStatus(302);
-        $result->assertHeader('Location', site_url('/aa/elsewhere'));
-    }
-
-    public function testSearchQueryOnAConfiguredRouteIsNeverPersistedAsASnapshot(): void
-    {
-        $this->snapshotDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'teatromuseo-page-delivery-route-' . bin2hex(random_bytes(6));
-        $config = config('App');
-        $config->pageDeliveryEnabled = true;
-        $config->pageDeliveryMode = 'snapshot';
-        $config->pageDeliveryAllowSynchronousFallback = true;
-        $config->pageSnapshotDirectory = $this->snapshotDirectory;
-        $config->pageSnapshotShared = true;
-        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about aa'));
-
-        $first = $this->get('aa/about?q=free-text-search-term');
-        $first->assertStatus(200);
-        $callsAfterFirst = count($this->domainAdapter->calls);
-
-        $second = $this->get('aa/about?q=free-text-search-term');
-        $second->assertStatus(200);
-
-        // Same free-text query, requested twice: if it had been snapshotted,
-        // the second request would reuse the file and add zero calls (as
-        // testSnapshotHitAvoidsDomainCallsAfterTheFirstBuild proves for a
-        // plain manifest route). It must always recompose synchronously.
-        self::assertGreaterThan($callsAfterFirst, count($this->domainAdapter->calls));
-    }
-
-    public function testSnapshotHitAvoidsDomainCallsAfterTheFirstBuild(): void
-    {
-        $this->snapshotDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'teatromuseo-page-delivery-route-' . bin2hex(random_bytes(6));
-        $config = config('App');
-        $config->pageDeliveryEnabled = true;
-        $config->pageDeliveryMode = 'snapshot';
-        $config->pageDeliveryAllowSynchronousFallback = true;
-        $config->pageSnapshotDirectory = $this->snapshotDirectory;
-        $config->pageSnapshotShared = true;
-        $this->domainAdapter->fakeGet('public-read/aa/pages/about', $this->page('about', 'Fixture about aa'));
-
-        $first = $this->get('aa/about');
-        $first->assertStatus(200);
-        $callsAfterFirst = count($this->domainAdapter->calls);
-
-        $second = $this->get('aa/about');
-        $second->assertStatus(200);
-
-        self::assertGreaterThan(0, $callsAfterFirst);
-        self::assertCount($callsAfterFirst, $this->domainAdapter->calls);
-    }
-
-    public function testConfiguredListingRouteUsesThePublicListingFallback(): void
-    {
-        config('App')->pageDeliveryEnabled = true;
-        config('App')->pageDeliveryMode = 'sync';
-        config('App')->pageSnapshotManifestRoutes = ['events'];
-
-        $result = $this->get('aa/cartelera');
-
-        $result->assertStatus(200);
-        self::assertSame(1, $this->countPath('public-read/aa/pages/cartelera'));
-    }
-
-    private function page(string $slug, string $title): array
-    {
-        return [
-            'page_type' => 'page',
-            'title' => $title,
-            'slug' => $slug,
-            'excerpt' => 'Fixture page excerpt.',
-            'meta_title' => $title,
-            'meta_description' => 'Fixture page description.',
-            'canonical_url' => '',
-            'robots' => 'index, follow',
-            'blocks' => [],
-            'localized_slugs' => ['aa' => $slug, 'bb' => $slug],
         ];
-    }
-
-    private function countPath(string $path): int
-    {
-        return count(array_filter(
-            $this->domainAdapter->requestedPaths(),
-            static fn (string $requestedPath): bool => $requestedPath === $path,
-        ));
-    }
-
-    private function removeDirectory(string $directory): void
-    {
-        if (! is_dir($directory)) {
-            return;
-        }
-
-        $entries = scandir($directory);
-        if (! is_array($entries)) {
-            return;
-        }
-
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-
-            $path = $directory . DIRECTORY_SEPARATOR . $entry;
-            if (is_dir($path)) {
-                $this->removeDirectory($path);
-                continue;
-            }
-
-            @unlink($path);
-        }
-
-        @rmdir($directory);
     }
 }

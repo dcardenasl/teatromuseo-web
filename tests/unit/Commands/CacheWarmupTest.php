@@ -30,7 +30,6 @@ final class CacheWarmupTest extends CIUnitTestCase
         $config = config('App');
         $previousPageDeliveryEnabled = $config->pageDeliveryEnabled;
         $previousPageDeliveryMode = $config->pageDeliveryMode;
-        $previousBffRoutes = $config->pageDeliveryBffRoutes;
         $previousLanguageLocale = service('language')->getLocale();
         $previousIntlLocale = \Locale::getDefault();
         $client = new RecordingWarmupBffClient();
@@ -38,8 +37,7 @@ final class CacheWarmupTest extends CIUnitTestCase
         Services::injectMock('request', new CLIRequest($config));
         Services::injectMock('bffWebApiClient', $client);
         $config->pageDeliveryEnabled = false;
-        $config->pageDeliveryMode = 'snapshot';
-        $config->pageDeliveryBffRoutes = ['home'];
+        $config->pageDeliveryMode = 'sync';
 
         try {
             (new CacheWarmup(service('logger'), service('commands')))->run(['locale' => 'es', 'route' => 'home']);
@@ -52,7 +50,6 @@ final class CacheWarmupTest extends CIUnitTestCase
         } finally {
             $config->pageDeliveryEnabled = $previousPageDeliveryEnabled;
             $config->pageDeliveryMode = $previousPageDeliveryMode;
-            $config->pageDeliveryBffRoutes = $previousBffRoutes;
             service('language')->setLocale($previousLanguageLocale);
             \Locale::setDefault($previousIntlLocale);
         }
@@ -96,13 +93,6 @@ final class RecordingWarmupBffClient implements WebApiClientInterface
             'meta' => [],
             'messages' => [],
         ];
-    }
-
-    public function multiGet(array $requests): array
-    {
-        unset($requests);
-
-        return [];
     }
 
     public function post(string $path, array $data = []): array

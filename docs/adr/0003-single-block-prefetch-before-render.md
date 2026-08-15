@@ -4,7 +4,9 @@ Date: 2026-08-08
 
 ## Status
 
-Accepted
+Accepted — superseded for public page delivery on 2026-08-15 by the BFF
+`page-resolve` contract (see ADR 008). The decision below remains as the
+historical rationale for moving composition out of Web rendering.
 
 ## Context
 

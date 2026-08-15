@@ -17,7 +17,7 @@ class CatalogItemsSource implements ListingSourceInterface
     private array $categoryLookup = [];
 
     public function __construct(
-        private SiteCatalogService $catalogService,
+        private ?SiteCatalogService $catalogService,
         private Closure $urlBuilder,
         private Closure $mediaNormalizer
     ) {
@@ -25,6 +25,11 @@ class CatalogItemsSource implements ListingSourceInterface
 
     public function fetch(ListingQuery $query, string $lang): ListingResult
     {
+        if ($this->catalogService === null) {
+            return new ListingResult();
+        }
+        $catalogService = $this->catalogService;
+
         $apiQuery = [
             'page' => $query->page,
             'per_page' => $query->perPage,
@@ -54,7 +59,7 @@ class CatalogItemsSource implements ListingSourceInterface
         }
 
         try {
-            $result = $this->catalogService->listItems($lang, $apiQuery);
+            $result = $catalogService->listItems($lang, $apiQuery);
             return new ListingResult($result['data'] ?? [], $result['meta']['pagination'] ?? []);
         } catch (\Throwable) {
             return new ListingResult();
@@ -63,6 +68,10 @@ class CatalogItemsSource implements ListingSourceInterface
 
     public function facets(ListingQuery $query, string $lang): array
     {
+        if ($this->catalogService === null) {
+            return [];
+        }
+
         $categories = [];
 
         try {
@@ -160,6 +169,10 @@ class CatalogItemsSource implements ListingSourceInterface
 
     private function loadCategoryLookup(string $lang): void
     {
+        if ($this->catalogService === null) {
+            return;
+        }
+
         if ($this->categoryLookup !== []) {
             return;
         }

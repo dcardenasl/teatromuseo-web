@@ -28,10 +28,6 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $layoutVariant = $this->resolveLayoutVariant($this->configString('layout_variant', 'cards'));
         $source = $this->resolveSource($sourceType, $listingProjection);
 
-        if ($source === null) {
-            return $this->emptyVars($this->fallbackDefaults(), $layoutVariant);
-        }
-
         $defaults = $source->defaults();
 
         $currentPage = max(1, (int) ($this->requestGet('page') ?: 1));
@@ -280,7 +276,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
     }
 
     /** @param array<string, mixed> $listingProjection */
-    private function resolveSource(string $sourceType, array $listingProjection = []): ?ListingSourceInterface
+    private function resolveSource(string $sourceType, array $listingProjection = []): ListingSourceInterface
     {
         $urlBuilder = fn (ListingQuery $query) => $this->buildUrl([
             'category' => $query->category ?: null,
@@ -303,35 +299,27 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         };
     }
 
-    private function resolveCatalogItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): ?CatalogItemsSource
+    private function resolveCatalogItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): CatalogItemsSource
     {
         $catalogService = $this->contextService('siteCatalogService', SiteCatalogService::class);
 
-        return $catalogService !== null
-            ? new CatalogItemsSource($catalogService, $urlBuilder, $mediaNormalizer)
-            : null;
+        return new CatalogItemsSource($catalogService, $urlBuilder, $mediaNormalizer);
     }
 
-    private function resolveEventItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): ?EventItemsSource
+    private function resolveEventItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): EventItemsSource
     {
         $eventService = $this->contextService('siteEventService', SiteEventService::class);
 
-        return $eventService !== null
-            ? new EventItemsSource($eventService, $urlBuilder, $mediaNormalizer)
-            : null;
+        return new EventItemsSource($eventService, $urlBuilder, $mediaNormalizer);
     }
 
     /** @param array<string, mixed> $listingProjection */
-    private function resolveCmsCollectionSource(\Closure $urlBuilder, \Closure $mediaNormalizer, array $listingProjection = []): ?CmsCollectionSource
+    private function resolveCmsCollectionSource(\Closure $urlBuilder, \Closure $mediaNormalizer, array $listingProjection = []): CmsCollectionSource
     {
         $collectionService = $this->contextService('siteCollectionService', SiteCollectionService::class);
         $entryService = $this->contextService('siteEntryService', SiteEntryService::class);
         $categoryService = $this->contextService('siteCategoryService', SiteCategoryService::class);
         $tagService = $this->contextService('siteTagService', SiteTagService::class);
-
-        if ($collectionService === null || $entryService === null || $categoryService === null || $tagService === null) {
-            return null;
-        }
 
         return new CmsCollectionSource(
             $collectionService,
@@ -342,31 +330,6 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $urlBuilder,
             $mediaNormalizer,
         );
-    }
-
-    /**
-     * Generic listing defaults used only when the required context
-     * collaborators are unavailable (e.g. a view model built without going
-     * through BlockRenderer) and no real source could be resolved.
-     *
-     * @return array<string, mixed>
-     */
-    private function fallbackDefaults(): array
-    {
-        return [
-            'order_by' => 'published_at',
-            'order_direction' => 'desc',
-            'show_categories' => true,
-            'show_tags' => false,
-            'show_date' => true,
-            'page_title' => lang('Site.collection_index_label'),
-            'intro_text' => '',
-            'section_label' => lang('Site.collection_index_label'),
-            'item_label' => lang('Site.collection_listing_item'),
-            'featured_item_label' => lang('Site.collection_listing_featured'),
-            'count_label' => lang('Site.collection_listing_count'),
-            'fallback_image_url' => '',
-        ];
     }
 
     /**

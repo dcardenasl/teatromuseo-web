@@ -33,24 +33,31 @@ class CacheInvalidator
         'collection_items',
         'redirects',
         'forms',
-        'layout',
+        'page-resolve',
     ];
 
     /**
-     * The composite `layout`/`page-bootstrap` PublicRead endpoints (ADR 006
-     * in the CMS domain) bundle several resources into one cached response.
-     * Invalidating any one of the bundled resources must also invalidate
-     * the composite's own cache entry, or it would keep serving stale data
-     * until its TTL expires. `pages` is not aliased to itself here — the
-     * page-bootstrap response is already cached under the `pages` scope.
+     * The BFF `page-resolve` response bundles the page, layout and dynamic
+     * block context into one Web cache entry. Invalidating any public content
+     * scope must therefore invalidate the composite entry too, or a page can
+     * keep serving stale data until its TTL expires.
      *
      * @var array<string, list<string>>
      */
     private const SCOPE_ALIASES = [
-        'settings' => ['layout'],
-        'menus' => ['layout'],
-        'collections' => ['layout'],
-        'redirects' => ['pages'],
+        'settings' => ['page-resolve'],
+        'menus' => ['page-resolve'],
+        'pages' => ['page-resolve'],
+        'collections' => ['page-resolve'],
+        'entries' => ['page-resolve'],
+        'taxonomies' => ['page-resolve'],
+        'events' => ['page-resolve'],
+        'event_types' => ['page-resolve'],
+        'categories' => ['page-resolve'],
+        'techniques' => ['page-resolve'],
+        'collection_items' => ['page-resolve'],
+        'redirects' => ['pages', 'page-resolve'],
+        'forms' => ['page-resolve'],
     ];
 
     /**

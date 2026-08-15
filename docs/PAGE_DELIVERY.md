@@ -14,19 +14,10 @@ synchronous composition or a snapshot.
 - `WEB_PAGE_DELIVERY_MODE=snapshot` checks `SnapshotPageDeliveryAdapter` first.
   A snapshot is accepted only when its version, locale, route and complete
   envelope match the request.
-- Synchronous fallback is disabled by default. If deliberately enabled, it is
-  protected by `RegenerationLockInterface` so a cache miss cannot create one
-  composer per visitor.
-- `WEB_PAGE_DELIVERY_BFF_ALL_ROUTES=true` is the controlled full-site cutover:
-  every localized public path is resolved by the BFF's `page-resolve` endpoint
-  before the legacy resolver. Only routes explicitly present in
-  `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES` can use snapshots; all other BFF routes
-  are synchronous and therefore cannot create an unbounded snapshot store.
-
-The feature is disabled by default with `WEB_PAGE_DELIVERY_ENABLED=false` until
-the shared snapshot backend and the load budget have been verified. This keeps
-the existing public path as the safe rollback while CACHE-01 deployment
-verification and QA-03 remain pending.
+- The Web has no local resolver fallback. Every localized public path is
+  resolved by the BFF's `page-resolve` endpoint. Only routes explicitly present
+  in `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES` can use snapshots; all other routes are
+  synchronous BFF requests and cannot create an unbounded snapshot store.
 
 ## Delivery envelope
 
@@ -36,10 +27,9 @@ their instance path (`0`, `1`, `2.0`, ...). Each result carries its type,
 configuration, page, limit, filters, order, facets, preview flag and source
 state, so two blocks of the same type cannot share an accidental response.
 
-The synchronous adapter reuses the existing `BlockPrefetchService`; it does not
-introduce a second SmartPrefetch implementation. Form definitions are also
-loaded before `BlockRenderer` begins, so the delivery renderer does not perform
-HTTP I/O.
+The synchronous adapter is intentionally a thin BFF client. It maps the
+complete page envelope and never performs Web-side domain reads or block
+composition.
 
 ## Snapshot storage
 

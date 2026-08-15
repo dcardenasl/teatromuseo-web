@@ -195,19 +195,23 @@ class BlockRenderer
                 'blockPath' => $blockPath,
             ];
             if (in_array($blockKey, ['collection_grid', 'collection_listing', 'collection_timeline', 'team_grid'], true)) {
-                // These two view models need the current request (GET filters,
-                // preview-mode detection) and the Site*Service adapters. Resolving
-                // them here — the composition boundary — keeps the view models
-                // themselves free of service()/Config\Services::x() calls.
+                // The BFF page envelope is the normal composition boundary.
+                // Only pre-BFF callers without a completed context may opt into
+                // compatibility services; a BFF page never gets a hidden
+                // domain read from a ViewModel.
                 $viewModelContext += [
                     'request' => service('request'),
-                    'siteCollectionService' => \Config\Services::siteCollectionService(),
-                    'siteEntryService' => \Config\Services::siteEntryService(),
-                    'siteCategoryService' => \Config\Services::siteCategoryService(),
-                    'siteTagService' => \Config\Services::siteTagService(),
-                    'siteCatalogService' => \Config\Services::siteCatalogService(),
-                    'siteEventService' => \Config\Services::siteEventService(),
                 ];
+                if (($context['block_prefetch_complete'] ?? false) !== true) {
+                    $viewModelContext += [
+                        'siteCollectionService' => \Config\Services::siteCollectionService(),
+                        'siteEntryService' => \Config\Services::siteEntryService(),
+                        'siteCategoryService' => \Config\Services::siteCategoryService(),
+                        'siteTagService' => \Config\Services::siteTagService(),
+                        'siteCatalogService' => \Config\Services::siteCatalogService(),
+                        'siteEventService' => \Config\Services::siteEventService(),
+                    ];
+                }
             }
             // Also merge the dynamic template context so view models can access it if needed
             $viewModelContext = array_merge($viewModelContext, $context);

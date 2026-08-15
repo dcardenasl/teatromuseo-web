@@ -43,7 +43,7 @@ final class CacheInvalidatorTest extends CIUnitTestCase
 
         $result = $this->invalidator->invalidate(['pages']);
 
-        $this->assertSame(['pages'], $result['invalidated']);
+        $this->assertSame(['pages', 'page-resolve'], $result['invalidated']);
         $this->assertSame(2, $result['deleted']);
         $this->assertNull($this->cache->get('web_api_v4_pages_abc123'));
         $this->assertNull($this->cache->get('web_api_stale_v4_pages_abc123'));
@@ -99,7 +99,7 @@ final class CacheInvalidatorTest extends CIUnitTestCase
 
         $result = $this->invalidator->invalidate(['events'], 'events_automatic', ['es']);
 
-        $this->assertSame(['events'], $result['invalidated']);
+        $this->assertSame(['events', 'page-resolve'], $result['invalidated']);
         $this->assertSame(3, $result['response_cache_deleted']);
         $this->assertNull($this->cache->get(md5('GET:/es')));
         $this->assertNull($this->cache->get(md5('GET:/es/inicio')));
@@ -134,7 +134,7 @@ final class CacheInvalidatorTest extends CIUnitTestCase
 
         $result = $this->invalidator->invalidate([' EVENTS '], 'remote', ['ES'], [' /CARTELERA/ ']);
 
-        $this->assertSame(['events'], $result['invalidated']);
+        $this->assertSame(['events', 'page-resolve'], $result['invalidated']);
         $this->assertSame(2, $result['response_cache_deleted']);
         $this->assertNull($this->cache->get($pageOneKey));
         $this->assertNull($this->cache->get($pageTwoKey));
@@ -156,7 +156,7 @@ final class CacheInvalidatorTest extends CIUnitTestCase
 
         $result = $this->invalidator->invalidate(['bogus', 'pages']);
 
-        $this->assertSame(['pages'], $result['invalidated']);
+        $this->assertSame(['pages', 'page-resolve'], $result['invalidated']);
         $this->assertSame(1, $result['deleted']);
     }
 
@@ -178,33 +178,36 @@ final class CacheInvalidatorTest extends CIUnitTestCase
         $this->assertContains('categories', $scopes);
         $this->assertContains('techniques', $scopes);
         $this->assertContains('collection_items', $scopes);
-        $this->assertContains('layout', $scopes);
+        $this->assertContains('page-resolve', $scopes);
         $this->assertCount(14, $scopes);
     }
 
     /**
-     * The composite `layout` PublicRead endpoint (ADR 006) bundles
-     * navigation+collections+settings into one cached response — editing any
-     * of the three must also invalidate that composite entry, or it serves
-     * stale data until its own TTL expires.
+     * The BFF page-resolve response bundles page, layout and block context into
+     * one cached response — editing any public content scope must also
+     * invalidate that composite entry.
      */
-    #[DataProvider('layoutAliasedScopeProvider')]
-    public function testInvalidatingABundledResourceAlsoInvalidatesLayout(string $scope): void
+    #[DataProvider('pageResolveAliasedScopeProvider')]
+    public function testInvalidatingABundledResourceAlsoInvalidatesPageResolve(string $scope): void
     {
-        $this->cache->save('web_api_v4_layout_abc123', ['ok' => true], 300);
+        $this->cache->save('web_api_v4_page-resolve_abc123', ['ok' => true], 300);
 
         $result = $this->invalidator->invalidate([$scope]);
 
-        $this->assertContains('layout', $result['invalidated']);
-        $this->assertNull($this->cache->get('web_api_v4_layout_abc123'));
+        $this->assertContains('page-resolve', $result['invalidated']);
+        $this->assertNull($this->cache->get('web_api_v4_page-resolve_abc123'));
     }
 
     /** @return iterable<string, array{string}> */
-    public static function layoutAliasedScopeProvider(): iterable
+    public static function pageResolveAliasedScopeProvider(): iterable
     {
         yield 'settings' => ['settings'];
         yield 'menus' => ['menus'];
+        yield 'pages' => ['pages'];
         yield 'collections' => ['collections'];
+        yield 'entries' => ['entries'];
+        yield 'events' => ['events'];
+        yield 'forms' => ['forms'];
     }
 
     public function testInvalidatingRedirectsAlsoInvalidatesThePageBootstrapCacheUnderThePagesScope(): void
@@ -217,11 +220,14 @@ final class CacheInvalidatorTest extends CIUnitTestCase
         $this->assertNull($this->cache->get('web_api_v4_pages_abc123'));
     }
 
-    public function testInvalidatingPagesAloneDoesNotAliasToAnythingElse(): void
+    public function testInvalidatingPagesAlsoInvalidatesTheBffPageResolveCache(): void
     {
+        $this->cache->save('web_api_v4_page-resolve_abc123', ['ok' => true], 300);
+
         $result = $this->invalidator->invalidate(['pages']);
 
-        $this->assertSame(['pages'], $result['invalidated']);
+        $this->assertSame(['pages', 'page-resolve'], $result['invalidated']);
+        $this->assertNull($this->cache->get('web_api_v4_page-resolve_abc123'));
     }
 
     public function testStatusTracksAutomaticAndManualInvalidations(): void
@@ -234,7 +240,7 @@ final class CacheInvalidatorTest extends CIUnitTestCase
 
         $this->assertNotNull($automatic['last_automatic_invalidation_at']);
         $this->assertSame('cms_automatic', $automatic['last_invalidation_source']);
-        $this->assertSame(['pages'], $automatic['last_invalidation_scopes']);
+        $this->assertSame(['pages', 'page-resolve'], $automatic['last_invalidation_scopes']);
 
         $this->invalidator->invalidate(['menus'], 'admin_manual');
         $manual = $this->invalidator->status();

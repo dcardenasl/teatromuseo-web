@@ -256,10 +256,6 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         }
 
         $source = $sourceType === 'event_items' ? $this->eventSource() : $this->catalogSource();
-        if ($source === null) {
-            return [];
-        }
-
         $normalized = array_map(
             fn (array $entry): array => $source->normalizeEntry($entry),
             $entries,
@@ -415,13 +411,9 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         };
     }
 
-    private function eventSource(): ?EventItemsSource
+    private function eventSource(): EventItemsSource
     {
         $service = $this->contextService('siteEventService', SiteEventService::class);
-        if ($service === null) {
-            return null;
-        }
-
         return new EventItemsSource(
             $service,
             static fn (ListingQuery $query): string => '',
@@ -429,13 +421,9 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         );
     }
 
-    private function catalogSource(): ?CatalogItemsSource
+    private function catalogSource(): CatalogItemsSource
     {
         $service = $this->contextService('siteCatalogService', SiteCatalogService::class);
-        if ($service === null) {
-            return null;
-        }
-
         return new CatalogItemsSource(
             $service,
             static fn (ListingQuery $query): string => '',

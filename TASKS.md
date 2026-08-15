@@ -3,6 +3,10 @@
 > Trabajo abierto de este repositorio. Programa cross-repo:
 > [`../TASKS.md`](../TASKS.md). Cierres históricos:
 > [`TASKS_ARCHIVE.md`](TASKS_ARCHIVE.md).
+>
+> Las tareas cerradas antes del corte BFF-only del 2026-08-15 conservan la
+> evidencia de su implementación anterior; sus nombres de clases/endpoints
+> pueden no existir ya en el código vigente.
 
 ## ✅ Completadas
 
@@ -332,40 +336,32 @@ contrato de respuesta reutiliza `PageDeliveryResponse` — el sistema de
 snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 `SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
 La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
-`WEB-PAGE-01..06` ya están cerradas. Continúa el siguiente corte reversible:
+`WEB-PAGE-01..07` ya están cerradas. El corte BFF-only queda sujeto a los
+smoke tests de cada despliegue y a la invalidación del scope compuesto:
 - [x] **WEB-PAGE-06-HARDEN — Política de cobertura BFF sin crecimiento de
-  snapshots.** Cerrada 2026-08-15. Se añadió `WEB_PAGE_DELIVERY_BFF_ALL_ROUTES`
-  para enviar cualquier ruta pública localizada al endpoint `page-resolve`.
-  Las rutas fuera de `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES` se entregan de forma
-  síncrona mediante el BFF y nunca se persisten como snapshots; las rutas del
-  manifest conservan snapshot-first. La decisión viaja en la request tipada y
-  el adaptador no mantiene un segundo allow-list. Verificado con 33 tests /
-  116 assertions focales y quality completo (480 tests / 1.798 assertions,
-  PHPStan e i18n sin errores). Activada en beta después del despliegue:
-  canario final con 9 rutas públicas `200`, una llamada `page-resolve` por
-  ruta, y muestra serial de sitemap de 32/32 `200` con 32/32 resoluciones BFF.
+  snapshots.** Cerrada 2026-08-15. Todas las rutas públicas localizadas se
+  entregan mediante `page-resolve`; solo las rutas del manifest conservan
+  snapshot-first y las demás se resuelven de forma síncrona sin persistirse.
+  La decisión viaja en la request tipada y no existe un segundo allow-list de
+  rollout. Verificado con canario final de 9 rutas públicas `200`, una llamada
+  `page-resolve` por ruta, y muestra serial de sitemap de 32/32 `200` con
+  32/32 resoluciones BFF.
 - [x] **WEB-PAGE-06-DETAILS — Fichas de evento y catálogo vía `page-resolve`.**
   Cerrada 2026-08-15. `EventController::show()` y `MuseumController::show()`
   entregan la ruta completa al BFF; las fichas se renderizan con el contexto
   presembrado del envelope sin reabrir lecturas de dominio, categorías ni
   plantilla desde el Web. Tests focales y quality completo verdes; la ficha
   de evento real de beta respondió `200` con una sola llamada BFF.
-- [ ] **WEB-PAGE-07 — Fase 3: retiro del pipeline de resolución legacy.**
-  Solo tras ventana de estabilidad (mismo gate que `WEB-BFF-04`). Borra
-  `app/Services/BlockPrefetchService.php` + `app/Services/BlockPrefetch/**`
-  (8 archivos), `LayoutDataPrefetchService`, `PageResolverService`,
-  `PageCompositionService`, `SiteRedirectService`,
-  `PublicListingPageBuilder`, el algoritmo de 6 pasos y métodos privados de
-  apoyo en `PageController::resolve()`/`renderEntry()`, y
-  `WebApiClient::multiGet()`/`multiGetAcross()`/`CurlShareHandle`/
-  `maxParallelRequests` (sin consumidores con una sola llamada por página).
-  Grep final cross-archivo de cero resultados como gate de cierre (ver lista
-  completa en el plan). Preflight local 2026-08-14: canary de 5 iteraciones
-  por ruta en BFF/Web (`home`, `contacto`, `teatroescuela`), todas `200` y
-  tamaños estables. El cutover completo ya está activo en beta, pero no se
-  retira aún: el proceso legacy se conserva como rollback durante la ventana
-  de estabilidad y hasta cerrar `REL-01`; borrarlo ahora eliminaría la vía de
-  recuperación operativa.
+- [x] **WEB-PAGE-07 — Fase 3: retiro del pipeline de resolución legacy.**
+  Cerrada 2026-08-15 después de la ventana de estabilidad. Se retiraron el
+  resolver/compositor/pre-fetch legacy, el listing builder, redirects locales
+  y la API paralela del cliente HTTP. `PageController`, Event y Museum solo
+  entregan el contrato BFF; el renderer recibe página, layout y
+  `block_context` ya compuestos. Se añadió invalidación del nuevo scope
+  `page-resolve` y se versionó el caché para no reutilizar payloads
+  pre-cutover. Verificado: `composer quality` verde, 377 tests / 1.395
+  assertions en Web, 170 tests / 504 assertions en BFF, y canarios beta
+  previos 9/9 `200` con una llamada BFF por ruta.
 
 ### BFF de lectura directa (2026-08-13) — ver `../docs/plan/2026-08-13-plan-bff-completo.md`
 

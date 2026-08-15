@@ -95,7 +95,7 @@ final class CacheControllerTest extends CIUnitTestCase
             ->post('cache/invalidate', ['scopes' => ['pages']]);
 
         $result->assertStatus(200);
-        $result->assertJSONFragment(['ok' => true, 'invalidated' => ['pages']]);
+        $result->assertJSONFragment(['ok' => true, 'invalidated' => ['pages', 'page-resolve']]);
         $this->assertNull($cache->get('web_api_v4_pages_abc'));
         $this->assertNull($cache->get('web_api_stale_v4_pages_abc'));
         $this->assertNotNull($cache->get('web_api_v4_menus_xyz'));
@@ -125,6 +125,6 @@ final class CacheControllerTest extends CIUnitTestCase
         $payload = json_decode((string) $status->getJSON(), true);
         $this->assertIsArray($payload);
         $this->assertSame('remote', $payload['data']['last_invalidation_source'] ?? null);
-        $this->assertSame(['pages'], $payload['data']['last_invalidation_scopes'] ?? null);
+        $this->assertSame(['pages', 'page-resolve'], $payload['data']['last_invalidation_scopes'] ?? null);
     }
 }

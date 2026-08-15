@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\PageDelivery\PageDeliveryRequest;
 use App\PageDelivery\PageDeliveryResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
 
+/**
+ * Public page controller. Route resolution and composition belong to the BFF;
+ * this controller only applies URL policy and maps the delivery contract to
+ * the presentation views.
+ */
 class PageController extends BasePublicWebController
 {
-    /**
-     * Enforce locale prefix in the URL.
-     * Returns a redirect response if redirection is needed, or null otherwise.
-     */
+    /** Enforce the locale prefix in the URL. */
     protected function enforceLocale(): ?ResponseInterface
     {
         $request = service('request');
@@ -22,30 +23,22 @@ class PageController extends BasePublicWebController
         $firstSegment = strtolower(trim((string) $uri->getSegment(1)));
         $supportedLocales = config('App')->supportedLocales;
 
-        // The URL is authoritative for public content. Re-apply it at the
-        // controller boundary so every downstream service (API client,
-        // menus, pages, blocks and translations) sees the same locale even
-        // when the framework negotiated a different browser language earlier.
         if (in_array($firstSegment, $supportedLocales, true)) {
             $request->setLocale($firstSegment);
         }
 
-        if (!in_array($firstSegment, $supportedLocales, true)) {
+        if (! in_array($firstSegment, $supportedLocales, true)) {
             $locale = $request->getLocale();
-            // Use getSegments() — CI4 already strips index.php from segments
-            $segments = $uri->getSegments();
-            $path = implode('/', $segments);
+            $path = implode('/', $uri->getSegments());
             $query = $uri->getQuery();
             $target = '/' . $locale . ($path !== '' ? '/' . $path : '') . ($query !== '' ? '?' . $query : '');
+
             return redirect()->to($target)->setStatusCode(302);
         }
 
         return null;
     }
 
-    /**
-     * Render the homepage.
-     */
     public function home(): ResponseInterface
     {
         $this->beginRouteResolution();
@@ -56,48 +49,10 @@ class PageController extends BasePublicWebController
         $lang = service('request')->getLocale();
         [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
 
-        return $this->renderHomepage($lang, $preview, $previewExpires, $previewSig);
+        return $this->deliverBffPageRoute($lang, 'home', $preview, $previewExpires, $previewSig);
     }
 
-    private function renderHomepage(
-        string $lang,
-        bool $preview,
-        ?string $previewExpires,
-        ?string $previewSig,
-    ): ResponseInterface {
-
-        $pageDeliveryEnabled = config('App')->pageDeliveryEnabled || $preview;
-        if ($pageDeliveryEnabled) {
-            $query = $this->request->getGet();
-            $query = is_array($query) ? $query : [];
-            $this->finishRouteResolution();
-
-            return $this->renderDeliveredPage(
-                Services::pageDelivery()->deliver(PageDeliveryRequest::home(
-                    locale: $lang,
-                    preview: $preview,
-                    previewExpires: $previewExpires,
-                    previewSignature: $previewSig,
-                    query: $query,
-                )),
-                $lang,
-            );
-        }
-
-        $pageService = Services::sitePageService();
-
-        $page = $pageService->getHomepage($lang, $preview, $previewExpires, $previewSig);
-
-        if (! $page) {
-            return $this->notFound('Página de inicio no encontrada');
-        }
-
-        return $this->renderCmsPage($page, $lang);
-    }
-
-    /**
-     * Dynamic page resolver - implements the 5-step resolution algorithm.
-     */
+    /** Resolve every public path through the BFF page-resolve contract. */
     public function resolve(string ...$segments): ResponseInterface
     {
         $this->beginRouteResolution();
@@ -109,173 +64,26 @@ class PageController extends BasePublicWebController
         $path = trim(implode('/', $segments), '/');
         [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
 
-        if (empty($path)) {
+        if ($path === '') {
             return $this->home();
         }
 
-        // Older beta deployments leaked the internal `public/{locale}` base
-        // path into cached homepage redirects. Keep those stale URLs
-        // recoverable for visitors whose browser still has the redirect.
         if (strcasecmp($path, 'public/' . $lang) === 0) {
             return redirect()
                 ->to(lang_url(\App\Support\PublicPaths::homepagePath($lang), $lang))
                 ->setStatusCode(301);
         }
 
-        // Keep legacy homepage aliases working while exposing the locale's
-        // public homepage slug as the canonical URL.
         if (\App\Support\PublicPaths::isHomepageSlug($path, $lang)) {
             $canonicalPath = \App\Support\PublicPaths::homepagePath($lang);
             if (trim($path, '/') !== trim($canonicalPath, '/')) {
                 return redirect()->to(lang_url($canonicalPath, $lang))->setStatusCode(301);
             }
 
-            return $this->renderHomepage($lang, $preview, $previewExpires, $previewSig);
+            return $this->deliverBffPageRoute($lang, 'home', $preview, $previewExpires, $previewSig);
         }
 
-        if ($delivery = $this->deliverBffPageRoute($lang, $path, $preview, $previewExpires, $previewSig)) {
-            return $delivery;
-        }
-
-        if ($delivery = $this->deliverConfiguredPageRoute($lang, $path, $preview, $previewExpires, $previewSig)) {
-            return $delivery;
-        }
-
-        // Steps 1 & 2: Resolve redirects and fetch page in one composite request
-        // (ADR 006 in the CMS domain). Check redirect result first; if none,
-        // use page result and proceed to fallbacks.
-        $pageService = Services::sitePageService();
-
-        $bootstrapResults = Services::pageResolverService()->resolveRedirectAndPage(
-            $path,
-            $lang,
-            $preview,
-            $previewExpires,
-            $previewSig
-        );
-        $redirect = $bootstrapResults['redirect'];
-        $page = $bootstrapResults['page'];
-
-        if ($redirect) {
-            // Redirect destinations in the CMS are locale-less. Normalize
-            // known canonical routes before adding the current locale so a
-            // legacy `/pt/obras` request lands on `/pt/programacao`, not on
-            // the Spanish fallback `/pt/cartelera`.
-            $target = \App\Support\PublicPaths::resolveRedirectTarget($redirect, $lang);
-
-            return redirect()->to(lang_url($target['path'], $lang))->setStatusCode($target['status']);
-        }
-
-        if ($page && ! $this->isExactPageSlugMatch($page, $path, $lang)) {
-            $page = null;
-        }
-
-        if (! $page) {
-            $canonicalPath = \App\Support\PublicPaths::canonicalPath($path, $lang);
-            if ($canonicalPath !== null && $canonicalPath !== '/' . $path) {
-                $targetSlug = trim($canonicalPath, '/');
-                $candidatePage = $pageService->getBySlug($lang, $targetSlug, $preview, $previewExpires, $previewSig);
-                if ($candidatePage && $this->isExactPageSlugMatch($candidatePage, $targetSlug, $lang)) {
-                    $page = $candidatePage;
-                }
-            }
-        }
-
-        if (! $page) {
-            $aliasCandidates = match ($path) {
-                'contacto' => ['contact'],
-                'contact' => ['contacto'],
-                'historia' => ['history', 'nossa-historia'],
-                'history' => ['historia'],
-                'cartelera' => ['events', 'eventos', 'programming'],
-                'events' => ['cartelera'],
-                default => [],
-            };
-
-            foreach ($aliasCandidates as $candidate) {
-                $candidatePage = $pageService->getBySlug($lang, $candidate, $preview, $previewExpires, $previewSig);
-                if ($candidatePage && $this->isExactPageSlugMatch($candidatePage, $candidate, $lang)) {
-                    $page = $candidatePage;
-                    break;
-                }
-            }
-        }
-
-        if ($page) {
-            return $this->renderCmsPage($page, $lang);
-        }
-
-
-
-        // Step 3: Try collection entry match (e.g. /es/festivales/mi-evento).
-        $collectionService = Services::siteCollectionService();
-        $entryService = Services::siteEntryService();
-        $collections = $collectionService->getAll($lang);
-        $collectionCandidates = $this->collectionCandidatesForPath($collections, $path);
-
-        // Only collections whose canonical prefix matches the request may
-        // receive an entry lookup. Unknown paths never probe every collection.
-        foreach ($collectionCandidates as $candidate) {
-            $collection = $candidate['collection'];
-            $pathInfo   = $candidate['pathInfo'];
-            if ($pathInfo['remainder'] === '') {
-                continue;
-            }
-
-            $entry = $entryService->getBySlug(
-                $lang,
-                (string) ($collection['collection_key'] ?? ''),
-                $pathInfo['remainder'],
-                $preview,
-                $previewExpires,
-                $previewSig
-            );
-
-            if ($entry) {
-                return $this->renderEntry($entry, $collection, $lang);
-            }
-        }
-
-        // Step 4: Support CMS pages that host collection listings directly under their slug, e.g. /es/festivales/{slug}.
-        $pathSegments = array_values(array_filter(explode('/', $path), static fn ($segment) => $segment !== ''));
-        if (count($pathSegments) > 1) {
-            $pageSlug = array_shift($pathSegments);
-            $entrySlug = implode('/', $pathSegments);
-
-            if ($pageSlug !== '' && $entrySlug !== '') {
-                $page = $pageService->getBySlug($lang, $pageSlug, $preview, $previewExpires, $previewSig);
-                if ($page) {
-                    $collectionId = $this->resolveCollectionIdFromBlocks($page['blocks'] ?? []);
-                    if ($collectionId > 0) {
-                        $collection = $this->resolveCollectionById($collectionId, $lang, $collections);
-                        if ($collection !== null) {
-                            $entry = $entryService->getBySlug(
-                                $lang,
-                                (string) ($collection['collection_key'] ?? ''),
-                                $entrySlug,
-                                $preview,
-                                $previewExpires,
-                                $previewSig
-                            );
-
-                            if ($entry) {
-                                return $this->renderEntry($entry, $collection, $lang);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Step 5: Fallback collection index page (e.g. /es/festivales when no dedicated CMS page exists).
-        foreach ($collectionCandidates as $candidate) {
-            if ($candidate['pathInfo']['remainder'] === '') {
-                return $this->renderFallbackCollectionIndex($candidate['collection'], $lang);
-            }
-        }
-
-        // Step 6: 404
-        return $this->notFound("No se encontró la página: {$path}");
+        return $this->deliverBffPageRoute($lang, $path, $preview, $previewExpires, $previewSig);
     }
 
     protected function renderDeliveredCollectionEntry(PageDeliveryResponse $delivery, string $lang): ResponseInterface
@@ -283,306 +91,162 @@ class PageController extends BasePublicWebController
         $entry = $delivery->page ?? [];
         $collection = is_array($entry['collection'] ?? null) ? $entry['collection'] : [];
         $relatedEntries = is_array($entry['related_entries'] ?? null) ? $entry['related_entries'] : [];
-
-        return $this->renderEntry(
-            $entry,
-            $collection,
-            $lang,
-            $delivery->blockContext,
-            $delivery->layout,
-            $relatedEntries,
-        );
-    }
-
-
-    /**
-     * Render a collection entry (single item).
-     *
-     * @param array<string, mixed> $entry
-     * @param array<string, mixed> $collection
-     * @param array<string, mixed>|null $prefetchedBlockContext
-     * @param array<string, mixed>|null $prefetchedLayout
-     * @param array<array-key, mixed>|null $resolvedRelatedEntries
-     */
-    private function renderEntry(
-        array $entry,
-        array $collection,
-        string $lang,
-        ?array $prefetchedBlockContext = null,
-        ?array $prefetchedLayout = null,
-        ?array $resolvedRelatedEntries = null,
-    ): ResponseInterface {
-        $blockRenderer = Services::blockRenderer();
-
-        // Get the translation for the current language
         $translation = $this->getEntryTranslation($entry, $lang);
-        $resolvedSlug = trim((string) ($translation['slug'] ?? ''));
+        $resolvedSlug = trim((string) ($translation['slug'] ?? ''), '/');
         if ($resolvedSlug === '') {
             $localizedSlugs = is_array($entry['localized_slugs'] ?? null) ? $entry['localized_slugs'] : [];
-            $resolvedSlug = (string) ($localizedSlugs[$lang] ?? '');
-            if ($resolvedSlug === '') {
-                foreach ($localizedSlugs as $candidateSlug) {
-                    $candidateSlug = trim((string) $candidateSlug);
-                    if ($candidateSlug !== '') {
-                        $resolvedSlug = $candidateSlug;
-                        break;
-                    }
-                }
-            }
+            $resolvedSlug = trim((string) ($localizedSlugs[$lang] ?? ''), '/');
         }
 
         $collectionUrlPath = collection_url_path($collection);
         if ($collectionUrlPath === '') {
             $collectionUrlPath = $this->currentCollectionPathFromRequest();
         }
-        $canonicalUrl = ($translation['canonical_url'] ?? '') !== ''
-            ? $translation['canonical_url']
-            : site_url('/' . $lang . $collectionUrlPath . '/' . ltrim($resolvedSlug, '/'));
 
-        $allowedOgTypes = ['article', 'website'];
-        $ogType = in_array($translation['og_type'] ?? '', $allowedOgTypes, true) ? $translation['og_type'] : 'article';
-
-        // The API serializes CodeIgniter Time fields (e.g. updated_at) as
-        // {date, timezone_type, timezone} rather than a plain string.
-        $updatedAtRaw = $entry['updated_at'] ?? null;
-        $articleModifiedTime = is_array($updatedAtRaw) ? ($updatedAtRaw['date'] ?? null) : $updatedAtRaw;
-
-        $relatedEntries = $resolvedRelatedEntries;
-        if ($relatedEntries === null) {
-            $relatedEntries = [];
-            try {
-                $relatedEntries = Services::siteEntryService()->related(
-                    $lang,
-                    $collection['collection_key'],
-                    ['slug' => $resolvedSlug, 'categories' => $entry['categories'] ?? []],
-                    3
-                );
-            } catch (\Throwable) {
-                $relatedEntries = [];
-            }
-        }
-
-        // Entries whose own blocks already render a heading/hero image must not
-        // duplicate the article template's hardcoded title/featured image.
-        $hasHeroHeading = false;
-        $hasHeroImage = false;
-        foreach (($entry['blocks'] ?? []) as $block) {
-            $blockKey = $block['block_key'] ?? '';
-            if (in_array($blockKey, ['hero_slider', 'hero_banner', 'page_header'], true)) {
-                $hasHeroHeading = true;
-            }
-            if (in_array($blockKey, ['hero_slider', 'hero_banner'], true)) {
-                $hasHeroImage = true;
-            }
+        $canonicalUrl = trim((string) ($translation['canonical_url'] ?? ''));
+        if ($canonicalUrl === '') {
+            $canonicalUrl = site_url('/' . $lang . $collectionUrlPath . '/' . ltrim($resolvedSlug, '/'));
         }
 
         $featuredImage = is_array($entry['featured_image'] ?? null) ? $entry['featured_image'] : [];
-        $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $featuredImage['url']) : '';
+        $featuredImageUrl = trim((string) ($featuredImage['url'] ?? ''));
         $ogImage = is_array($translation['og_image'] ?? null) ? $translation['og_image'] : [];
-        $ogImageUrl = is_string($ogImage['url'] ?? null) ? trim((string) $ogImage['url']) : '';
-        if ($ogImageUrl === '') {
-            $ogImageUrl = $featuredImageUrl;
+        $ogImageUrl = trim((string) ($ogImage['url'] ?? '')) ?: $featuredImageUrl;
+        $blocks = $this->entryBlocks($entry);
+        $hasHeroHeading = $this->containsBlock($blocks, ['hero_slider', 'hero_banner', 'page_header']);
+        $hasHeroImage = $this->containsBlock($blocks, ['hero_slider', 'hero_banner']);
+
+        if ($featuredImageUrl !== '' && ! $hasHeroImage) {
+            Services::blockRenderer()->addPreload($featuredImageUrl, '', '');
         }
 
-        if ($featuredImageUrl !== '' && !$hasHeroImage) {
-            $srcsetString = '';
-            $sizesString = '';
-            $variants = $featuredImage['variants'] ?? null;
-            if (is_array($variants) && !empty($variants)) {
-                $srcsetItems = [];
-                $widths = [];
-                foreach ($variants as $v) {
-                    if (isset($v['url'], $v['width'])) {
-                        $w = (int) $v['width'];
-                        $srcsetItems[] = esc($v['url']) . ' ' . $w . 'w';
-                        $widths[] = $w;
-                    }
-                }
-                if (!empty($srcsetItems) && !empty($widths)) {
-                    $srcsetString = implode(', ', $srcsetItems);
-                    sort($widths);
-                    $maxWidth = max($widths);
-                    $sizesString = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, ' . $maxWidth . 'px';
-                }
-            }
-            $blockRenderer->addPreload($featuredImageUrl, $srcsetString, $sizesString);
-        }
+        $renderContext = array_merge(
+            [
+                'featured_image_url' => $featuredImageUrl,
+                'collection_key' => (string) ($collection['collection_key'] ?? ''),
+            ],
+            $delivery->blockContext,
+        );
 
-        $blockContext = [
-            'featured_image_url' => $featuredImageUrl,
-            'collection_key' => (string) ($collection['collection_key'] ?? ''),
-        ];
-        $entryBlocks = $entry['blocks'] ?? [];
-
-        // BFF-delivered entries already contain layout and block context. The
-        // legacy path keeps composing them locally until its rollout gate.
-        $composition = $prefetchedBlockContext !== null
-            ? [
-                'layout' => $prefetchedLayout ?? [],
-                'block_context' => $prefetchedBlockContext,
-            ]
-            : $this->composePageContext($entryBlocks, $lang, $blockContext);
-        $renderContext = array_merge($blockContext, $composition['block_context']);
-
-        $data = [
-            'title'               => $translation['title'] ?? '',
-            'excerpt'             => $translation['excerpt'] ?? '',
-            'published_at'        => $entry['published_at'] ?? '',
-            'featured_image'      => $featuredImage,
-            'collection'          => $collection,
-            'author_id'           => $entry['author_id'] ?? null,
-            'categories'          => $entry['categories'] ?? [],
-            'tags'                => $entry['tags'] ?? [],
-            'collectionName'      => collection_display_title($collection),
-            'collectionUrlPath'   => $collectionUrlPath,
-            'relatedEntries'      => $relatedEntries,
-            'showEntryHeading'    => ! $hasHeroHeading,
-            'showFeaturedImage'   => ! $hasHeroImage,
-            'lang'                => $lang,
-            'pageTitle'           => (isset($translation['meta_title']) && trim((string) $translation['meta_title']) !== '') ? $translation['meta_title'] : ($translation['title'] ?? ''),
-            'metaDescription'     => (isset($translation['meta_description']) && trim((string) $translation['meta_description']) !== '') ? $translation['meta_description'] : ($translation['excerpt'] ?? ''),
-            'canonicalUrl'        => $canonicalUrl,
-            'ogImage'             => $ogImageUrl,
-            'ogType'              => $ogType,
+        return $this->render('collection/show', [
+            'title' => $translation['title'] ?? '',
+            'excerpt' => $translation['excerpt'] ?? '',
+            'published_at' => $entry['published_at'] ?? '',
+            'featured_image' => $featuredImage,
+            'collection' => $collection,
+            'author_id' => $entry['author_id'] ?? null,
+            'categories' => $entry['categories'] ?? [],
+            'tags' => $entry['tags'] ?? [],
+            'collectionName' => collection_display_title($collection),
+            'collectionUrlPath' => $collectionUrlPath,
+            'relatedEntries' => $relatedEntries,
+            'showEntryHeading' => ! $hasHeroHeading,
+            'showFeaturedImage' => ! $hasHeroImage,
+            'lang' => $lang,
+            'pageTitle' => $this->metadataValue($translation, 'meta_title', 'title'),
+            'metaDescription' => $this->metadataValue($translation, 'meta_description', 'excerpt'),
+            'canonicalUrl' => $canonicalUrl,
+            'ogImage' => $ogImageUrl,
+            'ogType' => in_array($translation['og_type'] ?? '', ['article', 'website'], true)
+                ? $translation['og_type']
+                : 'article',
             'articlePublishedTime' => $entry['published_at'] ?? null,
-            'articleModifiedTime'  => $articleModifiedTime,
-            'metaRobots'          => (isset($translation['robots']) && trim((string) $translation['robots']) !== '') ? $translation['robots'] : 'index, follow',
-            'schemaData'          => !empty($translation['schema_data']) ? json_decode($translation['schema_data'], true) : null,
-            'renderedBlocks'      => $blockRenderer->render($entryBlocks, $lang, $renderContext),
-            'localized_urls'      => $this->resolveEntryLocalizedUrls($collection, $entry, $lang, $resolvedSlug),
-            '__layout_data'       => $composition['layout'],
-            'cacheScopes'         => array_values(array_unique(array_merge(
+            'articleModifiedTime' => $this->dateValue($entry['updated_at'] ?? null),
+            'metaRobots' => $this->metadataValue($translation, 'robots', null) ?: 'index, follow',
+            'schemaData' => $this->schemaData($translation['schema_data'] ?? null),
+            'renderedBlocks' => Services::blockRenderer()->render($blocks, $lang, $renderContext),
+            'localized_urls' => $this->resolveEntryLocalizedUrls($collection, $entry, $lang, $resolvedSlug),
+            '__layout_data' => $delivery->layout,
+            'cacheScopes' => array_values(array_unique(array_merge(
                 ['entries', 'pages', 'settings', 'menus'],
                 is_array($renderContext['cacheScopes'] ?? null) ? $renderContext['cacheScopes'] : [],
             ))),
-        ];
-
-        return $this->render('collection/show', $data);
+        ]);
     }
 
     /**
-     * Extract translation data from an entry based on language.
-     *
      * @param array<string, mixed> $entry
      * @return array<string, mixed>
      */
     private function getEntryTranslation(array $entry, string $lang): array
     {
-        if (isset($entry['title'])) {
-            $translation = $entry;
-            if ((! isset($translation['og_image']) || ! isset($translation['featured_image'])) && isset($entry['translations']) && is_array($entry['translations'])) {
-                foreach ($entry['translations'] as $trans) {
-                    if (($trans['language_id'] ?? null) === $lang || ($trans['language_code'] ?? null) === $lang) {
-                        $translation = array_merge($translation, $trans);
-                        break;
+        $translations = is_array($entry['translations'] ?? null) ? $entry['translations'] : [];
+        $translation = isset($entry['title']) ? $entry : [];
+
+        foreach ($translations as $candidate) {
+            if (! is_array($candidate)) {
+                continue;
+            }
+            if (($candidate['language_id'] ?? null) === $lang || ($candidate['language_code'] ?? null) === $lang) {
+                return array_merge($translation, $candidate);
+            }
+        }
+
+        return $translation !== [] ? $translation : (is_array($translations[0] ?? null) ? $translations[0] : []);
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return list<array<string, mixed>>
+     */
+    private function entryBlocks(array $entry): array
+    {
+        $blocks = [];
+        foreach (is_array($entry['blocks'] ?? null) ? $entry['blocks'] : [] as $block) {
+            if (is_array($block)) {
+                $normalized = [];
+                foreach ($block as $key => $value) {
+                    if (is_string($key)) {
+                        $normalized[$key] = $value;
                     }
                 }
-            }
-
-            return $translation;
-        }
-
-        $translations = $entry['translations'] ?? [];
-
-        foreach ($translations as $trans) {
-            if (($trans['language_id'] ?? null) === $lang || ($trans['language_code'] ?? null) === $lang) {
-                return $trans;
+                $blocks[] = $normalized;
             }
         }
 
-        // Fallback to first translation
-        return $translations[0] ?? [];
+        return $blocks;
     }
 
     /**
-     * @param array<array<string, mixed>>|mixed $blocks
+     * @param list<array<string, mixed>> $blocks
+     * @param list<string> $keys
      */
-    private function resolveCollectionIdFromBlocks(mixed $blocks): int
+    private function containsBlock(array $blocks, array $keys): bool
     {
-        if (! is_array($blocks)) {
-            return 0;
-        }
-
         foreach ($blocks as $block) {
-            if (! is_array($block)) {
-                continue;
-            }
-
-            $blockKey = (string) ($block['block_key'] ?? '');
-            if (in_array($blockKey, ['collection_listing', 'collection_grid'], true)) {
-                $collectionId = (int) (($block['block_config'] ?? [])['collection_id'] ?? 0);
-                if ($collectionId > 0) {
-                    return $collectionId;
-                }
-            }
-
-            $childCollectionId = $this->resolveCollectionIdFromBlocks($block['children'] ?? []);
-            if ($childCollectionId > 0) {
-                return $childCollectionId;
+            if (in_array((string) ($block['block_key'] ?? ''), $keys, true)) {
+                return true;
             }
         }
 
-        return 0;
+        return false;
     }
 
-    /**
-     * Build an in-memory prefix index from the cached collection list. The
-     * expensive operation is the remote entry lookup, so only candidates
-     * whose canonical prefix matches the request are returned.
-     *
-     * @param array<mixed> $collections
-     * @return list<array{collection: array<string, mixed>, pathInfo: array{prefix: string, remainder: string}}>
-     */
-    private function collectionCandidatesForPath(array $collections, string $path): array
+    /** @param array<string, mixed> $translation */
+    private function metadataValue(array $translation, string $preferred, ?string $fallback): string
     {
-        $normalizedPath = trim($path, '/');
-        if ($normalizedPath === '') {
-            return [];
+        $value = trim((string) ($translation[$preferred] ?? ''));
+        if ($value !== '' || $fallback === null) {
+            return $value;
         }
 
-        $firstSegment = explode('/', $normalizedPath, 2)[0];
-        $prefixIndex  = [];
-
-        foreach ($collections as $collection) {
-            if (! is_array($collection)) {
-                continue;
-            }
-
-            $prefix = trim(collection_url_path($collection), '/');
-            if ($prefix === '') {
-                continue;
-            }
-
-            $prefixFirstSegment = explode('/', $prefix, 2)[0];
-            $prefixIndex[$prefixFirstSegment][] = $collection;
-        }
-
-        $candidates = [];
-        foreach ($prefixIndex[$firstSegment] ?? [] as $collection) {
-            $pathInfo = collection_url_path_info($collection, $normalizedPath);
-            if ($pathInfo !== null) {
-                $candidates[] = [
-                    'collection' => $collection,
-                    'pathInfo'   => $pathInfo,
-                ];
-            }
-        }
-
-        return $candidates;
+        return (string) ($translation[$fallback] ?? '');
     }
 
-    /**
-     * @param array<mixed>|null $collections
-     * @return array<string, mixed>|null
-     */
-    private function resolveCollectionById(int $collectionId, string $lang, ?array $collections = null): ?array
+    private function dateValue(mixed $value): mixed
     {
-        $collections ??= Services::siteCollectionService()->getAll($lang);
+        return is_array($value) ? ($value['date'] ?? null) : $value;
+    }
 
-        foreach ($collections as $collection) {
-            if (is_array($collection) && (int) ($collection['id'] ?? 0) === $collectionId) {
-                return $collection;
-            }
+    private function schemaData(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (is_string($value) && trim($value) !== '') {
+            $decoded = json_decode($value, true);
+
+            return is_array($decoded) ? $decoded : null;
         }
 
         return null;
@@ -590,25 +254,22 @@ class PageController extends BasePublicWebController
 
     private function currentCollectionPathFromRequest(): string
     {
-        $request = service('request');
-        $path = trim((string) $request->getUri()->getPath(), '/');
+        $path = trim((string) service('request')->getUri()->getPath(), '/');
         if ($path === '') {
             return '';
         }
 
         $segments = explode('/', $path);
-        $supportedLocales = config('App')->supportedLocales;
-        if ($segments !== [] && in_array($segments[0], $supportedLocales, true)) {
+        if (in_array($segments[0] ?? '', config('App')->supportedLocales, true)) {
             array_shift($segments);
         }
-
         if (count($segments) > 1) {
             array_pop($segments);
         }
 
-        $fallbackPath = trim(implode('/', $segments), '/');
+        $path = trim(implode('/', $segments), '/');
 
-        return $fallbackPath !== '' ? '/' . $fallbackPath : '';
+        return $path !== '' ? '/' . $path : '';
     }
 
     /**
@@ -638,78 +299,11 @@ class PageController extends BasePublicWebController
             }
 
             $entrySlug = trim((string) ($entrySlugs[$locale] ?? $fallbackEntrySlug), '/');
-            if ($entrySlug === '') {
-                continue;
+            if ($entrySlug !== '') {
+                $localizedUrls[$locale] = site_url('/' . $locale . '/' . $collectionPath . '/' . $entrySlug);
             }
-
-            $localizedUrls[$locale] = site_url('/' . $locale . '/' . $collectionPath . '/' . $entrySlug);
         }
 
         return $localizedUrls;
-    }
-
-    /**
-     * Synthesize and render a fallback listing page for a collection that lacks a dedicated CMS index page.
-     *
-     * @param array<string, mixed> $collection
-     */
-    private function renderFallbackCollectionIndex(array $collection, string $lang): ResponseInterface
-    {
-        $collectionTitle = collection_display_title($collection);
-        $collectionIntro = collection_display_intro($collection);
-        $collectionKey   = (string) ($collection['collection_key'] ?? '');
-
-        $pageData = [
-            'title'           => $collectionTitle,
-            'excerpt'         => $collectionIntro,
-            'showPageHeading' => true,
-            'pageTitle'       => $collectionTitle,
-            'metaDescription' => $collectionIntro,
-            'canonicalUrl'    => site_url('/' . $lang . collection_url_path($collection)),
-            'ogImage'         => '',
-            'metaRobots'      => 'index, follow',
-            'schemaData'      => null,
-            'localized_urls'  => localized_collection_urls($collection),
-        ];
-
-        $blocks = [
-            [
-                'block_key'    => 'collection_listing',
-                'block_config' => [
-                    'collection_id'   => (int) ($collection['id'] ?? 0),
-                    'collection_key'  => $collectionKey,
-                    'items_limit'     => 12,
-                    'order_by'        => 'published_at',
-                    'order_direction' => 'desc',
-                    'layout_variant'  => 'cards',
-                ],
-                'block_data' => [],
-                'children'   => [],
-            ],
-        ];
-
-        return $this->renderPageWithBlocks($pageData, $blocks, $lang);
-    }
-
-    /**
-     * Check if a CMS page payload returned by the domain API actually matches the requested slug exactly.
-     *
-     * @param array<string, mixed> $page
-     */
-    private function isExactPageSlugMatch(array $page, string $expectedPath, string $lang): bool
-    {
-        $expectedPath = trim($expectedPath, '/');
-        if ($expectedPath === '') {
-            return true;
-        }
-
-        $translation = $this->resolvePageTranslation($page, $lang);
-        $slug = trim((string) ($translation['slug'] ?? $page['slug'] ?? ''), '/');
-
-        if ($slug === '') {
-            return false;
-        }
-
-        return strcasecmp($slug, $expectedPath) === 0;
     }
 }

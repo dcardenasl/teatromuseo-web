@@ -192,15 +192,6 @@ class App extends BaseConfig
     public int $webApiStaleTtl = 86400;
 
     /**
-     * Maximum number of simultaneous Domain API calls from one page render.
-     * Shared hosting commonly imposes a low per-account process/connection
-     * ceiling; one concurrent call is the safe default for this shared host
-     * and prevents a cache miss from producing provider-level 508s.
-     * Override with WEB_API_MAX_PARALLEL_REQUESTS in .env.
-     */
-    public int $webApiMaxParallelRequests = 1;
-
-    /**
      * First-party page-view tracking is disabled in production by default.
      * Tracking is best-effort and must never compete with public delivery for
      * a PHP worker or database connection.
@@ -230,30 +221,12 @@ class App extends BaseConfig
     public int $webPageCacheTtl = ENVIRONMENT === 'production' ? 300 : 0;
 
     /**
-     * PageDelivery remains opt-in until the shared snapshot backend and load
-     * budget have been verified. When enabled, snapshot mode is snapshot-first.
+     * PageDelivery is the only public delivery path. Snapshot mode remains
+     * available for the bounded manifest; every other route is synchronous BFF.
      */
     public bool $pageDeliveryEnabled = false;
-    public string $pageDeliveryMode = 'snapshot';
-    public bool $pageDeliveryAllowSynchronousFallback = false;
-
-    /**
-     * Explicit routes already verified against the BFF's full-page resolver.
-     * This is independent from snapshot warm-up so a route can roll out in
-     * synchronous mode before it is eligible for persisted snapshots.
-     *
-     * @var list<string>
-     */
-    public array $pageDeliveryBffRoutes = ['home'];
-
-    /**
-     * Route every localized public path through the BFF page resolver.
-     *
-     * Routes outside the explicit snapshot manifest remain synchronous BFF
-     * deliveries, so enabling the full-site cutover cannot create an
-     * unbounded snapshot identity space.
-     */
-    public bool $pageDeliveryBffAllRoutes = false;
+    public string $pageDeliveryMode = 'sync';
+    public bool $pageDeliveryAllowSynchronousFallback = true;
 
     public string $pageSnapshotDirectory = '';
     public int $pageSnapshotStaleTtl = 86400;
@@ -441,22 +414,6 @@ class App extends BaseConfig
             $this->webApiStaleTtl = (int) $webApiStaleTtl;
         }
 
-        $webApiMaxParallelRequests = env('WEB_API_MAX_PARALLEL_REQUESTS');
-        if (is_numeric($webApiMaxParallelRequests) && (int) $webApiMaxParallelRequests > 0) {
-            // Production must stay within the shared-hosting budget even if a
-            // stale or mistyped .env requests a larger burst. Non-production
-            // environments may opt into wider concurrency for load tests.
-            // One remains the safe default. The production ceiling is two so
-            // beta can opt into the documented QA-03 calibration explicitly;
-            // no deployment receives two concurrent calls unless its .env
-            // asks for it and the hosting budget has been observed.
-            $maximumParallelRequests = ENVIRONMENT === 'production' ? 2 : 16;
-            $this->webApiMaxParallelRequests = min(
-                $maximumParallelRequests,
-                (int) $webApiMaxParallelRequests,
-            );
-        }
-
         $this->trackingEnabled = $this->parseBoolean(
             env('WEB_TRACKING_ENABLED'),
             $this->trackingEnabled,
@@ -505,22 +462,8 @@ class App extends BaseConfig
         }
         $this->pageDeliveryAllowSynchronousFallback = $this->parseBoolean(
             env('WEB_PAGE_DELIVERY_ALLOW_SYNC_FALLBACK'),
-            false,
+            $this->pageDeliveryAllowSynchronousFallback,
         );
-        $this->pageDeliveryBffAllRoutes = $this->parseBoolean(
-            env('WEB_PAGE_DELIVERY_BFF_ALL_ROUTES'),
-            false,
-        );
-        $bffRoutes = env('WEB_PAGE_DELIVERY_BFF_ROUTES');
-        if (is_string($bffRoutes) && trim($bffRoutes) !== '') {
-            $routes = array_values(array_filter(
-                array_map(static fn (string $route): string => trim($route, " /\t\n\r\0\x0B"), explode(',', $bffRoutes)),
-                static fn (string $route): bool => $route !== '',
-            ));
-            if ($routes !== []) {
-                $this->pageDeliveryBffRoutes = $routes;
-            }
-        }
         $pageSnapshotDirectory = env('WEB_PAGE_SNAPSHOT_DIR');
         if (is_string($pageSnapshotDirectory) && trim($pageSnapshotDirectory) !== '') {
             $this->pageSnapshotDirectory = rtrim(trim($pageSnapshotDirectory), DIRECTORY_SEPARATOR);

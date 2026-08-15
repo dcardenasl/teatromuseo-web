@@ -70,27 +70,6 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
             return $this->responses[$normalizedPath];
         }
 
-        // Composite bootstrap endpoints (ADR 006 in the CMS domain) — Web's
-        // LayoutDataPrefetchService/PageResolverService each make one request
-        // instead of the three/two they used to make. Compose from the same
-        // per-resource resolution the individual paths below still serve, so
-        // `fakeGet()` calls for the old individual paths keep working
-        // transparently for tests that predate the composite endpoints.
-        if (preg_match('#^public-read/([^/]+)/layout$#', $path, $matches) === 1) {
-            return $this->response([
-                'navigation' => $this->navigationData(),
-                'collections' => $this->collectionsData($matches[1]),
-                'settings' => $this->settingsData($matches[1]),
-            ]);
-        }
-
-        if (preg_match('#^public-read/([^/]+)/page-bootstrap/(.+)$#', $path, $matches) === 1) {
-            return $this->response([
-                'redirect' => $this->redirectData($matches[2]),
-                'page' => $this->pageData($matches[1], $matches[2]),
-            ]);
-        }
-
         if (preg_match('#^public-read/([^/]+)/page-resolve/(.+)$#', $path, $matches) === 1) {
             $page = $this->pageData($matches[1], $matches[2]);
             if ($page === null) {
@@ -184,23 +163,6 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
         ];
     }
 
-    /**
-     * @param list<array{path: string, query?: array<string, mixed>, cacheTtl?: int, scope?: string}> $requests
-     * @return list<array{ok: bool, status: int, data: mixed, meta: array<string, mixed>, messages: list<string>}>
-     */
-    public function multiGet(array $requests): array
-    {
-        $results = [];
-        foreach ($requests as $req) {
-            $path = $req['path'] ?? '';
-            $query = is_array($req['query'] ?? null) ? $req['query'] : [];
-            $cacheTtl = (int) ($req['cacheTtl'] ?? 300);
-            $scope = (string) ($req['scope'] ?? 'general');
-            $results[] = $this->get($path, $query, $cacheTtl, $scope);
-        }
-        return $results;
-    }
-
     public function post(string $path, array $data = []): array
     {
         unset($path, $data);
@@ -276,10 +238,9 @@ final class DeterministicDomainAdapter implements WebApiClientInterface
     }
 
     /**
-     * The individual page-by-path fake keys accept both `public-read/...`
-     * and `public/...` prefixes (tests predate the `public-read` migration
-     * for some fixtures); the composite `page-bootstrap` route only exists
-     * under `public-read`, so it checks both when composing.
+     * The BFF page-resolve fixture can derive a page from older individual
+     * fixture keys. This compatibility is test-only; production requests use
+     * the page-resolve envelope exclusively.
      *
      * @return array<string, mixed>|null
      */

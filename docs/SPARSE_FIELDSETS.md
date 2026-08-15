@@ -184,8 +184,8 @@ class CollectionGridViewModel extends AbstractBlockViewModel
 }
 ```
 
-The canonical `BlockPrefetchService` planner computes these dependencies from
-the block projection and sends the right `?fields=` parameter before rendering.
+The BFF page composer computes these dependencies from the block projection and
+sends the right `?fields=` parameter before the Web renders the envelope.
 
 ### Scenario: Cache Key Includes Field Selection
 

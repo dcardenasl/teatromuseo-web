@@ -19,10 +19,10 @@ class CmsCollectionSource implements ListingSourceInterface
     private ?array $collection = null;
 
     public function __construct(
-        private SiteCollectionService $collectionService,
-        private SiteEntryService $entryService,
-        private SiteCategoryService $categoryService,
-        private SiteTagService $tagService,
+        private ?SiteCollectionService $collectionService,
+        private ?SiteEntryService $entryService,
+        private ?SiteCategoryService $categoryService,
+        private ?SiteTagService $tagService,
         private int $collectionId,
         private Closure $urlBuilder,
         private Closure $mediaNormalizer,
@@ -31,6 +31,10 @@ class CmsCollectionSource implements ListingSourceInterface
 
     public function fetch(ListingQuery $query, string $lang): ListingResult
     {
+        if ($this->entryService === null) {
+            return new ListingResult();
+        }
+
         $collection = $this->resolveCollection($lang);
         if ($collection === null) {
             return new ListingResult();
@@ -90,6 +94,10 @@ class CmsCollectionSource implements ListingSourceInterface
 
     public function facets(ListingQuery $query, string $lang): array
     {
+        if ($this->categoryService === null || $this->tagService === null) {
+            return [];
+        }
+
         $collection = $this->resolveCollection($lang);
         if ($collection === null) {
             return [];
@@ -326,6 +334,10 @@ class CmsCollectionSource implements ListingSourceInterface
      */
     private function resolveCollection(string $lang): ?array
     {
+        if ($this->collectionService === null) {
+            return null;
+        }
+
         if ($this->collection !== null) {
             return $this->collection;
         }

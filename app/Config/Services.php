@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Config;
 
 use App\Analytics\CurlAnalyticsTransport;
-use App\Interfaces\AliasResolverInterface;
 use App\Libraries\AnalyticsQueue;
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
 use App\Libraries\HtmlResponseCacheRegistry;
-use App\Libraries\PublicListingPageBuilder;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
 use App\PageDelivery\FileRegenerationLock;
@@ -26,11 +24,6 @@ use App\PageDelivery\SnapshotPageDeliveryAdapter;
 use App\PageDelivery\SnapshotPublisherInterface;
 use App\PageDelivery\SynchronousPageDeliveryAdapter;
 use App\PageDelivery\SystemClock;
-use App\Services\BlockPrefetchService;
-use App\Services\LayoutDataPrefetchService;
-use App\Services\PageCompositionService;
-use App\Services\PageResolverService;
-use App\Services\ParallelAliasResolver;
 use App\Services\PublicReadDiagnosticsService;
 use App\Services\SiteCategoryService;
 use App\Services\SiteCollectionService;
@@ -39,7 +32,6 @@ use App\Services\SiteFormService;
 use App\Services\SiteLanguageService;
 use App\Services\SiteMenuService;
 use App\Services\SitePageService;
-use App\Services\SiteRedirectService;
 use App\Services\SiteSettingsService;
 use App\Services\SiteTagService;
 use App\Services\SocialLinksService;
@@ -69,15 +61,7 @@ class Services extends BaseService
 
         return new PageDeliveryService(
             synchronous: new SynchronousPageDeliveryAdapter(
-                static::sitePageService(),
-                static::layoutDataPrefetchService(),
-                static::blockPrefetchService(),
-                $clock,
-                static::pageCompositionService(),
-                static::publicListingPageBuilder(),
-                static::siteRedirectService(),
                 static::bffWebApiClient(),
-                $config->pageDeliveryBffRoutes,
             ),
             snapshot: new SnapshotPageDeliveryAdapter(
                 static::pageSnapshotStore(),
@@ -138,15 +122,7 @@ class Services extends BaseService
 
         return new SnapshotBuilder(
             synchronous: new SynchronousPageDeliveryAdapter(
-                static::sitePageService(),
-                static::layoutDataPrefetchService(),
-                static::blockPrefetchService(),
-                $clock,
-                static::pageCompositionService(),
-                static::publicListingPageBuilder(),
-                static::siteRedirectService(),
                 static::bffWebApiClient(),
-                $config->pageDeliveryBffRoutes,
             ),
             publisher: static::pageSnapshotStore(),
             lock: static::pageRegenerationLock(),
@@ -174,7 +150,6 @@ class Services extends BaseService
             $config->bffApiKey,
             $config->webApiTimeout,
             $config->webApiStaleTtl,
-            $config->webApiMaxParallelRequests,
             $config->webApiConnectTimeout,
         );
     }
@@ -280,36 +255,6 @@ class Services extends BaseService
         return new SiteTagService(static::bffWebApiClient());
     }
 
-    public static function siteRedirectService(bool $getShared = true): SiteRedirectService
-    {
-        if ($getShared) {
-            /** @var SiteRedirectService */
-            return static::getSharedInstance('siteRedirectService');
-        }
-
-        return new SiteRedirectService(static::bffWebApiClient());
-    }
-
-    public static function layoutDataPrefetchService(bool $getShared = true): LayoutDataPrefetchService
-    {
-        if ($getShared) {
-            /** @var LayoutDataPrefetchService */
-            return static::getSharedInstance('layoutDataPrefetchService');
-        }
-
-        return new LayoutDataPrefetchService(static::bffWebApiClient());
-    }
-
-    public static function pageResolverService(bool $getShared = true): PageResolverService
-    {
-        if ($getShared) {
-            /** @var PageResolverService */
-            return static::getSharedInstance('pageResolverService');
-        }
-
-        return new PageResolverService(static::bffWebApiClient());
-    }
-
     public static function blockRenderer(bool $getShared = true): BlockRenderer
     {
         if ($getShared) {
@@ -318,39 +263,6 @@ class Services extends BaseService
         }
 
         return new BlockRenderer();
-    }
-
-    public static function blockPrefetchService(bool $getShared = true): BlockPrefetchService
-    {
-        if ($getShared) {
-            /** @var BlockPrefetchService */
-            return static::getSharedInstance('blockPrefetchService');
-        }
-
-        return new BlockPrefetchService(static::bffWebApiClient());
-    }
-
-    public static function pageCompositionService(bool $getShared = true): PageCompositionService
-    {
-        if ($getShared) {
-            /** @var PageCompositionService */
-            return static::getSharedInstance('pageCompositionService');
-        }
-
-        return new PageCompositionService(
-            static::layoutDataPrefetchService(),
-            static::blockPrefetchService(),
-        );
-    }
-
-    public static function aliasResolverService(bool $getShared = true): AliasResolverInterface
-    {
-        if ($getShared) {
-            /** @var AliasResolverInterface */
-            return static::getSharedInstance('aliasResolverService');
-        }
-
-        return new ParallelAliasResolver(static::bffWebApiClient());
     }
 
     public static function cacheInvalidator(bool $getShared = true): CacheInvalidator
@@ -371,16 +283,6 @@ class Services extends BaseService
         }
 
         return new HtmlResponseCacheRegistry(static::cache());
-    }
-
-    public static function publicListingPageBuilder(bool $getShared = true): PublicListingPageBuilder
-    {
-        if ($getShared) {
-            /** @var PublicListingPageBuilder */
-            return static::getSharedInstance('publicListingPageBuilder');
-        }
-
-        return new PublicListingPageBuilder();
     }
 
     public static function siteFormService(bool $getShared = true): SiteFormService

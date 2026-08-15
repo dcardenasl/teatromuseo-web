@@ -14,7 +14,7 @@ use Closure;
 class EventItemsSource implements ListingSourceInterface
 {
     public function __construct(
-        private SiteEventService $eventService,
+        private ?SiteEventService $eventService,
         private Closure $urlBuilder,
         private Closure $mediaNormalizer
     ) {
@@ -22,6 +22,10 @@ class EventItemsSource implements ListingSourceInterface
 
     public function fetch(ListingQuery $query, string $lang): ListingResult
     {
+        if ($this->eventService === null) {
+            return new ListingResult();
+        }
+
         $apiQuery = [
             'page' => $query->page,
             'per_page' => $query->perPage,
@@ -54,6 +58,10 @@ class EventItemsSource implements ListingSourceInterface
 
     public function facets(ListingQuery $query, string $lang): array
     {
+        if ($this->eventService === null) {
+            return [];
+        }
+
         $tags = [];
 
         foreach ($this->eventService->listEventTypes($lang) as $eventTypeData) {

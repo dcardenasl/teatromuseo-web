@@ -178,26 +178,6 @@ final class WebApiClientTest extends CIUnitTestCase
         $this->assertSame(0, $client->telemetry[0]['status']);
     }
 
-    public function testMultiGetEmitsTelemetryForCachedRequests(): void
-    {
-        $client = $this->makeClient([
-            $this->jsonResponse(['data' => ['id' => 3]]),
-        ]);
-        $request = [[
-            'path'    => 'public/es/pages/home',
-            'cacheTtl' => 300,
-            'scope'   => 'pages',
-        ]];
-
-        $client->get('public/es/pages/home', [], 300, 'pages');
-        $client->multiGet($request);
-
-        $this->assertCount(2, $client->telemetry);
-        $this->assertSame('hit', $client->telemetry[1]['cache_state']);
-        $this->assertTrue($client->telemetry[1]['cache_hit']);
-        $this->assertSame('public/es/pages/home', $client->telemetry[1]['path']);
-    }
-
     public function testGetDoesNotCacheFailures(): void
     {
         $client = $this->makeClient([
@@ -285,28 +265,6 @@ final class WebApiClientTest extends CIUnitTestCase
 
         $this->assertTrue($result['ok']);
         $this->assertSame(['id' => 42], $result['data']);
-        $this->assertTrue($result['meta']['stale'] ?? false);
-    }
-
-    public function testMultiGetServesStaleCopyWhenUpstreamReturns500(): void
-    {
-        $client = $this->makeClient([
-            $this->jsonResponse(['data' => ['id' => 84]]),
-        ]);
-        $requests = [[
-            'path' => 'public/es/pages/home',
-            'cacheTtl' => 300,
-            'scope' => 'pages',
-        ]];
-
-        // Prime the stale copy through the tested single-request transport seam.
-        $client->get('public/es/pages/home', [], 300, 'pages');
-        $this->cache->deleteMatching('web_api_v*');
-
-        $result = $client->multiGet($requests)[0];
-
-        $this->assertTrue($result['ok']);
-        $this->assertSame(['id' => 84], $result['data']);
         $this->assertTrue($result['meta']['stale'] ?? false);
     }
 

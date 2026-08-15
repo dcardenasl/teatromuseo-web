@@ -15,11 +15,6 @@ final class PublicSnapshotManifestTest extends TestCase
     /** @var list<string> */
     private array $originalRoutes;
 
-    /** @var list<string> */
-    private array $originalBffRoutes;
-
-    private bool $originalBffAllRoutes;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,12 +22,8 @@ final class PublicSnapshotManifestTest extends TestCase
         $config = config('App');
         $this->originalLocales = $config->supportedLocales;
         $this->originalRoutes = $config->pageSnapshotManifestRoutes;
-        $this->originalBffRoutes = $config->pageDeliveryBffRoutes;
-        $this->originalBffAllRoutes = $config->pageDeliveryBffAllRoutes;
         $config->supportedLocales = ['es', 'en'];
         $config->pageSnapshotManifestRoutes = ['home', 'events', 'catalog', 'about'];
-        $config->pageDeliveryBffRoutes = ['home', 'about'];
-        $config->pageDeliveryBffAllRoutes = false;
     }
 
     protected function tearDown(): void
@@ -40,8 +31,6 @@ final class PublicSnapshotManifestTest extends TestCase
         $config = config('App');
         $config->supportedLocales = $this->originalLocales;
         $config->pageSnapshotManifestRoutes = $this->originalRoutes;
-        $config->pageDeliveryBffRoutes = $this->originalBffRoutes;
-        $config->pageDeliveryBffAllRoutes = $this->originalBffAllRoutes;
 
         parent::tearDown();
     }
@@ -90,10 +79,8 @@ final class PublicSnapshotManifestTest extends TestCase
         self::assertFalse($request->isSnapshotEligible());
     }
 
-    public function testFullSiteBffPolicyAcceptsUnlistedRoutesWithoutCreatingSnapshotCandidates(): void
+    public function testBffPolicyAcceptsUnlistedRoutesWithoutCreatingSnapshotCandidates(): void
     {
-        config('App')->pageDeliveryBffAllRoutes = true;
-
         $request = (new PublicSnapshotManifest())->requestForBff('en', 'noticias/entrada');
 
         self::assertNotNull($request);
