@@ -331,7 +331,8 @@
   confirma que el código vigente ya cubre home, páginas CMS, bloques,
   entradas, fallback, detalles, listados y preview mediante `page-resolve`.
   Las pruebas focales Web/BFF pasaron `23/23` (`86` assertions) y `28/28`
-  (`135` assertions), respectivamente. Los canarios seriales de ocho rutas
+  (`135` assertions), respectivamente. Los canarios seriales de siete rutas
+  con variantes inéditas, más la observación inicial de `/es/nosotros`,
   devolvieron `200`, sin errores de consola y con `load` entre `0,151` y
   `1,186` segundos; no reprodujeron los 15 segundos observados por el usuario.
   No se ejecuta rollout en producción hasta cerrar la ventana limpia de cPanel

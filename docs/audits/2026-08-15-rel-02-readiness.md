@@ -41,10 +41,11 @@ Cobertura focal:
 
 ## Canarios seriales de observación
 
-El 2026-08-15 entre 20:53 y 20:54 UTC se hizo una sola navegación por ruta,
-en serie, con una variante `cold_probe` inédita para evitar que el HTML ya
-cacheado ocultara el camino de composición. Todas las respuestas fueron `200`
-y la consola no reportó errores:
+El 2026-08-15 entre 20:53 y 20:54 UTC se hizo una sola navegación por cada
+ruta, en serie. Siete rutas usaron una variante `cold_probe` inédita para
+evitar que el HTML ya cacheado ocultara el camino de composición; `/es/nosotros`
+corresponde a la navegación inicial de la misma sesión, sin esa variante.
+Todas las respuestas fueron `200` y la consola no reportó errores:
 
 | Ruta | Primer byte | `load` completo |
 |---|---:|---:|
