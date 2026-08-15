@@ -308,23 +308,18 @@
 
 ## 🔴 En progreso
 
-- [ ] **REL-01 — Activación controlada de homepage** — pendiente de ventana de
-  cutover, baseline/shadow y telemetría del runtime anterior. El código de las
-  Fases 2–3 ya está preflight-ready: manifest locale-aware, PageDelivery para
-  rutas CMS/listados declarados, runbook operativo, y (ver `REL-01-HARDEN-01`
-  arriba) redirects respetados en rutas del manifest + búsqueda libre nunca
-  persistida como snapshot; falta evidencia beta de paralelismo, filesystem
-  compartido, cron y EP/508. El warm-up CLI quedó además verificado en el
-  entorno real local: `php spark cache:warmup --locale es --route home`
-  compuso `1/1` variante con HTTP 200. Se corrigió la regresión de `CLIRequest`
-  (no expone `setLocale()`), manteniendo sincronizados `Language` e ICU y
-  restaurando ambos contextos; la prueba de regresión reproduce explícitamente
-  `CLIRequest` sin depender de red. Preflight local adicional sobre `/es/`:
-  matriz 1–4 × 20 con `80/80` respuestas `200`, cero `508` y TTFB máximo de
-  `0.016/0.027/0.039/0.053 s`; en un Web aislado con snapshots temporales,
-  warm-up `1/1 built` y dos lecturas `200` de `86.763` bytes con SHA-256
-  idéntico. Esta evidencia es local, no sustituye EP/508 ni filesystem/cron
-  compartidos de beta.
+- [ ] **REL-01 — Activación controlada de homepage** — ventana HTTP ejecutada
+  el 2026-08-15. La configuración protegida de beta confirmó snapshot backend
+  `file`, `shared=true`, gzip, máximo 5 MB y retención 3. La regeneración cold
+  a concurrencia 4 respondió `4/4` `200`; la matriz caliente 1–4 × 20 respondió
+  `204/204` `200`, cero `5xx` y cero `508`, con TTFB promedio de `77,5/80,5/
+  112,4/153,8 ms`. Dos lecturas de `/es` entregaron 87.361 bytes con hash
+  idéntico y el smoke final de Web/BFF permaneció en `200`. La evidencia
+  reproducible está en
+  [`docs/audits/2026-08-15-rel-01-homepage-cutover.md`](docs/audits/2026-08-15-rel-01-homepage-cutover.md).
+  El cierre sigue pendiente únicamente de revisar en cPanel los contadores EP
+  y confirmar el cron de `php spark cache:warmup --locale es --route home`;
+  FTP no ofrece ejecución remota de CLI.
 
 ## 🟡 Próximo
 
