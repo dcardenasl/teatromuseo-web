@@ -49,6 +49,21 @@
   `entries`, `related` y `layout`. Quality: 469 tests, 1.738 assertions,
   5 skipped, PHPStan 0 errores, CS-Fixer/i18n/fixture-policy verdes.
 
+- [x] **WEB-PAGE-05 — Índice de colección de respaldo.** Cerrada
+  2026-08-14. `renderFallbackCollectionIndex()` consume
+  `page.page_type === 'collection_fallback_index'`; además del renderer y el
+  contrato herméticos, el smoke real Web→BFF devolvió `200` y título de una
+  colección activa sin página CMS dedicada. Se usó un fixture QA local,
+  transaccional y con prefijo único; fue eliminado al terminar y la misma ruta
+  quedó en `404` después de la limpieza.
+
+- [x] **WEB-PAGE-06 — Preview de borradores, extremo a extremo.** Cerrada
+  2026-08-14. El smoke real Web→BFF devolvió `200` para una entrada `draft`
+  con firma HMAC válida (`page_type=collection_entry`) y `404` con firma
+  inválida, sin exponer el borrador. El fixture QA temporal se eliminó en una
+  transacción y se verificaron cero filas residuales en colección, entrada y
+  traducciones.
+
 - [x] **WEB-BFF-04 — Retirar el camino de lectura legacy del Web.** Cerrada
   después de la ventana de verificación de `WEB-BFF-03`: se eliminaron los
   factories `webApiClient()`, `catalogWebApiClient()` y
@@ -295,7 +310,12 @@
   rutas CMS/listados declarados, runbook operativo, y (ver `REL-01-HARDEN-01`
   arriba) redirects respetados en rutas del manifest + búsqueda libre nunca
   persistida como snapshot; falta evidencia beta de paralelismo, filesystem
-  compartido, cron y EP/508.
+  compartido, cron y EP/508. El warm-up CLI quedó además verificado en el
+  entorno real local: `php spark cache:warmup --locale es --route home`
+  compuso `1/1` variante con HTTP 200. Se corrigió la regresión de `CLIRequest`
+  (no expone `setLocale()`), manteniendo sincronizados `Language` e ICU y
+  restaurando ambos contextos; la prueba de regresión reproduce explícitamente
+  `CLIRequest` sin depender de red.
 
 ## 🟡 Próximo
 
@@ -307,20 +327,7 @@ contrato de respuesta reutiliza `PageDeliveryResponse` — el sistema de
 snapshots (`app/PageDelivery/**`, `REL-01`/`REL-02`) no cambia, solo
 `SynchronousPageDeliveryAdapter` colapsa a un adaptador HTTP delgado.
 La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
-`WEB-PAGE-01..04` ya están cerradas. Continúan los siguientes cortes
-reversibles:
-- [ ] **WEB-PAGE-05 — Índice de colección de respaldo.**
-  `renderFallbackCollectionIndex()` pasa a consumir
-  `page.page_type === 'collection_fallback_index'`. El renderer y el contrato
-  BFF ya están cubiertos herméticamente; falta smoke real porque los datos
-  actuales no tienen una colección sin página CMS dedicada.
-- [ ] **WEB-PAGE-06 — Preview de borradores, extremo a extremo.** El Web ya
-  reenvía preview firmado al BFF para rutas allow-listed: pruebas herméticas
-  cubren firma válida (`200`) e inválida (`404`), y smoke real de la página
-  plantilla fuera del tráfico público confirmó ambos estados. El dataset CMS
-  local tiene 0 páginas/entradas no publicadas (886 entradas, todas
-  `published`), por lo que falta la validación positiva real de una entrada
-  borrador; no se crea contenido artificial para cerrar el gate.
+`WEB-PAGE-01..06` ya están cerradas. Continúa el siguiente corte reversible:
 - [ ] **WEB-PAGE-07 — Fase 3: retiro del pipeline de resolución legacy.**
   Solo tras ventana de estabilidad (mismo gate que `WEB-BFF-04`). Borra
   `app/Services/BlockPrefetchService.php` + `app/Services/BlockPrefetch/**`
@@ -331,7 +338,11 @@ reversibles:
   `WebApiClient::multiGet()`/`multiGetAcross()`/`CurlShareHandle`/
   `maxParallelRequests` (sin consumidores con una sola llamada por página).
   Grep final cross-archivo de cero resultados como gate de cierre (ver lista
-  completa en el plan).
+  completa en el plan). Preflight local 2026-08-14: canary de 5 iteraciones
+  por ruta en BFF/Web (`home`, `contacto`, `teatroescuela`), todas `200` y
+  tamaños estables. No se retira aún: el proceso mantiene rutas fuera de la
+  allow-list BFF y `REL-01` sigue pendiente de cutover/telemetría; borrar el
+  pipeline ahora eliminaría el rollback de esas rutas.
 
 ### BFF de lectura directa (2026-08-13) — ver `../docs/plan/2026-08-13-plan-bff-completo.md`
 

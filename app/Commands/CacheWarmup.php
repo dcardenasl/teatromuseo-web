@@ -102,8 +102,9 @@ final class CacheWarmup extends BaseCommand
     {
         $config = config('App');
         $previousMode = $config->pageDeliveryMode;
-        $request = service('request');
-        $previousLocale = $request->getLocale();
+        $language = service('language');
+        $previousLanguageLocale = $language->getLocale();
+        $previousIntlLocale = \Locale::getDefault();
         $successful = 0;
         $targetLocales = array_values(array_unique($locales));
         $report = [];
@@ -116,7 +117,11 @@ final class CacheWarmup extends BaseCommand
         $config->pageDeliveryMode = 'sync';
         try {
             foreach ($targetLocales as $locale) {
-                $request->setLocale($locale);
+                // CLIRequest has no setLocale(). Keep the translation service
+                // and ICU's default locale aligned; CLIRequest::getLocale()
+                // reads the latter and downstream services rely on both.
+                $language->setLocale($locale);
+                \Locale::setDefault($locale);
 
                 try {
                     $delivery = Services::pageDelivery(false)->deliver(PageDeliveryRequest::home($locale));
@@ -153,7 +158,8 @@ final class CacheWarmup extends BaseCommand
             }
         } finally {
             $config->pageDeliveryMode = $previousMode;
-            $request->setLocale($previousLocale);
+            $language->setLocale($previousLanguageLocale);
+            \Locale::setDefault($previousIntlLocale);
         }
 
         $report['summary'] = [
