@@ -28,6 +28,13 @@ class EventController extends BasePublicWebController
     public function show(string $slug): ResponseInterface
     {
         $lang = $this->request->getLocale();
+        $this->beginRouteResolution();
+        [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
+        $route = \App\Support\PublicPaths::eventsSegment($lang) . '/' . trim($slug, '/');
+        if ($delivery = $this->deliverBffPageRoute($lang, $route, $preview, $previewExpires, $previewSig)) {
+            return $delivery;
+        }
+
         $eventService = Services::siteEventService();
 
         $event = $eventService->getEvent($lang, $slug);

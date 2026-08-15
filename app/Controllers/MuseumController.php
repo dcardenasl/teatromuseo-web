@@ -28,6 +28,13 @@ class MuseumController extends BasePublicWebController
     public function show(string $idOrCode): ResponseInterface
     {
         $lang = $this->request->getLocale();
+        $this->beginRouteResolution();
+        [$preview, $previewExpires, $previewSig] = $this->resolvePreviewParams();
+        $route = \App\Support\PublicPaths::catalogSegment($lang) . '/' . trim($idOrCode, '/');
+        if ($delivery = $this->deliverBffPageRoute($lang, $route, $preview, $previewExpires, $previewSig)) {
+            return $delivery;
+        }
+
         $catalogService = Services::siteCatalogService();
 
         $item = $catalogService->getItem($lang, $idOrCode);
