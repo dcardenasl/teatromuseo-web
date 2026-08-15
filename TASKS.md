@@ -359,7 +359,7 @@ smoke tests de cada despliegue y a la invalidación del scope compuesto:
   entregan el contrato BFF; el renderer recibe página, layout y
   `block_context` ya compuestos. Se añadió invalidación del nuevo scope
   `page-resolve` y se versionó el caché para no reutilizar payloads
-  pre-cutover. Verificado: `composer quality` verde, 377 tests / 1.395
+  pre-cutover. Verificado: `composer quality` verde, 372 tests / 1.378
   assertions en Web, 170 tests / 504 assertions en BFF, y canarios beta
   previos 9/9 `200` con una llamada BFF por ruta.
 
