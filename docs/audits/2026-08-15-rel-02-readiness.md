@@ -26,8 +26,7 @@ entradas relacionadas y fallos aislados permanecen dentro del mismo contrato.
 
 ## Gate local reproducible
 
-Se ejecutaron únicamente pruebas focales, sin tráfico hacia beta ni cambios en
-hosting:
+Se ejecutaron inicialmente únicamente pruebas focales, sin cambios en hosting:
 
 - Web: `23/23` tests, `86` assertions, resultado `OK`.
 - BFF: `28/28` tests, `135` assertions, resultado `OK`; PHPUnit reportó una
@@ -39,6 +38,31 @@ Cobertura focal:
 - `BlockTreeResolver`, aliases, redirects, entradas, relacionados, fallback y
   preview en BFF;
 - validación de fechas, rangos y fieldsets del PublicRead.
+
+## Canarios seriales de observación
+
+El 2026-08-15 entre 20:53 y 20:54 UTC se hizo una sola navegación por ruta,
+en serie, con una variante `cold_probe` inédita para evitar que el HTML ya
+cacheado ocultara el camino de composición. Todas las respuestas fueron `200`
+y la consola no reportó errores:
+
+| Ruta | Primer byte | `load` completo |
+|---|---:|---:|
+| `/es/nosotros` | 658 ms | 1.079 s |
+| `/es/inicio` | 579 ms | 0.858 s |
+| `/es/cartelera` | 87 ms | 0.215 s |
+| `/es/museo/coleccion` | 123 ms | 0.151 s |
+| `/es/contacto` | 967 ms | 1.002 s |
+| `/es/teatroescuela` | 573 ms | 0.718 s |
+| `/es/historia` | 351 ms | 0.761 s |
+| `/es/noticias/lanzamiento-del-libro-los-horribles` | 789 ms | 1.186 s |
+
+La variante solo evita el hit de HTML de esa URL; no es una prueba de carga y
+las navegaciones fueron estrictamente seriales. En esta observación no se
+reprodujeron los 15 segundos. El episodio sigue siendo compatible con una
+espera transitoria de workers/Entry Processes durante la ventana de saturación
+de cPanel, pero la causa histórica no puede demostrarse solo con estas
+métricas.
 
 ## Bloqueo operativo
 
@@ -55,9 +79,10 @@ skipped`, por lo que no está regenerando snapshots innecesariamente.
 
 1. Esperar una ventana limpia de cPanel sin tráfico sintético.
 2. Revisar CPU, I/O y Entry Processes en `Current usage`/`Snapshot`.
-3. Si la ventana es limpia, ejecutar solo canarios HTTP individuales de las
-   rutas de la matriz, sin pruebas de concurrencia.
-4. Cerrar REL-01 y registrar REL-02 como rollout validado.
+3. Repetir como máximo un canario individual por ruta después de esa ventana
+   limpia y comparar con esta matriz.
+4. Cerrar REL-01 y registrar REL-02 como rollout validado solo si la alerta no
+   reaparece.
 5. Dejar `CLEAN-01` para después de una ventana de estabilidad aprobada.
 
 No se requieren nuevas rutas, excepciones de página, cron adicionales ni otra
