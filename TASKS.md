@@ -340,9 +340,16 @@ La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
   síncrona mediante el BFF y nunca se persisten como snapshots; las rutas del
   manifest conservan snapshot-first. La decisión viaja en la request tipada y
   el adaptador no mantiene un segundo allow-list. Verificado con 33 tests /
-  116 assertions focales y quality completo (478 tests / 1.781 assertions,
-  PHPStan e i18n sin errores). Falta activar la bandera en beta después del
-  despliegue y repetir el canary/smoke del servidor.
+  116 assertions focales y quality completo (480 tests / 1.798 assertions,
+  PHPStan e i18n sin errores). Activada en beta después del despliegue:
+  canario final con 9 rutas públicas `200`, una llamada `page-resolve` por
+  ruta, y muestra serial de sitemap de 32/32 `200` con 32/32 resoluciones BFF.
+- [x] **WEB-PAGE-06-DETAILS — Fichas de evento y catálogo vía `page-resolve`.**
+  Cerrada 2026-08-15. `EventController::show()` y `MuseumController::show()`
+  entregan la ruta completa al BFF; las fichas se renderizan con el contexto
+  presembrado del envelope sin reabrir lecturas de dominio, categorías ni
+  plantilla desde el Web. Tests focales y quality completo verdes; la ficha
+  de evento real de beta respondió `200` con una sola llamada BFF.
 - [ ] **WEB-PAGE-07 — Fase 3: retiro del pipeline de resolución legacy.**
   Solo tras ventana de estabilidad (mismo gate que `WEB-BFF-04`). Borra
   `app/Services/BlockPrefetchService.php` + `app/Services/BlockPrefetch/**`
@@ -355,9 +362,10 @@ La Fase 1 del BFF (`BFF-PAGE-03..08`) está verificada end-to-end y
   Grep final cross-archivo de cero resultados como gate de cierre (ver lista
   completa en el plan). Preflight local 2026-08-14: canary de 5 iteraciones
   por ruta en BFF/Web (`home`, `contacto`, `teatroescuela`), todas `200` y
-  tamaños estables. No se retira aún: el proceso mantiene rutas fuera de la
-  allow-list BFF y `REL-01` sigue pendiente de cutover/telemetría; borrar el
-  pipeline ahora eliminaría el rollback de esas rutas.
+  tamaños estables. El cutover completo ya está activo en beta, pero no se
+  retira aún: el proceso legacy se conserva como rollback durante la ventana
+  de estabilidad y hasta cerrar `REL-01`; borrarlo ahora eliminaría la vía de
+  recuperación operativa.
 
 ### BFF de lectura directa (2026-08-13) — ver `../docs/plan/2026-08-13-plan-bff-completo.md`
 
