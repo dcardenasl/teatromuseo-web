@@ -315,7 +315,12 @@
   compuso `1/1` variante con HTTP 200. Se corrigió la regresión de `CLIRequest`
   (no expone `setLocale()`), manteniendo sincronizados `Language` e ICU y
   restaurando ambos contextos; la prueba de regresión reproduce explícitamente
-  `CLIRequest` sin depender de red.
+  `CLIRequest` sin depender de red. Preflight local adicional sobre `/es/`:
+  matriz 1–4 × 20 con `80/80` respuestas `200`, cero `508` y TTFB máximo de
+  `0.016/0.027/0.039/0.053 s`; en un Web aislado con snapshots temporales,
+  warm-up `1/1 built` y dos lecturas `200` de `86.763` bytes con SHA-256
+  idéntico. Esta evidencia es local, no sustituye EP/508 ni filesystem/cron
+  compartidos de beta.
 
 ## 🟡 Próximo
 
