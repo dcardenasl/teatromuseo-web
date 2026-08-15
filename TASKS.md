@@ -317,9 +317,10 @@
   idéntico y el smoke final de Web/BFF permaneció en `200`. La evidencia
   reproducible está en
   [`docs/audits/2026-08-15-rel-01-homepage-cutover.md`](docs/audits/2026-08-15-rel-01-homepage-cutover.md).
-  El cierre sigue pendiente únicamente de revisar en cPanel los contadores EP
-  y confirmar el cron de `php spark cache:warmup --locale es --route home`;
-  FTP no ofrece ejecución remota de CLI.
+  El log del cron confirmó `Snapshot warm-up: 16 manifest entries (serial)` y
+  `Warm-up completed: 16/16 successful or skipped`, incluyendo `es/home`; no
+  requiere cambios. El cierre sigue pendiente únicamente de revisar en cPanel
+  los contadores EP, que FTP no puede consultar.
 
 ## 🟡 Próximo
 

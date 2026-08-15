@@ -78,15 +78,21 @@ por separado.
   máximo `5.242.880` bytes y retención `3`.
 - Smoke final: Web `/health`, `/es`, `/es/inicio`, `/es/contacto` y
   `/es/cartelera`: todos `200`.
+- Evidencia del cron de hosting (`warmup.log`, 2026-08-15 19:40 y 19:45 UTC):
+  `Snapshot warm-up: 16 manifest entries (serial)` y
+  `Warm-up completed: 16/16 successful or skipped.` Las 16 entradas, incluidas
+  `es/home`, quedaron en estado `skipped`, que en este comando significa que
+  el snapshot activo estaba vigente y no necesitaba regeneración; no es un
+  error ni una omisión del cron.
 
 ## Limitaciones y pendientes
 
 - La matriz HTTP no puede leer los contadores EP del cPanel; no se observaron
   `508` en las 204 solicitudes válidas, pero el contador de Entry Processes
   requiere revisión en el panel del hosting.
-- FTP no ofrece ejecución remota de `php spark`; queda confirmar manualmente
-  que el cron de `cache:warmup --locale es --route home` exista, tenga permisos
-  sobre `/home3/cte70303/teatromuseo-data/page-snapshots` y ejecute con el PHP
-  de producción.
+- El cron de `cache:warmup` ya quedó confirmado con su log; no requiere cambio.
+  Mantiene `flock`, ejecución serial y cubre el manifest completo, incluida la
+  homepage. FTP no permite inspeccionar el contador de Entry Processes del
+  cPanel.
 - `REL-01` queda técnicamente preflight-validado y estable por HTTP, pero no se
   marca cerrado hasta confirmar esos dos controles operativos del hosting.
