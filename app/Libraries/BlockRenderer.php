@@ -106,9 +106,7 @@ class BlockRenderer
                 static fn (mixed $definition): bool => $definition === null || is_array($definition),
             );
         } else {
-            // Legacy callers still receive the safe pre-render fallback. The
-            // PageDelivery path always supplies this context before rendering.
-            $this->preloadFormDefinitions($blocks, $lang);
+            $this->formDefinitions = [];
         }
 
         $html = '';
@@ -305,32 +303,6 @@ class BlockRenderer
         return array_is_list($data)
             ? (is_array($data[0] ?? null) ? $data[0] : null)
             : $data;
-    }
-
-    /**
-     * Pre-load form definitions for all form_embed blocks found in the block tree.
-     *
-     * @param array<array<string, mixed>> $blocks
-     */
-    private function preloadFormDefinitions(array $blocks, string $lang): void
-    {
-        foreach ($blocks as $block) {
-            if (($block['block_key'] ?? '') === 'form_embed') {
-                $formKey = (string) (($block['block_config'] ?? [])['form_key'] ?? 'contact');
-                if (! array_key_exists($formKey, $this->formDefinitions)) {
-                    try {
-                        $this->formDefinitions[$formKey] = \Config\Services::siteFormService()
-                            ->getDefinition($lang, $formKey);
-                    } catch (\Throwable) {
-                        $this->formDefinitions[$formKey] = null;
-                    }
-                }
-            }
-            $children = $block['children'] ?? [];
-            if ($children !== []) {
-                $this->preloadFormDefinitions($children, $lang);
-            }
-        }
     }
 
     /**
