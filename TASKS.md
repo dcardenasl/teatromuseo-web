@@ -30,6 +30,18 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-LEGACY-01 — Retiro definitivo del pipeline legacy.** Cerrada
+  2026-08-16. Se eliminaron los servicios, factories, pruebas y documentos
+  muertos del antiguo compositor local; `BlockRenderer` ya no inicia lecturas
+  HTTP ocultas durante el render; y se retiró el toggle de transición
+  `WEB_PAGE_DELIVERY_ENABLED` junto con la rama de warm-up basada en la API
+  cache antigua. El único camino de páginas públicas es `page-resolve` vía
+  BFF, con `PageDelivery`/snapshots como la implementación vigente. Sitemap,
+  formularios y bloques sociales se conservaron porque siguen siendo
+  superficies activas. `composer quality` quedó verde: 365 tests, 1.350
+  assertions, 5 skipped; PHPStan sin errores, CS-Fixer limpio y
+  `git diff --check` limpio.
+
 - [x] **WEB-ROBUST-01/02 — Reconciliación operativa y limpieza del Web.**
   Cerradas 2026-08-15. `CONTEXT.md` ya no describe `PageDelivery` como un
   módulo propio pendiente de incorporar el BFF: documenta que `page-resolve`
@@ -37,7 +49,8 @@
   vacíos `app/Services/BlockPrefetch/` y `app/Interfaces/` después de
   confirmar que no contenían archivos ni referencias. Verificado con
   `composer test:unit` (300 tests, 946 assertions), `composer quality`
-  (386 tests, 1.424 assertions, 5 skipped) y `git diff --check`.
+  (386 tests, 1.422 assertions, 5 skipped) y `git diff --check`; reverificado
+  el 2026-08-16.
 
 - [x] **WEB-PAGE-01 — Home vía `page-resolve`.** Cerrada 2026-08-14.
   `SynchronousPageDeliveryAdapter` consume el endpoint nuevo únicamente para
@@ -432,7 +445,9 @@ dominio principal queda fuera de ese cierre.
 
 Orden local, alineado con el tracker raíz:
 
-1. [ ] **REL-01** — Activación controlada de homepage.
+1. [x] **REL-01** — Activación controlada de homepage. Aceptada el 2026-08-16
+   por decisión operativa con riesgo residual de métricas cPanel no observado
+   en una ventana limpia.
 2. [ ] **REL-02** — Migración gradual de páginas, listados, detalles y preview.
 3. [ ] **CLEAN-01** — Retirada posterior del camino anterior.
 
