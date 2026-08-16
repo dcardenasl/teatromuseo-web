@@ -224,7 +224,6 @@ class App extends BaseConfig
      * PageDelivery is the only public delivery path. Snapshot mode remains
      * available for the bounded manifest; every other route is synchronous BFF.
      */
-    public bool $pageDeliveryEnabled = false;
     public string $pageDeliveryMode = 'sync';
     public bool $pageDeliveryAllowSynchronousFallback = true;
 
@@ -455,7 +454,6 @@ class App extends BaseConfig
             $this->webPageCacheTtl = (int) $webPageCacheTtl;
         }
 
-        $this->pageDeliveryEnabled = $this->parseBoolean(env('WEB_PAGE_DELIVERY_ENABLED'), false);
         $pageDeliveryMode = strtolower(trim((string) (env('WEB_PAGE_DELIVERY_MODE') ?? '')));
         if (in_array($pageDeliveryMode, ['snapshot', 'sync'], true)) {
             $this->pageDeliveryMode = $pageDeliveryMode;

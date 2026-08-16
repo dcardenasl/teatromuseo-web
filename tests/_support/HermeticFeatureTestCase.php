@@ -20,7 +20,6 @@ abstract class HermeticFeatureTestCase extends CIUnitTestCase
         $config = config('App');
         $config->supportedLocales = ['es', 'en'];
         $config->defaultLocale = 'es';
-        $config->pageDeliveryEnabled = true;
         $config->pageDeliveryMode = 'sync';
         $config->pageDeliveryAllowSynchronousFallback = true;
         $config->trackingEnabled = false;

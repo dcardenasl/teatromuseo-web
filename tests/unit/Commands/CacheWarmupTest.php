@@ -25,10 +25,9 @@ final class CacheWarmupTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testApiWarmupChangesAndRestoresCliLocaleContext(): void
+    public function testSynchronousWarmupChangesAndRestoresCliLocaleContext(): void
     {
         $config = config('App');
-        $previousPageDeliveryEnabled = $config->pageDeliveryEnabled;
         $previousPageDeliveryMode = $config->pageDeliveryMode;
         $previousLanguageLocale = service('language')->getLocale();
         $previousIntlLocale = \Locale::getDefault();
@@ -36,7 +35,6 @@ final class CacheWarmupTest extends CIUnitTestCase
 
         Services::injectMock('request', new CLIRequest($config));
         Services::injectMock('bffWebApiClient', $client);
-        $config->pageDeliveryEnabled = false;
         $config->pageDeliveryMode = 'sync';
 
         try {
@@ -48,7 +46,6 @@ final class CacheWarmupTest extends CIUnitTestCase
             $this->assertSame($previousLanguageLocale, service('language')->getLocale());
             $this->assertSame($previousIntlLocale, \Locale::getDefault());
         } finally {
-            $config->pageDeliveryEnabled = $previousPageDeliveryEnabled;
             $config->pageDeliveryMode = $previousPageDeliveryMode;
             service('language')->setLocale($previousLanguageLocale);
             \Locale::setDefault($previousIntlLocale);

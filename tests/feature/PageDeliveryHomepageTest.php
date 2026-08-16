@@ -15,7 +15,6 @@ final class PageDeliveryHomepageTest extends HermeticFeatureTestCase
     {
         parent::setUp();
         $this->configureLocales(['aa', 'bb']);
-        config('App')->pageDeliveryEnabled = true;
         config('App')->pageDeliveryMode = 'sync';
     }
 

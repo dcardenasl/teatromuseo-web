@@ -13,8 +13,7 @@ use Config\Services;
 use JsonException;
 
 /**
- * Warm the explicit public snapshot manifest, or the legacy API cache when
- * PageDelivery is not enabled in the current environment.
+ * Warm the explicit public snapshot manifest or synchronous BFF delivery.
  *
  * This command is intentionally serial. It is suitable for a deployment hook
  * or a single cron invocation on the current shared-hosting plan.
@@ -23,7 +22,7 @@ final class CacheWarmup extends BaseCommand
 {
     protected $group = 'Cache';
     protected $name = 'cache:warmup';
-    protected $description = 'Warm public snapshots or the API cache serially';
+    protected $description = 'Warm public snapshots or BFF delivery serially';
     protected $usage = 'php spark cache:warmup [--locale es] [--route home] [--force]';
     protected $arguments = [];
     protected $options = [
@@ -46,21 +45,8 @@ final class CacheWarmup extends BaseCommand
             return;
         }
 
-        // Local and pre-cutover deployments intentionally keep PageDelivery
-        // disabled. The snapshot-only command introduced with PageDelivery
-        // made those environments report success while warming nothing,
-        // regressing the previous deploy warm-up of the API cache.
-        if (! config('App')->pageDeliveryEnabled) {
-            $this->warmApiCache(array_map(
-                static fn (PageDeliveryRequest $request): string => $request->locale,
-                $requests,
-            ));
-
-            return;
-        }
-
         if ((Services::pageSnapshotStore()->status()['enabled'] ?? false) !== true) {
-            CLI::error('PageDelivery is enabled, but the shared snapshot backend is not enabled. Configure WEB_PAGE_SNAPSHOT_DIR and WEB_PAGE_SNAPSHOT_SHARED=true.');
+            $this->warmSynchronousDelivery($requests);
             return;
         }
 
@@ -97,8 +83,8 @@ final class CacheWarmup extends BaseCommand
         CLI::write(sprintf('Warm-up completed: %d/%d successful or skipped.', $successful, count($requests)), $successful === count($requests) ? 'green' : 'yellow');
     }
 
-    /** @param list<string> $locales */
-    private function warmApiCache(array $locales): void
+    /** @param list<PageDeliveryRequest> $requests */
+    private function warmSynchronousDelivery(array $requests): void
     {
         $config = config('App');
         $previousMode = $config->pageDeliveryMode;
@@ -106,17 +92,17 @@ final class CacheWarmup extends BaseCommand
         $previousLanguageLocale = $language->getLocale();
         $previousIntlLocale = \Locale::getDefault();
         $successful = 0;
-        $targetLocales = array_values(array_unique($locales));
         $report = [];
 
-        CLI::write(sprintf('API cache warm-up: composing %d homepage variant(s) synchronously', count($targetLocales)), 'cyan');
+        CLI::write(sprintf('BFF warm-up: composing %d route(s) synchronously', count($requests)), 'cyan');
 
         // Reuse the production composition seam so the warm-up follows the
         // exact homepage dependency graph (layout, forms and dynamic blocks)
         // instead of maintaining a second, inevitably stale endpoint list.
         $config->pageDeliveryMode = 'sync';
         try {
-            foreach ($targetLocales as $locale) {
+            foreach ($requests as $request) {
+                $locale = $request->locale;
                 // CLIRequest has no setLocale(). Keep the translation service
                 // and ICU's default locale aligned; CLIRequest::getLocale()
                 // reads the latter and downstream services rely on both.
@@ -124,15 +110,15 @@ final class CacheWarmup extends BaseCommand
                 \Locale::setDefault($locale);
 
                 try {
-                    $delivery = Services::pageDelivery(false)->deliver(PageDeliveryRequest::home($locale));
+                    $delivery = Services::pageDelivery(false)->deliver($request);
                 } catch (\Throwable $exception) {
                     $report[] = [
                         'locale' => $locale,
-                        'route' => 'home',
+                        'route' => $request->route,
                         'state' => 'failed',
                         'message' => $exception->getMessage(),
                     ];
-                    CLI::write(sprintf('  WARN %s/home composition failed: %s', $locale, $exception->getMessage()), 'yellow');
+                    CLI::write(sprintf('  WARN %s/%s composition failed: %s', $locale, $request->route, $exception->getMessage()), 'yellow');
                     continue;
                 }
 
@@ -140,21 +126,21 @@ final class CacheWarmup extends BaseCommand
                     $successful++;
                     $report[] = [
                         'locale' => $locale,
-                        'route' => 'home',
-                        'state' => 'api_warmed',
+                        'route' => $request->route,
+                        'state' => 'synchronous_warmed',
                         'status' => $delivery->status,
                     ];
-                    CLI::write(sprintf('  OK %s/home (HTTP %d)', $locale, $delivery->status), 'green');
+                    CLI::write(sprintf('  OK %s/%s (HTTP %d)', $locale, $request->route, $delivery->status), 'green');
                     continue;
                 }
 
                 $report[] = [
                     'locale' => $locale,
-                    'route' => 'home',
+                    'route' => $request->route,
                     'state' => 'stale_or_failed',
                     'status' => $delivery->status,
                 ];
-                CLI::write(sprintf('  WARN %s/home (HTTP %d)', $locale, $delivery->status), 'yellow');
+                CLI::write(sprintf('  WARN %s/%s (HTTP %d)', $locale, $request->route, $delivery->status), 'yellow');
             }
         } finally {
             $config->pageDeliveryMode = $previousMode;
@@ -164,13 +150,13 @@ final class CacheWarmup extends BaseCommand
 
         $report['summary'] = [
             'generated_at' => gmdate(DATE_ATOM),
-            'total' => count($targetLocales),
+            'total' => count($requests),
             'successful' => $successful,
-            'mode' => 'api_fallback',
+            'mode' => 'sync',
         ];
         $this->writeReport($report);
 
-        CLI::write(sprintf('Warm-up completed: %d/%d homepage variants composed.', $successful, count($targetLocales)), $successful === count($targetLocales) ? 'green' : 'yellow');
+        CLI::write(sprintf('Warm-up completed: %d/%d routes composed.', $successful, count($requests)), $successful === count($requests) ? 'green' : 'yellow');
     }
 
     /** @param array<string, mixed> $params */
