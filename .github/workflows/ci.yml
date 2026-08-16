@@ -90,3 +90,33 @@ jobs:
 
       - name: Audit frontend dependencies
         run: npm audit --audit-level=moderate
+
+  public-route-contract:
+    name: Web/BFF public route contract parity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Web
+        uses: actions/checkout@v4
+
+      - name: Checkout BFF contract adapter
+        uses: actions/checkout@v4
+        with:
+          repository: dcardenasl/teatromuseo-bff
+          ref: dev
+          path: bff-contract
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Check the canonical Web contract
+        run: php scripts/check-public-route-contract.php
+
+      - name: Compare the BFF adapter with the Web contract
+        run: |
+          php scripts/export-public-route-contract.php > /tmp/web-public-routes.json
+          php bff-contract/scripts/export-public-route-contract.php > /tmp/bff-public-routes.json
+          diff --unified=0 /tmp/web-public-routes.json /tmp/bff-public-routes.json

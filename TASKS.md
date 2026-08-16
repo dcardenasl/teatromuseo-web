@@ -7,6 +7,17 @@
 > Las tareas cerradas antes del corte BFF-only del 2026-08-15 conservan la
 > evidencia de su implementación anterior; sus nombres de clases/endpoints
 > pueden no existir ya en el código vigente.
+>
+> El saneamiento posterior al corte BFF-only se gestiona en
+> [`../docs/plan/2026-08-15-plan-robustez-web-bff.md`](../docs/plan/2026-08-15-plan-robustez-web-bff.md).
+
+## ✅ Robustez de contrato localizada
+
+- [x] **WEB-BFF-CONTRACT-01 — Paridad de rutas públicas.** Cerrada
+  2026-08-15. `docs/contracts/public-routes.json` es el artefacto canónico
+  del Web; `PublicPaths` y el adaptador BFF exportan contratos deterministas.
+  Ambos CI los comparan en PHP 8.2 usando la rama `dev`, sin dependencia de
+  runtime compartido.
 
 ## ✅ Completadas
 

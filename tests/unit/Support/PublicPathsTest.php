@@ -22,6 +22,17 @@ final class PublicPathsTest extends CIUnitTestCase
         $this->assertNull(PublicPaths::routePath('unknown', 'es'));
     }
 
+    public function testExportsTheVersionedRouteContract(): void
+    {
+        $contract = PublicPaths::publicRouteContract();
+
+        $this->assertSame(1, $contract['version']);
+        $this->assertSame(['es', 'en', 'fr', 'pt'], $contract['locales']);
+        $this->assertSame('programmation', $contract['routes']['events']['fr']);
+        $this->assertContains('programmation', $contract['aliases']['events']);
+        $this->assertSame('musee/collection', $contract['routes']['catalog']['fr']);
+    }
+
     public function testResolvesLocalizedHomepageSegments(): void
     {
         $this->assertSame('inicio', PublicPaths::homepageSegment('es'));

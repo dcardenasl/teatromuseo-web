@@ -45,6 +45,36 @@ class PublicPaths
         'pt' => 'museu/colecao',
     ];
 
+    /** @var list<string> */
+    private const HOMEPAGE_ALIASES = ['home', 'inicio', 'accueil'];
+
+    /** @var array<string, string> */
+    private const ROUTE_ALIASES = [
+        'cartelera' => 'events',
+        'events' => 'events',
+        'programme' => 'events',
+        'eventos' => 'events',
+        'programming' => 'events',
+        'programmation' => 'events',
+        'programacao' => 'events',
+        'museo/coleccion' => 'catalog',
+        'museum/collection' => 'catalog',
+        'musee/collection' => 'catalog',
+        'museu/colecao' => 'catalog',
+        'contacto' => 'contact',
+        'contact' => 'contact',
+        'contato' => 'contact',
+        'historia' => 'history',
+        'history' => 'history',
+        'histoire' => 'history',
+        'nossa-historia' => 'history',
+        'cursos' => 'theatre_school',
+        'teatroescuela' => 'theatre_school',
+        'theaterschool' => 'theatre_school',
+        'theatreecole' => 'theatre_school',
+        'escola-de-teatro' => 'theatre_school',
+    ];
+
     /** @var array<string, string> */
     private const CONTACT_SEGMENTS = [
         'es' => 'contacto',
@@ -96,7 +126,7 @@ class PublicPaths
             return false;
         }
 
-        $aliases = ['home', 'inicio', 'accueil'];
+        $aliases = self::HOMEPAGE_ALIASES;
         if ($locale !== null) {
             $aliases[] = self::homepageSegment($locale);
         }
@@ -114,6 +144,49 @@ class PublicPaths
             'theatre_school' => self::THEATRE_SCHOOL_SEGMENTS[$locale] ?? self::THEATRE_SCHOOL_SEGMENTS['es'],
             default => null,
         };
+    }
+
+    /**
+     * Export the versioned, framework-free route contract consumed by the
+     * cross-repository CI parity check.
+     *
+     * Web remains the owner of the visitor-facing policy. The BFF keeps an
+     * independent read-only adapter because it must resolve incoming paths;
+     * the exported contract prevents those adapters from drifting silently.
+     *
+     * @return array<string, mixed>
+     */
+    public static function publicRouteContract(): array
+    {
+        $locales = ['es', 'en', 'fr', 'pt'];
+        $routeKeys = ['events', 'catalog', 'contact', 'history', 'theatre_school'];
+        $routes = ['homepage' => []];
+
+        foreach ($locales as $locale) {
+            $routes['homepage'][$locale] = self::homepageSegment($locale);
+        }
+        foreach ($routeKeys as $routeKey) {
+            $routes[$routeKey] = [];
+            foreach ($locales as $locale) {
+                $routes[$routeKey][$locale] = self::routePath($routeKey, $locale);
+            }
+        }
+
+        $aliases = ['homepage' => self::HOMEPAGE_ALIASES];
+        foreach (self::ROUTE_ALIASES as $alias => $routeKey) {
+            $aliases[$routeKey][] = $alias;
+        }
+        foreach ($aliases as &$routeAliases) {
+            sort($routeAliases);
+        }
+        unset($routeAliases);
+
+        return [
+            'version' => 1,
+            'locales' => $locales,
+            'routes' => $routes,
+            'aliases' => $aliases,
+        ];
     }
 
     /**
@@ -168,33 +241,7 @@ class PublicPaths
             return self::homepagePath($locale);
         }
 
-        $aliases = [
-            'cartelera' => 'events',
-            'events' => 'events',
-            'programme' => 'events',
-            'eventos' => 'events',
-            'programming' => 'events',
-            'programmation' => 'events',
-            'programacao' => 'events',
-            'museo/coleccion' => 'catalog',
-            'museum/collection' => 'catalog',
-            'musee/collection' => 'catalog',
-            'museu/colecao' => 'catalog',
-            'contacto' => 'contact',
-            'contact' => 'contact',
-            'contato' => 'contact',
-            'historia' => 'history',
-            'history' => 'history',
-            'histoire' => 'history',
-            'nossa-historia' => 'history',
-            'cursos' => 'theatre_school',
-            'teatroescuela' => 'theatre_school',
-            'theaterschool' => 'theatre_school',
-            'theatreecole' => 'theatre_school',
-            'escola-de-teatro' => 'theatre_school',
-        ];
-
-        $routeKey = $aliases[$normalized] ?? null;
+        $routeKey = self::ROUTE_ALIASES[$normalized] ?? null;
 
         return $routeKey !== null ? '/' . self::routePath($routeKey, $locale) : null;
     }

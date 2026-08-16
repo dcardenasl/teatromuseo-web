@@ -70,10 +70,12 @@
             "@format:check",
             "@analyse",
             "@i18n-check",
+            "@public-route-contract:check",
             "@test:fixture-policy",
             "@test"
         ],
         "i18n-check": "php scripts/i18n-check.php",
+        "public-route-contract:check": "php scripts/check-public-route-contract.php",
         "cs-fix": "@format",
         "cs-check": "@format:check",
         "phpstan": "@analyse"
