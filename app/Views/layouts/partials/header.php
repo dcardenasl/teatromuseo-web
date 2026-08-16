@@ -7,25 +7,6 @@
         $siteLogoUrl = (string) ($settings['site_logo_url'] ?? '');
     }
     $publicLocale = (string) service('request')->getLocale();
-    $localizedMenuUrl = static function (mixed $value) use ($publicLocale): string {
-        $candidate = is_scalar($value) ? (string) $value : '#';
-        $parsed = parse_url($candidate);
-        if (is_array($parsed) && is_string($parsed['host'] ?? null)) {
-            $currentHost = service('request')->getUri()->getHost();
-            if (strcasecmp($parsed['host'], $currentHost) === 0) {
-                $candidate = is_string($parsed['path'] ?? null) ? $parsed['path'] : '/';
-            }
-        }
-
-        $trimmed = trim($candidate, '/');
-        if ($trimmed === '' || strcasecmp($trimmed, $publicLocale) === 0) {
-            return lang_url(\App\Support\PublicPaths::homepagePath($publicLocale), $publicLocale);
-        }
-
-        $normalized = \App\Support\PublicPaths::normalizeLocalizedPath($candidate, $publicLocale);
-
-        return lang_url($normalized ?? $candidate, $publicLocale);
-    };
     ?>
     <nav class="container-base flex items-center justify-between py-2.5 sm:py-4">
         <!-- Logo / Site Title -->
@@ -51,25 +32,35 @@
             <!-- Desktop Navigation Links -->
             <ul class="flex gap-1.5 items-center">
                 <?php foreach (($menu['items'] ?? []) as $item): ?>
+                    <?php $itemUrl = public_menu_item_url($item, $publicLocale); ?>
                     <li class="relative group">
-                        <a href="<?= esc($localizedMenuUrl($item['custom_url'] ?? '#')) ?>"
+                        <?php if ($itemUrl !== null): ?>
+                        <a href="<?= esc($itemUrl) ?>"
                            class="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-slate-600 hover:text-primary hover:bg-slate-50/80 rounded-lg transition-all duration-200">
+                        <?php else: ?>
+                        <span class="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-slate-600 rounded-lg">
+                        <?php endif; ?>
                             <?= esc($item['label'] ?? '') ?>
                             <?php if (!empty($item['children'])): ?>
                                 <svg class="w-3.5 h-3.5 opacity-60 group-hover:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             <?php endif; ?>
-                        </a>
+                        <?= $itemUrl !== null ? '</a>' : '</span>' ?>
 
                         <!-- Dropdown Menu -->
                         <?php if (!empty($item['children'])): ?>
                             <div class="absolute left-0 mt-1.5 w-52 bg-white/95 backdrop-blur-md border border-slate-100 rounded-xl shadow-xl shadow-slate-100/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-1 group-hover:translate-y-0 transition-all duration-300 py-1.5 z-50">
                                 <?php foreach ($item['children'] as $subitem): ?>
-                                    <a href="<?= esc($localizedMenuUrl($subitem['custom_url'] ?? '#')) ?>"
+                                    <?php $subitemUrl = public_menu_item_url($subitem, $publicLocale); ?>
+                                    <?php if ($subitemUrl !== null): ?>
+                                    <a href="<?= esc($subitemUrl) ?>"
                                        class="block px-4 py-2 text-sm font-medium text-slate-600 hover:text-primary hover:bg-slate-50 transition-colors">
+                                    <?php else: ?>
+                                    <span class="block px-4 py-2 text-sm font-medium text-slate-600">
+                                    <?php endif; ?>
                                         <?= esc($subitem['label'] ?? '') ?>
-                                    </a>
+                                    <?= $subitemUrl !== null ? '</a>' : '</span>' ?>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
@@ -119,35 +110,53 @@
         <div class="site-drawer-scroll flex-1 min-h-0 space-y-6 overflow-y-auto overscroll-contain px-6 py-6 touch-pan-y">
             <ul class="space-y-4">
                 <?php foreach (($menu['items'] ?? []) as $item): ?>
+                    <?php $itemUrl = public_menu_item_url($item, $publicLocale); ?>
                     <li class="border-b border-slate-100/50 pb-3 last:border-0 last:pb-0">
                         <?php if (!empty($item['children'])): ?>
-                            <!-- Clickable Row for Items with Children -->
-                            <div class="mobile-submenu-row flex justify-between items-center cursor-pointer py-1" data-target="submenu-<?= $item['id'] ?>">
-                                <span class="text-base font-semibold text-slate-800 hover:text-primary transition-colors">
+                            <div class="flex justify-between items-center py-1">
+                                <?php if ($itemUrl !== null): ?>
+                                <a href="<?= esc($itemUrl) ?>" class="text-base font-semibold text-slate-800 hover:text-primary transition-colors">
+                                <?php else: ?>
+                                <span class="text-base font-semibold text-slate-800">
+                                <?php endif; ?>
                                     <?= esc($item['label'] ?? '') ?>
-                                </span>
-                                <button class="text-slate-400 hover:text-primary focus:outline-none pointer-events-none" aria-hidden="true" tabindex="-1">
+                                <?= $itemUrl !== null ? '</a>' : '</span>' ?>
+                                <button type="button"
+                                        class="mobile-submenu-toggle text-slate-400 hover:text-primary focus:outline-none"
+                                        data-submenu-toggle
+                                        data-target="submenu-<?= esc((string) ($item['id'] ?? '')) ?>"
+                                        aria-controls="submenu-<?= esc((string) ($item['id'] ?? '')) ?>"
+                                        aria-expanded="false"
+                                        aria-label="<?= esc($item['label'] ?? '') ?>">
                                     <svg class="w-4.5 h-4.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
                             </div>
                         <?php else: ?>
-                            <!-- Standard Link for Leaf Items -->
                             <div class="flex justify-between items-center py-1">
-                                <a href="<?= esc($localizedMenuUrl($item['custom_url'] ?? '#')) ?>" class="text-base font-semibold text-slate-800 hover:text-primary transition-colors w-full">
+                                <?php if ($itemUrl !== null): ?>
+                                <a href="<?= esc($itemUrl) ?>" class="text-base font-semibold text-slate-800 hover:text-primary transition-colors w-full">
+                                <?php else: ?>
+                                <span class="text-base font-semibold text-slate-800 w-full">
+                                <?php endif; ?>
                                     <?= esc($item['label'] ?? '') ?>
-                                </a>
+                                <?= $itemUrl !== null ? '</a>' : '</span>' ?>
                             </div>
                         <?php endif; ?>
 
                         <?php if (!empty($item['children'])): ?>
-                            <ul id="submenu-<?= $item['id'] ?>" class="hidden mt-2 pl-4 border-l border-slate-100 space-y-3">
+                            <ul id="submenu-<?= esc((string) ($item['id'] ?? '')) ?>" class="hidden mt-2 pl-4 border-l border-slate-100 space-y-3">
                                 <?php foreach ($item['children'] as $subitem): ?>
+                                    <?php $subitemUrl = public_menu_item_url($subitem, $publicLocale); ?>
                                     <li>
-                                        <a href="<?= esc($localizedMenuUrl($subitem['custom_url'] ?? '#')) ?>" class="block text-sm font-medium text-slate-500 hover:text-primary transition-colors">
+                                        <?php if ($subitemUrl !== null): ?>
+                                        <a href="<?= esc($subitemUrl) ?>" class="block text-sm font-medium text-slate-500 hover:text-primary transition-colors">
+                                        <?php else: ?>
+                                        <span class="block text-sm font-medium text-slate-500">
+                                        <?php endif; ?>
                                             <?= esc($subitem['label'] ?? '') ?>
-                                        </a>
+                                        <?= $subitemUrl !== null ? '</a>' : '</span>' ?>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>

@@ -30,18 +30,19 @@ export const initMobileDrawer = () => {
     setDrawerOpen(toggleBtn, drawer, iconPath, isOpen);
   });
 
-  const submenuRows = drawer.querySelectorAll('.mobile-submenu-row');
-  submenuRows.forEach((row) => {
-    row.addEventListener('click', () => {
-      const targetId = row.getAttribute('data-target');
+  const submenuToggles = drawer.querySelectorAll('[data-submenu-toggle]');
+  submenuToggles.forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const targetId = toggle.getAttribute('data-target');
       if (!targetId) return;
 
       const submenu = document.getElementById(targetId);
-      const svg = row.querySelector('svg');
+      const svg = toggle.querySelector('svg');
       if (!submenu) return;
 
       const willOpen = submenu.classList.contains('hidden');
       submenu.classList.toggle('hidden', !willOpen);
+      toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
       if (svg) {
         svg.classList.toggle('rotate-180', willOpen);
       }
