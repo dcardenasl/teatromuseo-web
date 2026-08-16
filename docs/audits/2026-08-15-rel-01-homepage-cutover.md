@@ -109,5 +109,15 @@ por separado.
   Mantiene `flock`, ejecución serial y cubre el manifest completo, incluida la
   homepage. FTP no permite inspeccionar el contador de Entry Processes del
   cPanel.
-- `REL-01` queda técnicamente preflight-validado y estable por HTTP, pero no se
-  marca cerrado hasta confirmar esos dos controles operativos del hosting.
+- `REL-01` quedó técnicamente preflight-validado y estable por HTTP. El
+  2026-08-16 se acepta por decisión operativa, sin esperar otra ventana limpia
+  de cPanel. La falta de una nueva observación de EP/508 queda registrada como
+  riesgo residual aceptado; no se ejecutarán nuevas pruebas sintéticas.
+
+## Decisión de cierre — 2026-08-16
+
+Se cierra `REL-01` para continuar con `REL-02`. La decisión se basa en la
+velocidad observable del sitio, los canarios HTTP previos y el preflight local.
+No afirma que el contador histórico de cPanel haya sido limpiado ni sustituye
+esa medición; simplemente acepta ese riesgo operativo y conserva el rollback
+para la migración gradual.
