@@ -14,6 +14,9 @@
 
     $isFooterVertical = ($footerLayout === 'vertical');
     $isLegalVertical = ($legalLayout === 'vertical');
+    $footerMenuUrl = static function (mixed $item): ?string {
+        return is_array($item) ? public_menu_item_url($item) : null;
+    };
 
     // Menu items with children render as their own labeled column (e.g. the
     // "Explora"/"Institución"/"Prensa y Medios" groups); items without
@@ -91,12 +94,17 @@
                 <?php foreach ($footerMenuGroups as $group): ?>
                     <div class="space-y-4">
                         <p class="section-eyebrow"><?= esc($group['label'] ?? '') ?></p>
-                        <ul class="space-y-2.5">
+                            <ul class="space-y-2.5">
                             <?php foreach ($group['children'] as $child): ?>
+                                <?php $childUrl = $footerMenuUrl($child); ?>
                                 <li>
-                                    <a href="<?= esc(lang_url($child['custom_url'] ?? '#')) ?>" class="text-sm font-medium transition-colors duration-150">
+                                    <?php if ($childUrl !== null): ?>
+                                    <a href="<?= esc($childUrl) ?>" class="text-sm font-medium transition-colors duration-150">
+                                    <?php else: ?>
+                                    <span class="text-sm font-medium">
+                                    <?php endif; ?>
                                         <?= esc($child['label'] ?? '') ?>
-                                    </a>
+                                    <?= $childUrl !== null ? '</a>' : '</span>' ?>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -108,10 +116,15 @@
                         <p class="section-eyebrow"><?= esc($menu['name'] ?? lang('Site.footer_menu_label')) ?></p>
                         <ul class="space-y-2.5">
                             <?php foreach ($footerMenuFlatItems as $item): ?>
+                                <?php $itemUrl = $footerMenuUrl($item); ?>
                                 <li>
-                                    <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" class="text-sm font-medium transition-colors duration-150">
+                                    <?php if ($itemUrl !== null): ?>
+                                    <a href="<?= esc($itemUrl) ?>" class="text-sm font-medium transition-colors duration-150">
+                                    <?php else: ?>
+                                    <span class="text-sm font-medium">
+                                    <?php endif; ?>
                                         <?= esc($item['label'] ?? '') ?>
-                                    </a>
+                                    <?= $itemUrl !== null ? '</a>' : '</span>' ?>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -122,14 +135,19 @@
             <?php if ($isLegalVertical): ?>
                 <!-- Legal Menu Links (Vertical Layout) -->
                 <div class="space-y-4">
-                    <p class="section-eyebrow"><?= esc($legalMenu['name'] ?? lang('Site.footer_legal_label')) ?></p>
-                    <ul class="space-y-2.5">
-                        <?php foreach (($legalMenu['items'] ?? []) as $item): ?>
-                            <li>
-                                <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" class="text-sm font-medium transition-colors duration-150">
-                                    <?= esc($item['label'] ?? '') ?>
-                                </a>
-                            </li>
+                        <p class="section-eyebrow"><?= esc($legalMenu['name'] ?? lang('Site.footer_legal_label')) ?></p>
+                        <ul class="space-y-2.5">
+                            <?php foreach (($legalMenu['items'] ?? []) as $item): ?>
+                                <?php $itemUrl = $footerMenuUrl($item); ?>
+                                <li>
+                                <?php if ($itemUrl !== null): ?>
+                                <a href="<?= esc($itemUrl) ?>" class="text-sm font-medium transition-colors duration-150">
+                                <?php else: ?>
+                                <span class="text-sm font-medium">
+                                <?php endif; ?>
+                                        <?= esc($item['label'] ?? '') ?>
+                                <?= $itemUrl !== null ? '</a>' : '</span>' ?>
+                                </li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
@@ -160,9 +178,14 @@
                         <?php if ($idx > 0): ?>
                             <span class="opacity-40 select-none hidden sm:inline mx-3" aria-hidden="true">•</span>
                         <?php endif; ?>
-                        <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" class="inline-block mx-2 my-1 font-semibold transition-colors duration-150">
+                        <?php $itemUrl = $footerMenuUrl($item); ?>
+                        <?php if ($itemUrl !== null): ?>
+                        <a href="<?= esc($itemUrl) ?>" class="inline-block mx-2 my-1 font-semibold transition-colors duration-150">
+                        <?php else: ?>
+                        <span class="inline-block mx-2 my-1 font-semibold">
+                        <?php endif; ?>
                             <?= esc($item['label'] ?? '') ?>
-                        </a>
+                        <?= $itemUrl !== null ? '</a>' : '</span>' ?>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
@@ -178,9 +201,14 @@
                             <?php if ($idx > 0): ?>
                                 <span class="opacity-40 select-none hidden sm:inline mx-2" aria-hidden="true">|</span>
                             <?php endif; ?>
-                            <a href="<?= esc(lang_url($item['custom_url'] ?? '#')) ?>" class="inline-block mx-2 my-1 font-medium transition-colors duration-150">
+                            <?php $itemUrl = $footerMenuUrl($item); ?>
+                            <?php if ($itemUrl !== null): ?>
+                            <a href="<?= esc($itemUrl) ?>" class="inline-block mx-2 my-1 font-medium transition-colors duration-150">
+                            <?php else: ?>
+                            <span class="inline-block mx-2 my-1 font-medium">
+                            <?php endif; ?>
                                 <?= esc($item['label'] ?? '') ?>
-                            </a>
+                            <?= $itemUrl !== null ? '</a>' : '</span>' ?>
                         <?php endforeach; ?>
                     </div>
                 </div>
