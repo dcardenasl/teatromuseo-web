@@ -43,6 +43,9 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
+      - name: Check Composer platform requirements
+        run: composer check-platform-reqs --no-dev
+
       - name: Prepare writable directories
         run: |
           mkdir -p writable/cache writable/logs writable/session writable/uploads writable/debugbar writable/htmlpurifier

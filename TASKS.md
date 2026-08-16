@@ -23,6 +23,10 @@
   detalle, incluso con `fields=[]`; los listados mantienen el filtro de
   locale/fallback. La consulta real se verifica con fixtures SQLite
   desechables y cobertura Web/BFF del envelope.
+- [x] **WEB-BFF-CONTRACT-03 — Compatibilidad de plataforma.** Cerrada
+  2026-08-15. La matriz CI ya cubría PHP 8.2–8.5 y ahora ambos workflows
+  ejecutan `composer check-platform-reqs --no-dev` después de instalar
+  dependencias.
 
 ## ✅ Completadas
 
