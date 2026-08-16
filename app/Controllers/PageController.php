@@ -285,7 +285,18 @@ class PageController extends BasePublicWebController
         }
 
         $collectionSlugs = is_array($collection['localized_slugs'] ?? null) ? $collection['localized_slugs'] : [];
-        $entrySlugs = is_array($entry['localized_slugs'] ?? null) ? $entry['localized_slugs'] : [];
+        $entrySlugs = [];
+        foreach (['slugs', 'localized_slugs'] as $field) {
+            if (! is_array($entry[$field] ?? null)) {
+                continue;
+            }
+
+            foreach ($entry[$field] as $locale => $slug) {
+                if (is_scalar($slug) && trim((string) $slug) !== '') {
+                    $entrySlugs[(string) $locale] = trim((string) $slug, '/');
+                }
+            }
+        }
         $fallbackCollectionPath = trim($this->currentCollectionPathFromRequest(), '/');
         $fallbackEntrySlug = trim($resolvedSlug, '/');
 

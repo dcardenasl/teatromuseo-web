@@ -59,6 +59,101 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
         self::assertNotContains('public/es/pages/by-type/template_event_item', $this->domainAdapter->requestedPaths());
     }
 
+    public function testEventDetailLanguageLinksUseLocaleRouteAndLocalizedEntrySlug(): void
+    {
+        $this->configureLocales(['es', 'en', 'fr', 'pt']);
+
+        $envelope = $this->bffEnvelope(
+            route: 'cartelera/gotita-es',
+            title: 'Gotita de agua',
+            excerpt: 'Descripción de prueba.',
+            pageType: 'template_event_item',
+            contextKey: 'event_item',
+            context: ['id' => 202, 'title' => 'Gotita de agua'],
+        );
+        $envelope['page']['localized_slugs'] = [
+            'es' => 'cartelera/gotita-es',
+            'en' => 'programming/little-drop',
+            // Simulate a legacy/stale BFF prefix: the item slug itself is valid.
+            'fr' => 'programming/petite-goutte',
+            'pt' => 'programming/gotinha',
+        ];
+
+        $this->domainAdapter->fakeGet(
+            'public-read/es/page-resolve/cartelera/gotita-es',
+            $envelope,
+        );
+
+        $result = $this->get('es/cartelera/gotita-es');
+        $html = (string) $result->getBody();
+
+        $result->assertStatus(200);
+        self::assertStringContainsString('/fr/programmation/petite-goutte', $html);
+        self::assertStringNotContainsString('/fr/programming/petite-goutte', $html);
+    }
+
+    public function testEventDetailLanguageLinksFallbackToCurrentSlugWhenLocaleSlugIsAbsent(): void
+    {
+        $this->configureLocales(['es', 'en', 'fr', 'pt']);
+
+        $envelope = $this->bffEnvelope(
+            route: 'cartelera/gotita-es',
+            title: 'Gotita de agua',
+            excerpt: 'Descripción de prueba.',
+            pageType: 'template_event_item',
+            contextKey: 'event_item',
+            context: ['id' => 203, 'title' => 'Gotita de agua'],
+        );
+
+        // This is the compact payload returned when the BFF only has the
+        // current/fallback locale slug available.
+        $envelope['page']['localized_slugs'] = ['es' => 'cartelera/gotita-es'];
+
+        $this->domainAdapter->fakeGet(
+            'public-read/es/page-resolve/cartelera/gotita-es',
+            $envelope,
+        );
+
+        $result = $this->get('es/cartelera/gotita-es');
+        $html = (string) $result->getBody();
+
+        $result->assertStatus(200);
+        self::assertStringContainsString('/fr/programmation/gotita-es', $html);
+        self::assertStringNotContainsString('/fr/programming/gotita-es', $html);
+    }
+
+    public function testCatalogDetailLanguageLinksUseLocaleRouteAndLocalizedEntrySlug(): void
+    {
+        $this->configureLocales(['es', 'en', 'fr', 'pt']);
+
+        $envelope = $this->bffEnvelope(
+            route: 'museo/coleccion/pieza-es',
+            title: 'Pieza localizada',
+            excerpt: 'Resumen de prueba.',
+            pageType: 'template_catalog_item',
+            contextKey: 'catalog_item',
+            context: ['id' => 204, 'name' => 'Pieza localizada'],
+        );
+        $envelope['page']['localized_slugs'] = [
+            'es' => 'museo/coleccion/pieza-es',
+            'en' => 'museum/collection/piece-en',
+            'fr' => 'museum/collection/piece-fr',
+            'pt' => 'museum/collection/peca-pt',
+        ];
+
+        $this->domainAdapter->fakeGet(
+            'public-read/es/page-resolve/museo/coleccion/pieza-es',
+            $envelope,
+        );
+
+        $result = $this->get('es/museo/coleccion/pieza-es');
+        $html = (string) $result->getBody();
+
+        $result->assertStatus(200);
+        self::assertStringContainsString('/fr/musee/collection/piece-fr', $html);
+        self::assertStringNotContainsString('/fr/museum/collection/piece-fr', $html);
+    }
+
     /** @param array<string, mixed> $context @return array<string, mixed> */
     private function bffEnvelope(
         string $route,

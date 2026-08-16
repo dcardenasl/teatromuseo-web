@@ -18,6 +18,11 @@
   del Web; `PublicPaths` y el adaptador BFF exportan contratos deterministas.
   Ambos CI los comparan en PHP 8.2 usando la rama `dev`, sin dependencia de
   runtime compartido.
+- [x] **WEB-BFF-CONTRACT-02 — Slugs completos de detalle.** Cerrada
+  2026-08-15. Event y Catalog cargan todos los locales en la proyección de
+  detalle, incluso con `fields=[]`; los listados mantienen el filtro de
+  locale/fallback. La consulta real se verifica con fixtures SQLite
+  desechables y cobertura Web/BFF del envelope.
 
 ## ✅ Completadas
 

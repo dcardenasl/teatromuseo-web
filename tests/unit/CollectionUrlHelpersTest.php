@@ -146,6 +146,79 @@ final class CollectionUrlHelpersTest extends CIUnitTestCase
         $this->assertSame('/' . $secondaryLocale . '/' . $secondaryCollectionSlug . '/' . $secondaryEntrySlug, $secondaryPath);
     }
 
+    public function testLocalizedEntryUrlsAcceptPublicSlugMapUsedByDomainDetails(): void
+    {
+        $defaultLocale = 'aa';
+        $secondaryLocale = 'bb';
+        service('request')->setLocale($defaultLocale);
+
+        $collection = [
+            'index_page' => [
+                'localized_slugs' => [
+                    $defaultLocale => 'collection-aa',
+                    $secondaryLocale => 'collection-bb',
+                ],
+            ],
+        ];
+
+        $urls = localized_entry_urls($collection, [
+            'slugs' => [
+                $defaultLocale => 'entry-aa',
+                $secondaryLocale => 'entry-bb',
+            ],
+        ]);
+
+        $this->assertSame('/' . $defaultLocale . '/collection-aa/entry-aa', parse_url($urls[$defaultLocale], PHP_URL_PATH));
+        $this->assertSame('/' . $secondaryLocale . '/collection-bb/entry-bb', parse_url($urls[$secondaryLocale], PHP_URL_PATH));
+    }
+
+    public function testLocalizedEntryUrlsAcceptSlugsFromTranslations(): void
+    {
+        config('App')->supportedLocales = ['es', 'fr'];
+
+        $urls = localized_entry_urls(
+            ['index_page' => ['localized_slugs' => ['es' => 'noticias', 'fr' => 'actualites']]],
+            [
+                'translations' => [
+                    ['language_code' => 'es', 'slug' => 'entrada-es'],
+                    ['language_code' => 'fr', 'slug' => 'entree-fr'],
+                ],
+            ],
+        );
+
+        $this->assertSame('/es/noticias/entrada-es', parse_url($urls['es'], PHP_URL_PATH));
+        $this->assertSame('/fr/actualites/entree-fr', parse_url($urls['fr'], PHP_URL_PATH));
+    }
+
+    public function testEventCollectionUsesLocaleAwareRoutePrefixForEntryUrls(): void
+    {
+        config('App')->supportedLocales = ['es', 'en', 'fr', 'pt'];
+        service('request')->setLocale('en');
+
+        $urls = localized_entry_urls([
+            'collection_key' => 'cartelera',
+            'index_page' => [
+                'localized_slugs' => [
+                    'es' => 'cartelera',
+                    'en' => 'programming',
+                    // Legacy data may incorrectly repeat the English prefix.
+                    'fr' => 'programming',
+                    'pt' => 'programming',
+                ],
+            ],
+        ], [
+            'slugs' => [
+                'es' => 'gotita-es',
+                'en' => 'little-drop',
+                'fr' => 'petite-goutte',
+                'pt' => 'gotinha',
+            ],
+        ]);
+
+        $this->assertSame('/fr/programmation/petite-goutte', parse_url($urls['fr'], PHP_URL_PATH));
+        $this->assertSame('/pt/programacao/gotinha', parse_url($urls['pt'], PHP_URL_PATH));
+    }
+
     public function testCollectionDisplayTitleFallsBackToNameSlugThenKey(): void
     {
         $displayName = 'Fixture Collection Name';

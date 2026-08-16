@@ -508,6 +508,10 @@ abstract class BasePublicWebController extends BaseController
     {
         $routeKey = $this->domainRouteKey($page);
         if ($routeKey !== null) {
+            if ($this->isDomainDetailPage($page)) {
+                return $this->resolveLocalizedDomainDetailUrls($page, $routeKey, $lang);
+            }
+
             $localizedUrls = [];
             foreach (config('App')->supportedLocales as $locale) {
                 $path = \App\Support\PublicPaths::routePath($routeKey, $locale);
@@ -553,13 +557,88 @@ abstract class BasePublicWebController extends BaseController
         return $localizedUrls;
     }
 
+    /**
+     * Rebuild domain detail URLs with the Web-owned locale route prefix while
+     * retaining the per-locale item slug supplied by the BFF. This prevents a
+     * stale or legacy prefix (for example `programming` in French) from
+     * leaking into a language switch URL.
+     *
+     * @param array<string, mixed> $page
+     * @return array<string, string>
+     */
+    private function resolveLocalizedDomainDetailUrls(array $page, string $routeKey, string $currentLocale): array
+    {
+        $localizedPaths = is_array($page['localized_slugs'] ?? null) ? $page['localized_slugs'] : [];
+        $localizedUrls = [];
+        $fallbackEntrySlug = $this->domainDetailEntrySlug($page, $routeKey, $currentLocale);
+
+        foreach (config('App')->supportedLocales as $locale) {
+            $routePath = \App\Support\PublicPaths::routePath($routeKey, $locale);
+            $configuredPath = trim((string) ($localizedPaths[$locale] ?? ''), '/');
+            if ($routePath === null) {
+                continue;
+            }
+
+            $entrySlug = $configuredPath === ''
+                ? $fallbackEntrySlug
+                : $this->domainDetailEntrySlugFromPath($configuredPath, $routePath);
+            if ($entrySlug === '') {
+                $entrySlug = $fallbackEntrySlug;
+            }
+            if ($entrySlug === '') {
+                continue;
+            }
+
+            $localizedUrls[$locale] = site_url('/' . $locale . '/' . $routePath . '/' . $entrySlug);
+        }
+
+        return $localizedUrls;
+    }
+
+    /** @param array<string, mixed> $page */
+    private function domainDetailEntrySlug(array $page, string $routeKey, string $locale): string
+    {
+        $pagePath = trim((string) ($page['slug'] ?? ''), '/');
+        $routePath = \App\Support\PublicPaths::routePath($routeKey, $locale);
+
+        if ($pagePath === '' || $routePath === null) {
+            return '';
+        }
+
+        return $this->domainDetailEntrySlugFromPath($pagePath, $routePath);
+    }
+
+    private function domainDetailEntrySlugFromPath(string $path, string $routePath): string
+    {
+        $routeSegmentCount = count(explode('/', trim($routePath, '/')));
+        $pathSegments = explode('/', trim($path, '/'));
+
+        return implode('/', array_slice($pathSegments, $routeSegmentCount));
+    }
+
+    /** @param array<string, mixed> $page */
+    private function isDomainDetailPage(array $page): bool
+    {
+        return in_array((string) ($page['source_page_type'] ?? ''), [
+            'template_event_item',
+            'template_catalog_item',
+        ], true);
+    }
+
     /** @param array<string, mixed> $page */
     private function domainRouteKey(array $page): ?string
     {
-        return match ((string) ($page['page_type'] ?? '')) {
+        $pageType = (string) ($page['page_type'] ?? '');
+        $sourcePageType = (string) ($page['source_page_type'] ?? '');
+
+        return match ($pageType !== '' ? $pageType : $sourcePageType) {
             'events' => 'events',
             'catalog_listing' => 'catalog',
-            default => null,
+            default => match ($sourcePageType) {
+                'events', 'template_event_item' => 'events',
+                'catalog_listing', 'template_catalog_item' => 'catalog',
+                default => null,
+            },
         };
     }
 

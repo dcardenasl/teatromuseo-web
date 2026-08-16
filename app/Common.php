@@ -221,6 +221,16 @@ if (! function_exists('localized_collection_url_path')) {
      */
     function localized_collection_url_path(array $collection, string $locale): string
     {
+        $collectionKey = strtolower(trim((string) ($collection['collection_key'] ?? ''), '/'));
+        $domainRoutePath = match ($collectionKey) {
+            'cartelera', 'events', 'eventos' => \App\Support\PublicPaths::eventsSegment($locale),
+            'museo', 'catalogo', 'catalog', 'fichas', 'collection_items' => \App\Support\PublicPaths::catalogSegment($locale),
+            default => null,
+        };
+        if ($domainRoutePath !== null) {
+            return '/' . trim($domainRoutePath, '/');
+        }
+
         $indexPage = $collection['index_page'] ?? null;
         if (is_array($indexPage)) {
             $localizedSlugs = $indexPage['localized_slugs'] ?? [];
@@ -270,7 +280,33 @@ if (! function_exists('localized_entry_urls')) {
     function localized_entry_urls(array $collection, array $entry): array
     {
         $urls = [];
-        $localizedSlugs = is_array($entry['localized_slugs'] ?? null) ? $entry['localized_slugs'] : [];
+        $localizedSlugs = [];
+        foreach (['slugs', 'localized_slugs'] as $field) {
+            if (! is_array($entry[$field] ?? null)) {
+                continue;
+            }
+
+            foreach ($entry[$field] as $locale => $slug) {
+                if (is_scalar($slug) && trim((string) $slug, '/') !== '') {
+                    $localizedSlugs[(string) $locale] = trim((string) $slug, '/');
+                }
+            }
+        }
+
+        // Some public readers expose translations instead of a compact slug
+        // map. Accept that shape too so language links remain driven by the
+        // configured per-locale slug rather than the current request slug.
+        foreach (is_array($entry['translations'] ?? null) ? $entry['translations'] : [] as $translation) {
+            if (! is_array($translation)) {
+                continue;
+            }
+
+            $locale = (string) ($translation['language_code'] ?? $translation['locale'] ?? $translation['lang'] ?? '');
+            $slug = trim((string) ($translation['slug'] ?? ''), '/');
+            if ($locale !== '' && $slug !== '' && ! isset($localizedSlugs[$locale])) {
+                $localizedSlugs[$locale] = $slug;
+            }
+        }
 
         foreach (config('App')->supportedLocales as $locale) {
             $collectionPath = localized_collection_url_path($collection, $locale);

@@ -27,6 +27,35 @@ their instance path (`0`, `1`, `2.0`, ...). Each result carries its type,
 configuration, page, limit, filters, order, facets, preview flag and source
 state, so two blocks of the same type cannot share an accidental response.
 
+## Localized detail URLs
+
+Domain detail readers expose `slugs` as a map of raw item slugs keyed by locale.
+The detail projection always loads the complete map, including when the caller
+uses the default `fields=[]` projection; list projections remain locale-scoped
+unless they explicitly request the complete `slugs` field:
+
+```json
+{"es":"pieza-es","en":"piece-en","fr":"piece-fr"}
+```
+
+The BFF `PageResolver` turns that map into `page.localized_slugs`, prefixing
+each value with the locale-specific public route. For example, a French event
+detail is represented as `programmation/piece-fr`, while a French catalog
+detail is represented as `musee/collection/piece-fr`.
+
+Web owns the final visitor-facing route map in `App\Support\PublicPaths` and
+rebuilds domain-detail language links from the configured per-locale item slug.
+This deliberately prevents a stale route prefix from one locale from leaking
+into another. If a locale has no configured item slug, Web uses the current
+detail slug only as a compatibility fallback; the BFF detail contract remains
+the authoritative source for published localized slugs.
+
+The versioned route matrix lives in
+`docs/contracts/public-routes.json`. The BFF keeps a local adapter for its
+incoming resolver, and the two exports are compared in both repositories'
+CI. No runtime package or HTTP dependency is introduced for this static
+policy.
+
 The synchronous adapter is intentionally a thin BFF client. It maps the
 complete page envelope and never performs Web-side domain reads or block
 composition.
