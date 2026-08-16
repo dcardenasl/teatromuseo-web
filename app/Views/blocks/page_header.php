@@ -10,6 +10,7 @@ $breadcrumbUrl   = (string) ($navigation['url'] ?? '');
 // Can be easily changed via the CMS config
 $bgColor         = $config['bg_color'] ?? 'bg-gray-100';
 $cssClass        = $config['css_class'] ?? '';
+$headingTag      = ($isPageHeadingOwner ?? false) ? 'h1' : 'h2';
 
 if ($heading === '') {
     return;
@@ -30,9 +31,9 @@ if ($heading === '') {
                 </nav>
             <?php endif; ?>
 
-            <h1 class="section-title text-4xl sm:text-5xl">
+            <<?= $headingTag ?> class="section-title text-4xl sm:text-5xl">
                 <?= esc($heading) ?>
-            </h1>
+            </<?= $headingTag ?>>
             <?php if ($subheading): ?>
                 <p class="section-copy mt-4 max-w-2xl text-lg">
                     <?= esc($subheading) ?>

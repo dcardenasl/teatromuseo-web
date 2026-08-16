@@ -12,6 +12,7 @@ if (!($hasEvent ?? false)):
 </div>
 <?php else: ?>
 <?php $image = is_array($image ?? null) ? $image : []; ?>
+<?php $headingTag = ($isPageHeadingOwner ?? false) ? 'h1' : 'h2'; ?>
 <!-- ── Breadcrumb ─────────────────────────────────────────────────── -->
 <div class="bg-white border-b border-slate-100">
     <div class="container-narrow py-3">
@@ -41,9 +42,9 @@ if (!($hasEvent ?? false)):
                 <?php endif; ?>
             </div>
 
-            <h1 class="section-title text-3xl sm:text-4xl leading-tight mb-4">
+            <<?= $headingTag ?> class="section-title text-3xl sm:text-4xl leading-tight mb-4">
                 <?= esc($title ?? '') ?>
-            </h1>
+            </<?= $headingTag ?>>
 
             <?php if (($summary ?? '') !== ''): ?>
                 <p class="text-lg text-text-secondary leading-relaxed mb-6">

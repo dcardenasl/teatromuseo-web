@@ -273,7 +273,10 @@ final class PublicDetailPagesTest extends HermeticFeatureTestCase
                 'canonical_url' => '/es/' . $route,
                 'robots' => 'index, follow',
                 'showPageHeading' => false,
-                'blocks' => [['block_key' => $pageType === 'template_event_item' ? 'event_item_header' : 'catalog_item_header']],
+                'blocks' => [[
+                    'block_key' => $pageType === 'template_event_item' ? 'event_item_header' : 'catalog_item_header',
+                    'presentation' => ['owns_page_heading' => true],
+                ]],
             ],
             'layout' => [
                 'settings' => [],

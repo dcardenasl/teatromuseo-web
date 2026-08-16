@@ -110,6 +110,31 @@ final class BlockRendererTest extends CIUnitTestCase
         $this->assertStringContainsString('child-block', $html);
     }
 
+    public function testRequiresExactlyOneCmsDeclaredHeadingOwner(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'page_header',
+                'block_config' => [],
+                'block_data' => ['heading' => 'Página principal'],
+                'presentation' => ['owns_page_heading' => true],
+                'children' => [],
+            ],
+            [
+                'block_key' => 'page_header',
+                'block_config' => [],
+                'block_data' => ['heading' => 'Sección secundaria'],
+                'presentation' => ['owns_page_heading' => true],
+                'children' => [],
+            ],
+        ]);
+
+        self::assertSame(0, preg_match_all('/<h1\b/i', $html));
+        self::assertSame(2, preg_match_all('/<h2\b/i', $html));
+        $this->assertStringContainsString('Página principal', $html);
+        $this->assertStringContainsString('Sección secundaria', $html);
+    }
+
     public function testEmptyBlockListReturnsEmptyString(): void
     {
         $this->assertSame('', $this->renderer->render([]));

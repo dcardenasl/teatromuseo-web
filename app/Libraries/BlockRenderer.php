@@ -109,10 +109,11 @@ class BlockRenderer
             $this->formDefinitions = [];
         }
 
+        $headingOwnerPath = $this->singleHeadingOwnerPath($blocks);
         $html = '';
         foreach ($blocks as $index => $block) {
             $block = $this->normalizeBlockNavigation($block, $lang);
-            $html .= $this->renderBlock($block, $lang, $context, (string) $index);
+            $html .= $this->renderBlock($block, $lang, $context, (string) $index, $headingOwnerPath);
         }
 
         return $html;
@@ -124,8 +125,13 @@ class BlockRenderer
      * @param array<string, mixed> $block
      * @param array<string, mixed> $context
      */
-    private function renderBlock(array $block, string $lang, array $context = [], string $blockPath = ''): string
-    {
+    private function renderBlock(
+        array $block,
+        string $lang,
+        array $context = [],
+        string $blockPath = '',
+        ?string $headingOwnerPath = null,
+    ): string {
         $context = $this->injectPrefetchedItem($block, $context, $blockPath);
         $blockKey = $block['block_key'] ?? 'unknown';
         $config   = $block['block_config'] ?? [];
@@ -150,6 +156,7 @@ class BlockRenderer
                 $lang,
                 array_merge($context, ['is_child' => true]),
                 $childPath,
+                $headingOwnerPath,
             );
         }
 
@@ -184,6 +191,7 @@ class BlockRenderer
             'lang'             => $lang,
             'formDefinition'   => $formDefinition,
             'context'          => $context,
+            'isPageHeadingOwner' => $headingOwnerPath !== null && $headingOwnerPath === $blockPath,
         ];
 
         if (is_string($blockKey) && isset(self::VIEW_MODELS[$blockKey])) {
@@ -214,6 +222,46 @@ class BlockRenderer
         // request — a block field like "title" would otherwise leak into the
         // page template rendered afterwards. Disable it for isolation.
         return view($blockViewName, $viewData, ['saveData' => false]);
+    }
+
+    /**
+     * CMS block schemas declare which blocks can own the page heading. The
+     * A page heading owner is valid only when the CMS declares exactly one
+     * eligible block. Invalid configurations deliberately produce no H1 so the
+     * Admin quality report can require an explicit editorial correction.
+     *
+     * @param array<array<string, mixed>> $blocks
+     */
+    private function singleHeadingOwnerPath(array $blocks): ?string
+    {
+        $paths = $this->headingOwnerPaths($blocks);
+
+        return count($paths) === 1 ? $paths[0] : null;
+    }
+
+    /**
+     * @param array<array<string, mixed>> $blocks
+     * @return list<string>
+     */
+    private function headingOwnerPaths(array $blocks, string $parentPath = ''): array
+    {
+        $paths = [];
+        foreach ($blocks as $index => $block) {
+            $path = $parentPath === '' ? (string) $index : $parentPath . '.' . $index;
+            if (! is_array($block)) {
+                continue;
+            }
+
+            $presentation = is_array($block['presentation'] ?? null) ? $block['presentation'] : [];
+            if (($presentation['owns_page_heading'] ?? false) === true) {
+                $paths[] = $path;
+            }
+
+            $children = is_array($block['children'] ?? null) ? $block['children'] : [];
+            $paths = array_merge($paths, $this->headingOwnerPaths($children, $path));
+        }
+
+        return $paths;
     }
 
     /**

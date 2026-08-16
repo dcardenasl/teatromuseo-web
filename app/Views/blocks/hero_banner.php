@@ -22,6 +22,7 @@ $cta_url = $cta_url ?? '';
 $cssClass = $cssClass ?? '';
 $text_color = $text_color ?? '#ffffff';
 $overlay_color = $overlay_color ?? 'rgba(15, 23, 42, 0.4)';
+$headingTag = ($isPageHeadingOwner ?? false) ? 'h1' : 'h2';
 ?>
 <section class="relative h-96 flex items-center justify-center overflow-hidden <?= esc($cssClass) ?>">
     <?php if (!empty($image['url'])): ?>
@@ -38,9 +39,9 @@ $overlay_color = $overlay_color ?? 'rgba(15, 23, 42, 0.4)';
 
     <div class="relative z-10 text-center px-4" style="color: <?= esc($text_color) ?>;">
         <?php if ($heading !== ''): ?>
-            <h1 class="text-4xl md:text-5xl font-bold mb-4" style="color: <?= esc($text_color) ?>;">
+            <<?= $headingTag ?> class="text-4xl md:text-5xl font-bold mb-4" style="color: <?= esc($text_color) ?>;">
                 <?= esc($heading) ?>
-            </h1>
+            </<?= $headingTag ?>>
         <?php endif; ?>
 
         <?php if ($subheading !== ''): ?>

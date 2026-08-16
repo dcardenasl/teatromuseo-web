@@ -34,6 +34,7 @@ if ($slides === []) {
 // same dark tone as the rest of the page's below-hero copy.
 $captionTextColorOverlay = !empty($slides[0]['text_color']) ? $slides[0]['text_color'] : '#ffffff';
 $captionTextColorBelow   = 'rgb(15, 23, 42)';
+$headingTag = ($isPageHeadingOwner ?? false) ? 'h1' : 'h2';
 ?>
 
 <section class="py-0 <?= esc($cssClass) ?>">
@@ -72,7 +73,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                     <div class="max-w-3xl">
                         <div data-hero-caption-card class="surface-overlay rounded-2xl bg-slate-950/65 px-4 py-3 shadow-2xl shadow-slate-950/20 ring-1 ring-white/10 backdrop-blur-md sm:px-5 sm:py-4" style="color: <?= esc($captionTextColorOverlay) ?>;">
                             <?php if (($slides[0]['heading'] ?? '') !== ''): ?>
-                                <h2 data-hero-caption-title class="text-lg font-semibold tracking-tight sm:text-[1.45rem]" style="color: <?= esc($captionTextColorOverlay) ?>;"><?= esc($slides[0]['heading']) ?></h2>
+                                <<?= $headingTag ?> data-hero-caption-title class="text-lg font-semibold tracking-tight sm:text-[1.45rem]" style="color: <?= esc($captionTextColorOverlay) ?>;"><?= esc($slides[0]['heading']) ?></<?= $headingTag ?>>
                             <?php endif; ?>
                             <?php if (($slides[0]['subtitle'] ?? '') !== ''): ?>
                                 <p data-hero-caption-subtitle class="mt-1 text-sm leading-relaxed text-white/85 sm:text-base"><?= esc($slides[0]['subtitle']) ?></p>
@@ -133,7 +134,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                         <div class="max-w-2xl">
                             <div data-hero-caption-card class="px-0 py-0" style="color: <?= esc($captionTextColorBelow) ?>;">
                                 <?php if (($slides[0]['heading'] ?? '') !== ''): ?>
-                                    <h2 data-hero-caption-title class="section-title text-xl sm:text-[1.6rem]" style="color: <?= esc($captionTextColorBelow) ?>;"><?= esc($slides[0]['heading']) ?></h2>
+                                    <<?= $headingTag ?> data-hero-caption-title class="section-title text-xl sm:text-[1.6rem]" style="color: <?= esc($captionTextColorBelow) ?>;"><?= esc($slides[0]['heading']) ?></<?= $headingTag ?>>
                                 <?php endif; ?>
                                 <?php if (($slides[0]['subtitle'] ?? '') !== ''): ?>
                                     <p data-hero-caption-subtitle class="section-copy mt-1 max-w-2xl text-sm sm:text-[0.98rem]"><?= esc($slides[0]['subtitle']) ?></p>

@@ -12,6 +12,7 @@ if (!($hasItem ?? false)):
 </div>
 <?php else: ?>
 <?php $image = is_array($image ?? null) ? $image : []; ?>
+<?php $headingTag = ($isPageHeadingOwner ?? false) ? 'h1' : 'h2'; ?>
 <!-- ── Breadcrumb ─────────────────────────────────────────────────── -->
 <div class="bg-white border-b border-slate-100">
     <div class="container-narrow py-3">
@@ -35,9 +36,9 @@ if (!($hasItem ?? false)):
     <div class="container-narrow">
         <!-- Header -->
         <header class="mb-8">
-            <h1 class="section-title text-3xl sm:text-4xl leading-tight mb-4">
+            <<?= $headingTag ?> class="section-title text-3xl sm:text-4xl leading-tight mb-4">
                 <?= esc($title ?? '') ?>
-            </h1>
+            </<?= $headingTag ?>>
 
             <?php if (($categoryName ?? '') !== ''): ?>
                 <p class="text-sm font-semibold uppercase tracking-wider text-amber-700 mb-4">
