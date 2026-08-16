@@ -129,11 +129,18 @@ abstract class BasePublicWebController extends BaseController
             }
 
             $candidate = is_scalar($item['custom_url'] ?? null)
-                ? (string) $item['custom_url']
+                ? trim((string) $item['custom_url'])
                 : '';
+            $hasDestination = $candidate !== '' && $candidate !== '#';
             $normalized = \App\Support\PublicPaths::normalizeLocalizedPath($candidate, $locale);
-            if ($normalized !== null) {
+            if ($hasDestination && $normalized !== null) {
                 $item['custom_url'] = $normalized;
+            } elseif (! $hasDestination) {
+                $item['custom_url'] = null;
+            }
+            $item['is_clickable'] = ($item['is_clickable'] ?? $hasDestination) === true && $hasDestination;
+            if (! $item['is_clickable']) {
+                $item['custom_url'] = null;
             }
 
             if (is_array($item['children'] ?? null)) {
