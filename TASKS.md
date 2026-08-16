@@ -30,6 +30,13 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-BFF-NAV-01 — Menú CMS opcional y accesible.** Cerrada 2026-08-16.
+  Header y footer solo generan anchors cuando el BFF entrega un destino válido;
+  los grupos sin URL son texto semántico y el drawer móvil usa un botón de
+  toggle independiente con `aria-expanded`/`aria-controls`. Se eliminaron los
+  fallbacks a `#`; quality PHP y build/lint/tests JavaScript quedaron verdes.
+  Fuente: [`../docs/plan/2026-08-15-plan-robustez-web-bff.md`](../docs/plan/2026-08-15-plan-robustez-web-bff.md).
+
 - [x] **WEB-LEGACY-01 — Retiro definitivo del pipeline legacy.** Cerrada
   2026-08-16. Se eliminaron los servicios, factories, pruebas y documentos
   muertos del antiguo compositor local; `BlockRenderer` ya no inicia lecturas
