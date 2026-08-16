@@ -45,6 +45,33 @@ if (! function_exists('lang_url')) {
     }
 }
 
+if (! function_exists('public_menu_item_url')) {
+    /**
+     * Render the resolved destination of a public menu item, if one exists.
+     *
+     * Menu items without a CMS destination are intentionally not links. In
+     * particular, never turn a missing URL into `#`, because that can be
+     * interpreted as a real homepage destination by the localization layer.
+     *
+     * @param array<string, mixed> $item
+     */
+    function public_menu_item_url(array $item, ?string $locale = null): ?string
+    {
+        if (($item['is_clickable'] ?? false) !== true) {
+            return null;
+        }
+
+        $url = is_scalar($item['custom_url'] ?? null)
+            ? trim((string) $item['custom_url'])
+            : '';
+        if ($url === '' || $url === '#') {
+            return null;
+        }
+
+        return lang_url($url, $locale);
+    }
+}
+
 if (! function_exists('current_lang_url')) {
     /**
      * Get the current URL in a different locale.
