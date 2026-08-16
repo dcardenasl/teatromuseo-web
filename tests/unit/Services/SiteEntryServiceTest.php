@@ -11,52 +11,42 @@ use PHPUnit\Framework\TestCase;
 /** @internal */
 final class SiteEntryServiceTest extends TestCase
 {
-    public function testRelatedEntriesPreferCategoryMatchesAndFillFromBoundedFallback(): void
+    public function testListReturnsEntriesWithNormalizedPagination(): void
     {
         $client = $this->createMock(WebApiClientInterface::class);
-        $queries = [];
-        $client->expects($this->exactly(2))
+        $client->expects($this->once())
             ->method('get')
             ->with(
                 'public-read/es/entries/news',
-                $this->callback(static function (array $query) use (&$queries): bool {
-                    $queries[] = $query;
-
-                    return ($query['per_page'] ?? 0) === 4
-                        && ($query['fields'] ?? '') === 'id,slug,title,excerpt,published_at,featured_image,categories,localized';
-                }),
+                ['page' => 2, 'per_page' => 2, 'fields' => 'slug,is_published,updated_at'],
                 180,
                 'entries',
             )
-            ->willReturnOnConsecutiveCalls(
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => [
-                        ['slug' => 'same-category', 'categories' => [['slug' => 'arte']]],
-                    ],
-                    'meta' => [],
-                    'messages' => [],
-                ],
-                [
-                    'ok' => true,
-                    'status' => 200,
-                    'data' => [
-                        ['slug' => 'other-category', 'categories' => [['slug' => 'historia']]],
-                        ['slug' => 'current', 'categories' => [['slug' => 'arte']]],
-                    ],
-                    'meta' => [],
-                    'messages' => [],
-                ],
-            );
+            ->willReturn([
+                'ok' => true,
+                'data' => [['slug' => 'first'], ['slug' => 'second']],
+                'meta' => ['total' => 5, 'page' => 2, 'per_page' => 2],
+            ]);
 
-        $result = (new SiteEntryService($client))->related('es', 'news', [
-            'slug' => 'current',
-            'categories' => [['slug' => 'arte']],
-        ], 3);
+        $result = (new SiteEntryService($client))->list('es', 'news', [
+            'page' => 2,
+            'per_page' => 2,
+            'fields' => 'slug,is_published,updated_at',
+        ]);
 
-        $this->assertSame(['same-category', 'other-category'], array_column($result, 'slug'));
-        $this->assertSame('arte', $queries[0]['category']);
-        $this->assertArrayNotHasKey('category', $queries[1]);
+        $this->assertSame(['slug' => 'first'], $result['data'][0]);
+        $this->assertSame(5, $result['meta']['pagination']['total']);
+        $this->assertTrue($result['meta']['pagination']['has_next_page']);
+    }
+
+    public function testListReturnsEmptyResultWhenBffFails(): void
+    {
+        $client = $this->createMock(WebApiClientInterface::class);
+        $client->method('get')->willReturn(['ok' => false, 'data' => null]);
+
+        $this->assertSame(
+            ['data' => [], 'meta' => ['pagination' => []]],
+            (new SiteEntryService($client))->list('es', 'news'),
+        );
     }
 }

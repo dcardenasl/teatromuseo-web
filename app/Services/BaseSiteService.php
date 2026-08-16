@@ -15,11 +15,6 @@ use App\Libraries\WebApiClientInterface;
  */
 abstract class BaseSiteService
 {
-    /**
-     * @var array<string, array<int, string>>
-     */
-    private array $collectionSlugsByLocale = [];
-
     public function __construct(protected readonly WebApiClientInterface $apiClient)
     {
     }
@@ -41,55 +36,6 @@ abstract class BaseSiteService
         }
 
         return is_array($response['data']) ? $response['data'] : null;
-    }
-
-    /**
-     * Resolve a collection-specific public slug when the navigation payload
-     * only contains the collection ID. Older CMS responses omit
-     * `collection_slug`, so keeping this fallback in the shared site-service
-     * base prevents menu consumers from collapsing every item to /museo/coleccion.
-     *
-     * @param array<string, mixed> $navigation
-     */
-    protected function resolveCollectionSlug(string $locale, array $navigation): string
-    {
-        $collectionSlug = trim((string) ($navigation['collection_slug'] ?? ''), '/');
-        if ($collectionSlug !== '') {
-            return $collectionSlug;
-        }
-
-        $targetType = (string) ($navigation['target_type'] ?? '');
-        if (! in_array($targetType, ['collection', 'collection_index', 'collection_listing'], true)) {
-            return '';
-        }
-
-        $collectionId = (int) ($navigation['target_id'] ?? 0);
-        if ($collectionId <= 0) {
-            return '';
-        }
-
-        if (! array_key_exists($locale, $this->collectionSlugsByLocale)) {
-            $this->collectionSlugsByLocale[$locale] = [];
-            $collections = $this->fetchData("public/{$locale}/collections", [], 3600, 'collections') ?? [];
-
-            foreach ($collections as $collection) {
-                if (! is_array($collection)) {
-                    continue;
-                }
-
-                $id = (int) ($collection['id'] ?? 0);
-                $localizedSlugs = is_array($collection['localized_slugs'] ?? null)
-                    ? $collection['localized_slugs']
-                    : [];
-                $slug = trim((string) ($localizedSlugs[$locale] ?? $collection['slug'] ?? ''), '/');
-
-                if ($id > 0 && $slug !== '') {
-                    $this->collectionSlugsByLocale[$locale][$id] = $slug;
-                }
-            }
-        }
-
-        return $this->collectionSlugsByLocale[$locale][$collectionId] ?? '';
     }
 
     /**
