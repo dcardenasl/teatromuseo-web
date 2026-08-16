@@ -22,9 +22,58 @@ $faviconUrl   = is_array($settings['favicon']     ?? null) ? (string) ($settings
 if ($faviconUrl === '') {
     $faviconUrl = (string) ($settings['favicon_url'] ?? '');
 }
-$resolvedOgImage = $ogImage ?? ($siteLogoUrl !== '' ? $siteLogoUrl : null);
+$rawOgImage = $ogImage ?? null;
+$resolvedOgImage = is_array($rawOgImage)
+    ? trim((string) ($rawOgImage['url'] ?? ''))
+    : trim((string) ($rawOgImage ?? ''));
+if ($resolvedOgImage === '') {
+    $resolvedOgImage = trim($siteLogoUrl) !== '' ? trim($siteLogoUrl) : null;
+}
+$normalizeSeoUrl = static function (?string $url): string {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    if (preg_match('#^https?://#i', $url) === 1) {
+        $parsed = parse_url($url);
+        if (! is_array($parsed) || ! isset($parsed['scheme'], $parsed['host'])) {
+            return '';
+        }
+
+        $authority = strtolower((string) $parsed['scheme']) . '://' . $parsed['host'];
+        if (isset($parsed['port'])) {
+            $authority .= ':' . (int) $parsed['port'];
+        }
+
+        return $authority . '/' . ltrim((string) ($parsed['path'] ?? ''), '/');
+    }
+
+    return site_url('/' . ltrim($url, '/'));
+};
+
+$resolvedOgImage = $resolvedOgImage !== null ? $normalizeSeoUrl($resolvedOgImage) : null;
 $resolvedOgType = $ogType ?? 'website';
-$resolvedCanonicalUrl = $canonicalUrl ?? site_url(service('request')->getPath());
+$resolvedCanonicalUrl = $normalizeSeoUrl($canonicalUrl ?? site_url(service('request')->getPath()));
+
+$declaredLocalizedUrls = is_array($localized_urls ?? null) ? $localized_urls : [];
+$seoLocalizedUrls = [];
+foreach ($declaredLocalizedUrls as $locale => $url) {
+    $locale = strtolower(trim((string) $locale));
+    if (! in_array($locale, $supportedLocales, true)) {
+        continue;
+    }
+
+    $normalizedUrl = $normalizeSeoUrl(is_scalar($url) ? (string) $url : '');
+    if ($normalizedUrl !== '') {
+        $seoLocalizedUrls[$locale] = $normalizedUrl;
+    }
+}
+
+$currentLocale = (string) service('request')->getLocale();
+if ($resolvedCanonicalUrl !== '' && $currentLocale !== '' && in_array($currentLocale, $supportedLocales, true)) {
+    $seoLocalizedUrls[$currentLocale] ??= $resolvedCanonicalUrl;
+}
 
 $resolvedSchemaData = $schemaData ?? null;
 if (! is_array($resolvedSchemaData) || $resolvedSchemaData === []) {
@@ -71,19 +120,19 @@ $analyticsId       = $settings['analytics_id'] ?? '';
 
 <meta name="robots" content="<?= esc((isset($metaRobots) && trim((string) $metaRobots) !== '') ? $metaRobots : 'index, follow') ?>">
 
-<?php if (! empty($canonicalUrl)): ?>
-    <link rel="canonical" href="<?= esc($canonicalUrl) ?>">
+<?php if ($resolvedCanonicalUrl !== ''): ?>
+    <link rel="canonical" href="<?= esc($resolvedCanonicalUrl) ?>">
 <?php endif; ?>
 
 <?php if ($faviconUrl !== ''): ?>
     <link rel="icon" href="<?= esc($faviconUrl) ?>">
 <?php endif; ?>
 
-<?php foreach ($supportedLocales as $locale): ?>
-    <link rel="alternate" hreflang="<?= esc($locale) ?>" href="<?= esc(current_lang_url($locale, $localized_urls ?? null)) ?>">
+<?php foreach ($seoLocalizedUrls as $locale => $localizedUrl): ?>
+    <link rel="alternate" hreflang="<?= esc($locale) ?>" href="<?= esc($localizedUrl) ?>">
 <?php endforeach; ?>
-<?php if (! empty($defaultLocale)): ?>
-    <link rel="alternate" hreflang="x-default" href="<?= esc(current_lang_url($defaultLocale, $localized_urls ?? null)) ?>">
+<?php if (! empty($defaultLocale) && isset($seoLocalizedUrls[$defaultLocale])): ?>
+    <link rel="alternate" hreflang="x-default" href="<?= esc($seoLocalizedUrls[$defaultLocale]) ?>">
 <?php endif; ?>
 
 <?php if (! empty($resolvedOgImage)): ?>
@@ -92,6 +141,7 @@ $analyticsId       = $settings['analytics_id'] ?? '';
 
 <meta property="og:title" content="<?= esc($resolvedTitle) ?>">
 <meta property="og:description" content="<?= esc($resolvedDescription) ?>">
+<meta property="og:url" content="<?= esc($resolvedCanonicalUrl) ?>">
 <meta property="og:type" content="<?= esc($resolvedOgType) ?>">
 
 <?php if ($resolvedOgType === 'article' && ! empty($articlePublishedTime)): ?>
@@ -101,7 +151,7 @@ $analyticsId       = $settings['analytics_id'] ?? '';
     <meta property="article:modified_time" content="<?= esc(date('c', strtotime((string) $articleModifiedTime))) ?>">
 <?php endif; ?>
 
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="<?= esc($resolvedOgImage !== null && $resolvedOgImage !== '' ? 'summary_large_image' : 'summary') ?>">
 <meta name="twitter:title" content="<?= esc($resolvedTitle) ?>">
 <meta name="twitter:description" content="<?= esc($resolvedDescription) ?>">
 <?php if (! empty($resolvedOgImage)): ?>
