@@ -81,6 +81,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Menu items without a CMS destination no longer render as broken `#` links** —
+  header, footer, and mobile-drawer navigation now render non-clickable items as
+  plain text instead of an anchor pointing at `#`; the mobile submenu accordion
+  moved off the row's click handler onto its own `aria-expanded`/`aria-controls`
+  toggle button so a row that does resolve to a real link stays a genuine anchor.
 - **`PageDelivery` ignored active redirects on manifest routes** — `deliverConfiguredPageRoute()`
   never checked `public/redirects/{route}`, so a redirect created for `home`/`events`/`catalog` (or
   any CMS slug added to the manifest) was silently overridden by that route's own content while
