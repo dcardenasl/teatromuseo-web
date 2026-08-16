@@ -34,8 +34,10 @@ class WebApiClient implements WebApiClientInterface
     // fallback. v12 switches full-page delivery to the BFF page-resolve
     // envelope and must not reuse any pre-cutover response shape. v13
     // invalidates payloads cached before listing cards exposed the normalized
-    // video projection used by the public video collection.
-    private const CACHE_SCHEMA_VERSION = 13;
+    // video projection used by the public video collection. v14 invalidates
+    // page payloads cached before CMS heading ownership metadata was
+    // normalized and consumed by the strict heading renderer.
+    private const CACHE_SCHEMA_VERSION = 14;
 
     /**
      * Above this size, a response is worth a human looking at — either a
