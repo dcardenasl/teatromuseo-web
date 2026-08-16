@@ -6,13 +6,15 @@ Este contexto describe cómo el sitio público compone páginas CMS que combinan
 
 Las lecturas nuevas de CMS, catálogo y eventos usan el namespace versionado
 `/api/v1/public-read`. Las rutas CRUD existentes no se reutilizan como fachada
-de lectura pública. La composición de una página pertenece al módulo
-`PageDelivery` de esta aplicación, no a un dominio ni al BFF.
+de lectura pública. La composición de una página pertenece al contrato
+`PageDelivery` de esta aplicación y actualmente se materializa mediante el
+endpoint `page-resolve` del BFF, no dentro de un dominio.
 
 El término **PageDelivery** designa la operación que recibe locale, ruta,
-preview y variante de la página, compone las lecturas remotas y entrega datos
-precargados al render. Puede usar un adapter síncrono o un snapshot público sin
-cambiar controladores ni ViewModels. Ninguna vista ni ViewModel inicia I/O.
+preview y variante de la página, solicita al BFF la composición completa y
+entrega datos precargados al render. Puede usar un adapter síncrono hacia el
+BFF o un snapshot público sin cambiar controladores ni ViewModels. Ninguna
+vista ni ViewModel inicia I/O.
 
 Un **snapshot público** es una representación versionada y completa de una
 entrega publicada. Incluye locale, ruta, variante, `source_revision`,
@@ -27,9 +29,9 @@ la prioridad locale solicitada → locale por defecto publicado.
 
 La caché pública debe ser compartida entre workers y la invalidación ocurre
 después de publicar el cambio. Un snapshot válido no se borra antes de que
-exista su reemplazo. El BFF queda fuera del primer camino de Web: se mantiene
-para futuros consumidores desacoplados y sólo se incorpora cuando exista un
-segundo consumidor real que justifique el salto.
+exista su reemplazo. El BFF `page-resolve` es el primer camino de Web para la
+entrega pública; los snapshots sólo optimizan rutas explícitamente habilitadas
+y no cambian el contrato de composición.
 
 ## Lenguaje
 

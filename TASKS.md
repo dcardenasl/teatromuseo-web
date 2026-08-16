@@ -30,6 +30,15 @@
 
 ## ✅ Completadas
 
+- [x] **WEB-ROBUST-01/02 — Reconciliación operativa y limpieza del Web.**
+  Cerradas 2026-08-15. `CONTEXT.md` ya no describe `PageDelivery` como un
+  módulo propio pendiente de incorporar el BFF: documenta que `page-resolve`
+  es el primer camino de entrega vigente. Se eliminaron los directorios
+  vacíos `app/Services/BlockPrefetch/` y `app/Interfaces/` después de
+  confirmar que no contenían archivos ni referencias. Verificado con
+  `composer test:unit` (300 tests, 946 assertions), `composer quality`
+  (386 tests, 1.424 assertions, 5 skipped) y `git diff --check`.
+
 - [x] **WEB-PAGE-01 — Home vía `page-resolve`.** Cerrada 2026-08-14.
   `SynchronousPageDeliveryAdapter` consume el endpoint nuevo únicamente para
   `PageDeliveryRequest::home()` y mapea su envelope a `PageDeliveryResponse`;
