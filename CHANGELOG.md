@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Detail page `<head>` metadata now comes straight from the BFF** —
+  `robots`, `og:type`, `og:image`, `schema_data`, article publish/modified
+  timestamps, and the per-locale hreflang set are read from the resolved page
+  payload instead of being rebuilt in `teatromuseo-web`. Image and canonical
+  URLs are normalized to absolute URLs, `og:url` is emitted, `twitter:card`
+  switches to `summary_large_image` when an OG image is present, and hreflang
+  tags are only emitted for locales the BFF actually declared (no more
+  guessing at undeclared translations). `showPageHeading` is trusted as-is
+  from the BFF, and the duplicate domain-route URL/heading rebuilding logic in
+  `BasePublicWebController` was removed now that `page-resolve` supplies
+  `localized_urls` and `showPageHeading` directly.
 - **Single BFF client for all public reads** — the three domain-specific clients
   (`webApiClient()`, `catalogWebApiClient()`, `eventWebApiClient()`) are replaced by
   one `bffWebApiClient()` pointed at `BFF_API_BASE_URL`; `BlockPrefetchService` now
