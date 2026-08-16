@@ -355,9 +355,9 @@
   aliases redireccionados eliminados de la salida pública. Ver evidencia en
   [`../docs/audits/2026-08-10-qa-04-paridad-shadow.md`](../docs/audits/2026-08-10-qa-04-paridad-shadow.md).
 
-## 🔴 En progreso
+## 🟡 Observación operativa
 
-- [ ] **REL-01 — Activación controlada de homepage** — ventana HTTP ejecutada
+- [x] **REL-01 — Activación controlada de homepage** — ventana HTTP ejecutada
   el 2026-08-15. La configuración protegida de beta confirmó snapshot backend
   `file`, `shared=true`, gzip, máximo 5 MB y retención 3. La regeneración cold
   a concurrencia 4 respondió `4/4` `200`; la matriz caliente 1–4 × 20 respondió
@@ -370,8 +370,10 @@
   `Warm-up completed: 16/16 successful or skipped`, incluyendo `es/home`; no
   requiere cambios. La captura de cPanel posterior muestra CPU e I/O limitados
   y `451` eventos de Entry Processes; la primera prueba sintética de esta
-  ventana tuvo un arnés defectuoso y probablemente contribuyó al pico. No se
-  cierra REL-01 hasta observar una ventana limpia sin pruebas de carga.
+  ventana tuvo un arnés defectuoso y probablemente contribuyó al pico. REL-01
+  se acepta el 2026-08-16 con riesgo residual operativo documentado. La captura
+  más reciente muestra solo `2` eventos EP y ya no reporta CPU, aunque I/O
+  todavía figura limitado dentro de la ventana móvil de 24 horas.
 
 ## 🟡 Próximo
 
@@ -384,8 +386,8 @@
   con variantes inéditas, más la observación inicial de `/es/nosotros`,
   devolvieron `200`, sin errores de consola y con `load` entre `0,151` y
   `1,186` segundos; no reprodujeron los 15 segundos observados por el usuario.
-  No se ejecuta rollout en producción hasta cerrar la ventana limpia de cPanel
-  exigida por REL-01.
+  REL-01 aceptada; REL-02 continúa con canarios individuales y sin pruebas de
+  carga concurrente.
 
 ### El BFF resuelve la página pública completa (2026-08-14) — ver `../docs/plan/2026-08-14-plan-bff-page-resolution.md`
 

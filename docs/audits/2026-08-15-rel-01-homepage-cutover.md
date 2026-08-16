@@ -100,11 +100,27 @@ por separado.
 - No se ejecutarán más pruebas de carga hasta que desaparezca la ventana de
   saturación y se pueda observar el uso sin tráfico sintético.
 
+## Recuperación observada en cPanel — 2026-08-16
+
+La captura del 2026-08-16 a las 16:39 hora local muestra una mejora clara:
+
+- Entry Processes: `2` eventos en las últimas 24 horas, frente a los `451`
+  observados en la captura anterior.
+- CPU ya no aparece como límite reportado en el dashboard mostrado.
+- I/O todavía figura como límite alcanzado.
+
+El mensaje de cPanel corresponde a una ventana móvil de 24 horas; por sí solo
+no prueba que el límite siga activo en este instante. La evidencia se
+considera recuperación parcial y riesgo residual aceptado para continuar con
+REL-02. El warm-up permanece sin cambios y continúa confirmado como `16/16
+successful or skipped`.
+
 ## Limitaciones y pendientes
 
-- La ventana actual de cPanel sí muestra saturación: CPU e I/O limitados y 451
-  eventos EP. Se requiere una nueva observación sin pruebas sintéticas antes
-  de cerrar `REL-01`.
+- La alerta histórica de cPanel no está completamente limpia: la captura más
+  reciente muestra `2` eventos EP e I/O limitado dentro de la ventana móvil.
+  Esto no demuestra saturación activa; se conserva como riesgo residual
+  operativo aceptado en la decisión de cierre de REL-01.
 - El cron de `cache:warmup` ya quedó confirmado con su log; no requiere cambio.
   Mantiene `flock`, ejecución serial y cubre el manifest completo, incluida la
   homepage. FTP no permite inspeccionar el contador de Entry Processes del
