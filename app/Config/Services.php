@@ -25,16 +25,10 @@ use App\PageDelivery\SnapshotPublisherInterface;
 use App\PageDelivery\SynchronousPageDeliveryAdapter;
 use App\PageDelivery\SystemClock;
 use App\Services\PublicReadDiagnosticsService;
-use App\Services\SiteCategoryService;
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
 use App\Services\SiteFormService;
-use App\Services\SiteLanguageService;
-use App\Services\SiteMenuService;
 use App\Services\SitePageService;
-use App\Services\SiteSettingsService;
-use App\Services\SiteTagService;
-use App\Services\SocialLinksService;
 use CodeIgniter\Config\BaseService;
 
 class Services extends BaseService
@@ -175,36 +169,6 @@ class Services extends BaseService
         );
     }
 
-    public static function siteSettingsService(bool $getShared = true): SiteSettingsService
-    {
-        if ($getShared) {
-            /** @var SiteSettingsService */
-            return static::getSharedInstance('siteSettingsService');
-        }
-
-        return new SiteSettingsService(static::bffWebApiClient());
-    }
-
-    public static function siteLanguageService(bool $getShared = true): SiteLanguageService
-    {
-        if ($getShared) {
-            /** @var SiteLanguageService */
-            return static::getSharedInstance('siteLanguageService');
-        }
-
-        return new SiteLanguageService(static::bffWebApiClient());
-    }
-
-    public static function siteMenuService(bool $getShared = true): SiteMenuService
-    {
-        if ($getShared) {
-            /** @var SiteMenuService */
-            return static::getSharedInstance('siteMenuService');
-        }
-
-        return new SiteMenuService(static::bffWebApiClient());
-    }
-
     public static function sitePageService(bool $getShared = true): SitePageService
     {
         if ($getShared) {
@@ -233,26 +197,6 @@ class Services extends BaseService
         }
 
         return new SiteEntryService(static::bffWebApiClient());
-    }
-
-    public static function siteCategoryService(bool $getShared = true): SiteCategoryService
-    {
-        if ($getShared) {
-            /** @var SiteCategoryService */
-            return static::getSharedInstance('siteCategoryService');
-        }
-
-        return new SiteCategoryService(static::bffWebApiClient());
-    }
-
-    public static function siteTagService(bool $getShared = true): SiteTagService
-    {
-        if ($getShared) {
-            /** @var SiteTagService */
-            return static::getSharedInstance('siteTagService');
-        }
-
-        return new SiteTagService(static::bffWebApiClient());
     }
 
     public static function blockRenderer(bool $getShared = true): BlockRenderer
@@ -295,33 +239,4 @@ class Services extends BaseService
         return new SiteFormService(static::bffWebApiClient());
     }
 
-    public static function socialLinksService(bool $getShared = true): SocialLinksService
-    {
-        if ($getShared) {
-            /** @var SocialLinksService */
-            return static::getSharedInstance('socialLinksService');
-        }
-
-        return new SocialLinksService(static::bffWebApiClient());
-    }
-
-    public static function siteCatalogService(bool $getShared = true): \App\Services\SiteCatalogService
-    {
-        if ($getShared) {
-            /** @var \App\Services\SiteCatalogService */
-            return static::getSharedInstance('siteCatalogService');
-        }
-
-        return new \App\Services\SiteCatalogService(static::bffWebApiClient());
-    }
-
-    public static function siteEventService(bool $getShared = true): \App\Services\SiteEventService
-    {
-        if ($getShared) {
-            /** @var \App\Services\SiteEventService */
-            return static::getSharedInstance('siteEventService');
-        }
-
-        return new \App\Services\SiteEventService(static::bffWebApiClient());
-    }
 }
