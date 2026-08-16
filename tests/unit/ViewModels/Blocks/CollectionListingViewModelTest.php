@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Unit\ViewModels\Blocks;
 
-use App\Services\SiteCategoryService;
-use App\Services\SiteCollectionService;
-use App\Services\SiteEntryService;
-use App\Services\SiteTagService;
 use App\ViewModels\Blocks\CollectionListingViewModel;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\URI;
@@ -16,12 +12,9 @@ use CodeIgniter\Test\CIUnitTestCase;
 use Config\App;
 
 /**
- * Characterization tests for CollectionListingViewModel — this view model had
- * zero direct unit coverage before (only a view-rendering test with a
- * hand-built vars array). Rewritten for DEEP-WEB-02: the view model no longer
- * calls `service()`/`Config\Services::x()` itself, so tests construct it with
- * an explicit `$context` array (the same collaborators BlockRenderer resolves
- * in production) instead of mutating global service state.
+ * The view model consumes only the path-keyed listing envelope assembled by
+ * PageDelivery/BlockRenderer. These tests use that same boundary directly;
+ * no domain service is available during rendering.
  *
  * @internal
  */
@@ -54,28 +47,28 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         array $get = [],
         string $path = '/'
     ): array {
-        $collectionService = $this->createMock(SiteCollectionService::class);
-        $collectionService->method('getAll')->willReturn($collections);
-
-        $entryService = $this->createMock(SiteEntryService::class);
-        $entryService->method('list')->willReturn($entriesResult);
-
-        $categoryService = $this->createMock(SiteCategoryService::class);
-        $categoryService->method('list')->willReturn($categories);
-
-        $tagService = $this->createMock(SiteTagService::class);
-        $tagService->method('list')->willReturn($tags);
-
         $request = new IncomingRequest(config(App::class), new URI('http://localhost/' . ltrim($path, '/')), null, new UserAgent());
         $request->setGlobal('get', $get);
         $request->setLocale('es');
 
+        $data = is_array($entriesResult['data'] ?? null) ? $entriesResult['data'] : [];
+        $meta = is_array($entriesResult['meta'] ?? null) ? $entriesResult['meta'] : [];
+
         return [
             'request' => $request,
-            'siteCollectionService' => $collectionService,
-            'siteEntryService' => $entryService,
-            'siteCategoryService' => $categoryService,
-            'siteTagService' => $tagService,
+            'blockPath' => '0',
+            'block_prefetch_complete' => true,
+            'block_prefetch' => ['0' => [
+                'ok' => true,
+                'status' => 200,
+                'data' => $data,
+                'meta' => $meta,
+                'facets' => [
+                    'categories' => $categories,
+                    'tags' => $tags,
+                ],
+                'collection' => $collections[0] ?? null,
+            ]],
         ];
     }
 
@@ -135,6 +128,43 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame('Últimas noticias.', $vars['metaDescription']);
         $this->assertSame('/es/noticias/post-1', $vars['entries'][0]['navigation']['url']);
         $this->assertSame('Ver más', $vars['viewAllLabel']);
+    }
+
+    public function testResolvedCollectionNormalizesVideoFichaForCardPresentation(): void
+    {
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $this->context(
+                [array_replace(self::COLLECTION, [
+                    'collection_key' => 'videos',
+                    'slug' => 'videos',
+                    'listing_title' => 'Videos',
+                    'name' => 'Videos',
+                ])],
+                ['data' => [[
+                    'title' => 'Video de prueba',
+                    'slug' => 'video-de-prueba',
+                    'listing_content' => [
+                        'video' => [
+                            'provider' => 'youtube',
+                            'id' => 'dQw4w9WgXcQ',
+                        ],
+                    ],
+                ]], 'meta' => ['pagination' => ['total' => 1]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame(
+            'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+            $vars['entries'][0]['listing_content']['video']['poster_url'],
+        );
+        $this->assertSame(
+            'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1',
+            $vars['entries'][0]['listing_content']['video']['embed_url'],
+        );
     }
 
     public function testResolvedCollectionNormalizesLegacyFeaturedImageFields(): void
@@ -428,7 +458,7 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame([], $vmDefault->vars()['tags'], 'show_tags defaults to false');
     }
 
-    public function testPreviewRouteFabricatesAMockCollectionWhenUnresolvable(): void
+    public function testMissingPrefetchedCollectionDoesNotFabricateContent(): void
     {
         $vm = new CollectionListingViewModel(
             ['block_config' => ['collection_id' => 999]],
@@ -438,8 +468,8 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
 
         $vars = $vm->vars();
 
-        $this->assertTrue($vars['isValid']);
-        $this->assertSame('mock-collection', $vars['collection']['collection_key']);
+        $this->assertFalse($vars['isValid']);
+        $this->assertNull($vars['collection']);
     }
 
     public function testImageAspectRatioDefaultsTo16By9AndHonorsExplicitConfig(): void

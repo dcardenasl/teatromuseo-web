@@ -195,23 +195,11 @@ class BlockRenderer
                 'blockPath' => $blockPath,
             ];
             if (in_array($blockKey, ['collection_grid', 'collection_listing', 'collection_timeline', 'team_grid'], true)) {
-                // The BFF page envelope is the normal composition boundary.
-                // Only pre-BFF callers without a completed context may opt into
-                // compatibility services; a BFF page never gets a hidden
-                // domain read from a ViewModel.
-                $viewModelContext += [
-                    'request' => service('request'),
-                ];
-                if (($context['block_prefetch_complete'] ?? false) !== true) {
-                    $viewModelContext += [
-                        'siteCollectionService' => \Config\Services::siteCollectionService(),
-                        'siteEntryService' => \Config\Services::siteEntryService(),
-                        'siteCategoryService' => \Config\Services::siteCategoryService(),
-                        'siteTagService' => \Config\Services::siteTagService(),
-                        'siteCatalogService' => \Config\Services::siteCatalogService(),
-                        'siteEventService' => \Config\Services::siteEventService(),
-                    ];
-                }
+                // Dynamic blocks consume the BFF page envelope. The renderer
+                // deliberately passes only the request; ViewModels never
+                // receive domain services and therefore cannot reopen a
+                // hidden remote read during rendering.
+                $viewModelContext['request'] = service('request');
             }
             // Also merge the dynamic template context so view models can access it if needed
             $viewModelContext = array_merge($viewModelContext, $context);

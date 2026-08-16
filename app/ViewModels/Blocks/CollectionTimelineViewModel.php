@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace App\ViewModels\Blocks;
 
-use App\Services\SiteCollectionService;
-use App\Services\SiteEntryService;
-
 final class CollectionTimelineViewModel extends AbstractBlockViewModel
 {
     public function vars(): array
@@ -38,38 +35,13 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
     /** @return list<array<string, mixed>> */
     private function entries(string $collectionKey, int $categoryId, int $limit, string $direction): array
     {
-        $entryService = $this->contextService('siteEntryService', SiteEntryService::class);
-        if ($entryService === null || $collectionKey === '') {
+        if ($collectionKey === '') {
             return [];
         }
 
         try {
-            $query = [
-                'per_page' => $limit,
-                'order_by' => 'published_at',
-                'order_direction' => $direction,
-                'fields' => 'id,slug,title,excerpt,published_at,created_at,localized,listing_content',
-                // Only publication_date (display_date fallback) and documents
-                // are read from listing_content below — never rich_text/image/
-                // hover_image/secondary_action/date_fields/fields/video. With
-                // items_limit defaulting to 100, this was the single largest
-                // listing_content over-fetch on the site. See
-                // docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
-                'include' => 'listing_content.publication_date,listing_content.documents',
-            ];
-            if ($categoryId > 0) {
-                $query['category_id'] = $categoryId;
-            }
-
             $prefetched = $this->prefetchedEntries();
-            if ($prefetched !== null) {
-                $entries = $prefetched;
-            } elseif (($this->context['block_prefetch_complete'] ?? false) === true) {
-                $entries = [];
-            } else {
-                $result = $entryService->list($this->lang, $collectionKey, $query);
-                $entries = is_array($result['data'] ?? null) ? $result['data'] : [];
-            }
+            $entries = $prefetched ?? [];
             $listingUrl = $this->collectionListingUrl($collectionKey);
 
             $normalized = [];
@@ -269,30 +241,6 @@ final class CollectionTimelineViewModel extends AbstractBlockViewModel
             $indexPage = is_array($collection['index_page'] ?? null) ? $collection['index_page'] : [];
             $urls = is_array($indexPage['localized_urls'] ?? null) ? $indexPage['localized_urls'] : [];
             return (string) ($urls[$this->lang] ?? '');
-        }
-
-        // A completed prefetch is an explicit no-I/O boundary. If collection
-        // metadata was unavailable, keep the timeline usable without reopening
-        // the old per-view collection list request.
-        if (($this->context['block_prefetch_complete'] ?? false) === true) {
-            return '';
-        }
-
-        $collectionService = $this->contextService('siteCollectionService', SiteCollectionService::class);
-        if ($collectionService === null) {
-            return '';
-        }
-
-        try {
-            foreach ($collectionService->getAll($this->lang) as $collection) {
-                if ((string) ($collection['collection_key'] ?? '') !== $collectionKey) {
-                    continue;
-                }
-                $indexPage = is_array($collection['index_page'] ?? null) ? $collection['index_page'] : [];
-                $urls = is_array($indexPage['localized_urls'] ?? null) ? $indexPage['localized_urls'] : [];
-                return (string) ($urls[$this->lang] ?? '');
-            }
-        } catch (\Throwable) {
         }
 
         return '';

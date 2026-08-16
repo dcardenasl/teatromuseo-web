@@ -4,15 +4,9 @@ declare(strict_types=1);
 
 namespace App\ViewModels\Blocks;
 
-use App\Services\SiteCatalogService;
-use App\Services\SiteCategoryService;
-use App\Services\SiteCollectionService;
-use App\Services\SiteEntryService;
-use App\Services\SiteEventService;
-use App\Services\SiteTagService;
 use App\ViewModels\Blocks\Listing\ListingDateResolver;
-use App\ViewModels\Blocks\Listing\ListingQuery;
-use App\ViewModels\Blocks\Listing\ListingSourceInterface;
+use App\ViewModels\Blocks\Listing\ListingPresentationSourceInterface;
+use App\ViewModels\Blocks\Listing\ListingVideoPresentation;
 use App\ViewModels\Blocks\Listing\Sources\CatalogItemsSource;
 use App\ViewModels\Blocks\Listing\Sources\CmsCollectionSource;
 use App\ViewModels\Blocks\Listing\Sources\EventItemsSource;
@@ -57,20 +51,6 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             $perPage = max(1, min(100, (int) $requestedPerPage));
         }
 
-        $query = new ListingQuery(
-            page: $currentPage,
-            perPage: $perPage,
-            category: $currentCategory,
-            categoryId: $configuredCategoryId,
-            tag: $currentTag,
-            query: $currentQuery,
-            orderBy: $orderBy,
-            orderDirection: $orderDirection,
-            filterBy: $currentFilterBy,
-            filterValue: $currentFilterValue,
-            filterOperator: $currentFilterOperator,
-        );
-
         $showCategories = $this->configBool('show_categories', $defaults['show_categories']);
         $showTags = $this->configBool('show_tags', $defaults['show_tags']);
         $prefetched = $this->prefetchedListing();
@@ -81,16 +61,14 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             );
             $facets = is_array($prefetched['facets'] ?? null) ? $prefetched['facets'] : [];
         } else {
-            $result = $source->fetch($query, $this->lang);
-
-            if ((empty($result->data) || !is_array($result->data)) && $this->isPreviewRequest()) {
-                $result = $source->previewResult();
-            }
-
-            $facets = ($showCategories || $showTags) ? $source->facets($query, $this->lang) : [];
+            // The BFF page envelope is the only read boundary. A missing
+            // prefetch is an empty/error delivery, never an invitation for a
+            // ViewModel to reopen a remote listing or facet request.
+            $result = new \App\ViewModels\Blocks\Listing\ListingResult();
+            $facets = [];
         }
-        $categories = $showCategories ? ($facets['categories'] ?? []) : [];
-        $tags = $showTags ? ($facets['tags'] ?? []) : [];
+        $categories = $showCategories ? $this->normalizeFacets($facets['categories'] ?? [], 'category') : [];
+        $tags = $showTags ? $this->normalizeFacets($facets['tags'] ?? [], 'tag') : [];
 
         $normalizedEntries = $this->prepareEntries(
             array_map(fn ($entry) => $source->normalizeEntry($entry), $result->data)
@@ -177,9 +155,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         ];
 
         if ($sourceType === 'cms_collection' && $source instanceof CmsCollectionSource) {
-            $cmsCollection = is_array($prefetched['collection'] ?? null)
-                ? $prefetched['collection']
-                : ($prefetched === null ? $source->getCollectionData($this->lang, $this->isPreviewRequest()) : null);
+            $cmsCollection = is_array($prefetched['collection'] ?? null) ? $prefetched['collection'] : null;
             if ($cmsCollection !== null) {
                 $collection = $cmsCollection;
                 $collectionKey = (string) ($collection['collection_key'] ?? '');
@@ -276,60 +252,15 @@ class CollectionListingViewModel extends AbstractBlockViewModel
     }
 
     /** @param array<string, mixed> $listingProjection */
-    private function resolveSource(string $sourceType, array $listingProjection = []): ListingSourceInterface
+    private function resolveSource(string $sourceType, array $listingProjection = []): ListingPresentationSourceInterface
     {
-        $urlBuilder = fn (ListingQuery $query) => $this->buildUrl([
-            'category' => $query->category ?: null,
-            'tag' => $query->tag ?: null,
-            'q' => $query->query ?: null,
-            'order_by' => $query->orderBy ?: null,
-            'order_direction' => $query->orderDirection ?: null,
-            'filter_by' => $query->filterBy ?: null,
-            'filter_value' => $query->filterValue ?: null,
-            'filter_operator' => $query->filterOperator !== 'equals' ? $query->filterOperator : null,
-            'page' => $query->page > 1 ? $query->page : null,
-        ]);
-
         $mediaNormalizer = fn (array $media) => $this->normalizeMediaReference($media);
 
         return match ($sourceType) {
-            'catalog_items' => $this->resolveCatalogItemsSource($urlBuilder, $mediaNormalizer),
-            'event_items' => $this->resolveEventItemsSource($urlBuilder, $mediaNormalizer),
-            default => $this->resolveCmsCollectionSource($urlBuilder, $mediaNormalizer, $listingProjection),
+            'catalog_items' => new CatalogItemsSource($mediaNormalizer),
+            'event_items' => new EventItemsSource($mediaNormalizer),
+            default => new CmsCollectionSource($mediaNormalizer),
         };
-    }
-
-    private function resolveCatalogItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): CatalogItemsSource
-    {
-        $catalogService = $this->contextService('siteCatalogService', SiteCatalogService::class);
-
-        return new CatalogItemsSource($catalogService, $urlBuilder, $mediaNormalizer);
-    }
-
-    private function resolveEventItemsSource(\Closure $urlBuilder, \Closure $mediaNormalizer): EventItemsSource
-    {
-        $eventService = $this->contextService('siteEventService', SiteEventService::class);
-
-        return new EventItemsSource($eventService, $urlBuilder, $mediaNormalizer);
-    }
-
-    /** @param array<string, mixed> $listingProjection */
-    private function resolveCmsCollectionSource(\Closure $urlBuilder, \Closure $mediaNormalizer, array $listingProjection = []): CmsCollectionSource
-    {
-        $collectionService = $this->contextService('siteCollectionService', SiteCollectionService::class);
-        $entryService = $this->contextService('siteEntryService', SiteEntryService::class);
-        $categoryService = $this->contextService('siteCategoryService', SiteCategoryService::class);
-        $tagService = $this->contextService('siteTagService', SiteTagService::class);
-
-        return new CmsCollectionSource(
-            $collectionService,
-            $entryService,
-            $categoryService,
-            $tagService,
-            $this->configInt('collection_id', 0),
-            $urlBuilder,
-            $mediaNormalizer,
-        );
     }
 
     /**
@@ -378,6 +309,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
             'viewAllLabel' => '',
             'pageTitle' => $defaults['page_title'],
             'metaDescription' => $defaults['intro_text'],
+            'fallbackImageUrl' => '',
         ];
     }
 
@@ -391,6 +323,45 @@ class CollectionListingViewModel extends AbstractBlockViewModel
         $value = $request->getGet($key);
 
         return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * Facet records are data from the BFF envelope. Their public URLs are a
+     * presentation concern, so missing URLs are derived locally without any
+     * service access.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeFacets(mixed $facets, string $dimension): array
+    {
+        if (! is_array($facets)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($facets as $facet) {
+            if (! is_array($facet)) {
+                continue;
+            }
+
+            $slug = trim((string) ($facet['slug'] ?? ''), '/');
+            if ($slug === '') {
+                continue;
+            }
+
+            if (trim((string) ($facet['url'] ?? '')) === '') {
+                $facet['url'] = $this->buildUrl([
+                    'category' => $dimension === 'category' ? $slug : null,
+                    'tag' => $dimension === 'tag' ? $slug : null,
+                    'q' => $this->requestGet('q') ?: null,
+                    'page' => null,
+                ]);
+            }
+
+            $normalized[] = $facet;
+        }
+
+        return $normalized;
     }
 
     /** @return array<string, mixed>|null */
@@ -609,33 +580,12 @@ class CollectionListingViewModel extends AbstractBlockViewModel
                 'publication_date' => (string) ($content['publication_date'] ?? ''),
                 'date_fields' => $dateFields,
                 'fields' => $projectionFields,
-                'video' => $this->normalizeListingVideo($video),
+                'video' => ListingVideoPresentation::normalize($video),
             ];
             $normalized[] = $entry;
         }
 
         return $normalized;
-    }
-
-    /**
-     * @param array<string, mixed>|null $video
-     * @return array{provider: string, id: string, url: string}|null
-     */
-    private function normalizeListingVideo(?array $video): ?array
-    {
-        $provider = strtolower(trim((string) ($video['provider'] ?? '')));
-        $id = trim((string) ($video['id'] ?? ''));
-        $url = trim((string) ($video['url'] ?? ''));
-
-        if (! in_array($provider, ['youtube', 'vimeo'], true) || $id === '') {
-            return null;
-        }
-
-        if ($url !== '' && ! preg_match('#^https?://#i', $url)) {
-            $url = '';
-        }
-
-        return ['provider' => $provider, 'id' => $id, 'url' => $url];
     }
 
     /**
@@ -703,7 +653,7 @@ class CollectionListingViewModel extends AbstractBlockViewModel
      * The `catalog_items`/`event_items` sources are backed by dedicated
      * domain apps (not CMS-managed collections), so their public path
      * segment is locale-aware per `PublicPaths` rather than coming from
-     * `ListingSourceInterface::defaults()`, which has no locale context.
+     * presentation defaults, which have no locale context.
      * Returns null for any other source type (e.g. `cms_collection`, which
      * resolves its own URL via `resolvedCollectionUrlPath()` above).
      */

@@ -114,6 +114,7 @@ return [
     'related_stories'      => 'Related stories',
     'related_content'      => 'Related content',
     'read_more'            => 'Read more →',
+    'view_all'             => 'View all',
     'collection_index_label'  => 'Collection',
     'collection_filter'       => 'Filter',
     'collection_reset'        => 'Reset',

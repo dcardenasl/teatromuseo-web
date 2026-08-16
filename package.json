@@ -13,6 +13,7 @@
     "dev:js": "esbuild src/js/site.js --bundle --outfile=public/assets/js/site.js --format=iife --banner:js=\"/* Generated from src/js — do not edit directly. Run: npm run build:js */\" --watch",
     "build:all": "npm run build:css && npm run build:js",
     "lint:js": "eslint 'src/js/**/*.js'",
+    "test:js": "node --experimental-default-type=module --test tests/js/collectionVideoPlayers.test.js",
     "prepare": "husky"
   },
   "lint-staged": {

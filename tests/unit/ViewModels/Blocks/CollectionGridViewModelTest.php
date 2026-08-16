@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Unit\ViewModels\Blocks;
 
-use App\Services\SiteCollectionService;
-use App\Services\SiteEntryService;
-use App\Services\SiteEventService;
 use App\ViewModels\Blocks\CollectionGridViewModel;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\URI;
@@ -15,10 +12,9 @@ use CodeIgniter\Test\CIUnitTestCase;
 use Config\App;
 
 /**
- * DEEP-WEB-02: the view model no longer calls service()/Config\Services::x()
- * itself, so tests construct it with an explicit $context array (the same
- * collaborators BlockRenderer resolves in production) instead of mutating
- * global service state via Services::injectMock().
+ * The view model consumes only the path-keyed listing envelope assembled by
+ * PageDelivery/BlockRenderer. These tests use that same boundary directly;
+ * no domain service is available during rendering.
  *
  * @internal
  */
@@ -34,36 +30,24 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         array $entriesResult,
         string $path = '/',
         ?array $eventsResult = null,
-        ?array &$capturedQuery = null,
     ): array {
-        $collectionService = $this->createMock(SiteCollectionService::class);
-        $collectionService->method('getAll')->willReturn($collections);
-
-        $entryService = $this->createMock(SiteEntryService::class);
-        $entryService->method('list')->willReturnCallback(
-            static function (string $lang, string $collectionKey, array $query) use (&$capturedQuery, $entriesResult): array {
-                $capturedQuery = $query;
-
-                return $entriesResult;
-            }
-        );
-
         $request = new IncomingRequest(config(App::class), new URI('http://localhost/' . ltrim($path, '/')), null, new UserAgent());
         $request->setLocale('es');
 
-        $context = [
-            'request' => $request,
-            'siteCollectionService' => $collectionService,
-            'siteEntryService' => $entryService,
+        $listing = [
+            'ok' => true,
+            'status' => 200,
+            'data' => $eventsResult['data'] ?? $entriesResult['data'] ?? [],
+            'meta' => $eventsResult['meta'] ?? $entriesResult['meta'] ?? [],
+            'collection' => $collections[0] ?? null,
         ];
 
-        if ($eventsResult !== null) {
-            $eventService = $this->createMock(SiteEventService::class);
-            $eventService->method('listEvents')->willReturn($eventsResult);
-            $context['siteEventService'] = $eventService;
-        }
-
-        return $context;
+        return [
+            'request' => $request,
+            'blockPath' => '0',
+            'block_prefetch_complete' => true,
+            'block_prefetch' => ['0' => $listing],
+        ];
     }
 
     public function testResolvesCanonicalUrlAndEntries(): void
@@ -109,6 +93,33 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $this->assertNotSame('', $vars['canonicalViewAllUrl']);
     }
 
+    public function testGridKeepsAValidYouTubeVideoForCardPresentation(): void
+    {
+        $vm = new CollectionGridViewModel([
+            'block_config' => ['collection_key' => 'videos'],
+        ], 'es', $this->context(
+            [['collection_key' => 'videos', 'slug' => 'videos']],
+            ['data' => [[
+                'id' => 10,
+                'title' => 'Video de prueba',
+                'slug' => 'video-de-prueba',
+                'listing_content' => [
+                    'video' => [
+                        'provider' => 'youtube',
+                        'id' => 'dQw4w9WgXcQ',
+                    ],
+                ],
+            ]], 'meta' => []],
+            '/',
+        ));
+
+        $vars = $vm->vars();
+
+        $this->assertSame('youtube', $vars['entries'][0]['listing_content']['video']['provider']);
+        $this->assertSame('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', $vars['entries'][0]['listing_content']['video']['poster_url']);
+        $this->assertStringContainsString('youtube-nocookie.com/embed/dQw4w9WgXcQ', $vars['entries'][0]['listing_content']['video']['embed_url']);
+    }
+
     public function testInvalidConfigFallsBackToSafeDefaults(): void
     {
         $vm = new CollectionGridViewModel([
@@ -127,65 +138,9 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
         $this->assertSame('cards', $vars['layoutVariant']);
         $this->assertSame('1/1', $vars['imageAspectRatio']);
         $this->assertSame('aspect-square', $vars['imageAspectRatioClass']);
-        $this->assertSame('', $vars['canonicalViewAllUrl']);
+        $this->assertSame('/es/news', parse_url($vars['canonicalViewAllUrl'], PHP_URL_PATH));
+        $this->assertSame(lang('Site.view_all'), $vars['viewAllLabel']);
         $this->assertStringContainsString('md:grid-cols-3', $vars['gridClass']);
-    }
-
-    public function testProjectionOrderDirectionIsUsedForCmsCollectionQueries(): void
-    {
-        $capturedQuery = null;
-        $vm = new CollectionGridViewModel([
-            'block_config' => [
-                'collection_key' => 'news',
-                'order_direction' => 'asc',
-                'listing_projection' => [
-                    'order' => [
-                        'field' => 'entry.published_at',
-                        'direction' => 'desc',
-                    ],
-                ],
-            ],
-        ], 'es', $this->context(
-            [['collection_key' => 'news', 'slug' => 'noticias']],
-            ['data' => [], 'meta' => []],
-            '/',
-            null,
-            $capturedQuery,
-        ));
-
-        $vm->vars();
-
-        $this->assertIsArray($capturedQuery);
-        $this->assertSame('field:entry.published_at', $capturedQuery['order_by']);
-        $this->assertSame('desc', $capturedQuery['order_direction']);
-    }
-
-    public function testUpcomingProjectionOrderIsForwardedToCmsCollectionQueries(): void
-    {
-        $capturedQuery = null;
-        $vm = new CollectionGridViewModel([
-            'block_config' => [
-                'collection_key' => 'teatroescuela',
-                'listing_projection' => [
-                    'order' => [
-                        'field' => 'block.teatroescuela_ficha.start_date',
-                        'direction' => 'upcoming',
-                    ],
-                ],
-            ],
-        ], 'es', $this->context(
-            [['collection_key' => 'teatroescuela', 'slug' => 'teatroescuela']],
-            ['data' => [], 'meta' => []],
-            '/',
-            null,
-            $capturedQuery,
-        ));
-
-        $vm->vars();
-
-        $this->assertIsArray($capturedQuery);
-        $this->assertSame('field:block.teatroescuela_ficha.start_date', $capturedQuery['order_by']);
-        $this->assertSame('upcoming', $capturedQuery['order_direction']);
     }
 
     public function testEventCardsUseLocalizedSlugAndResolvedListingNavigation(): void
@@ -323,7 +278,7 @@ final class CollectionGridViewModelTest extends CIUnitTestCase
 
         $this->assertSame('news', $vars['collectionKey']);
         $this->assertSame([], $vars['entries']);
-        $this->assertSame('', $vars['canonicalViewAllUrl']);
+        $this->assertSame('/es/news', parse_url($vars['canonicalViewAllUrl'], PHP_URL_PATH));
         $this->assertSame('1/1', $vars['imageAspectRatio']);
     }
 }

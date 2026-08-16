@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    'view_all' => 'Voir tout',
     'breadcrumb_home' => 'Accueil',
     'preview_label' => 'Aperçu',
     'collection_item_not_found' => 'Élément de collection introuvable',

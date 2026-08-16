@@ -128,7 +128,11 @@ $cardImageSizes = match ($layoutVariant) {
 $bodyClass = $layoutVariant === 'portfolio' ? 'p-7' : 'p-5';
 $sectionClass = trim($cssClass . ' section');
 ?>
-<section class="<?= esc($sectionClass) ?>" data-ajax-listing>
+<section class="<?= esc($sectionClass) ?>"
+         data-ajax-listing
+         data-video-listing
+         data-video-close-label="<?= esc(lang('Site.video_modal_close'), 'attr') ?>"
+         data-video-player-label="<?= esc(lang('Site.video_player_title'), 'attr') ?>">
     <div class="container-base">
         
         <!-- ── 1. Block Header ────────────────────────────────────────────── -->
@@ -320,23 +324,13 @@ $sectionClass = trim($cssClass . ' section');
                     $extraAction = is_array($listingContent['secondary_action'] ?? null) ? $listingContent['secondary_action'] : null;
                     $extraRichtext = (string) ($listingContent['rich_text'] ?? '');
                     $video = is_array($listingContent['video'] ?? null) ? $listingContent['video'] : null;
-                    $videoProvider = strtolower((string) ($video['provider'] ?? ''));
-                    $videoId = trim((string) ($video['id'] ?? ''));
-                    $videoUrl = trim((string) ($video['url'] ?? ''));
-                    $videoEmbedUrl = '';
-                    $videoPosterUrl = '';
-                    if ($videoProvider === 'youtube' && preg_match('/^[A-Za-z0-9_-]{11}$/', $videoId) === 1) {
-                        $videoUrl = $videoUrl !== '' ? $videoUrl : 'https://www.youtube.com/watch?v=' . $videoId;
-                        $videoEmbedUrl = \App\ViewModels\Blocks\VideoPlayerViewModel::embedUrl($videoUrl, false, false);
-                        $videoPosterUrl = 'https://i.ytimg.com/vi/' . $videoId . '/hqdefault.jpg';
-                    } elseif ($videoProvider === 'vimeo' && $videoUrl !== '') {
-                        $videoEmbedUrl = \App\ViewModels\Blocks\VideoPlayerViewModel::embedUrl($videoUrl, false, false);
-                    }
+                    $videoEmbedUrl = trim((string) ($video['embed_url'] ?? ''));
+                    $videoPosterUrl = trim((string) ($video['poster_url'] ?? ''));
                     $isPlayableVideo = $videoEmbedUrl !== '';
                 ?>
                     <article class="<?= esc($cardClass) ?> animate-fade-in-up" style="animation-delay: <?= $index * 60 ?>ms; animation-fill-mode: both;">
                         <!-- Image Container with Zoom effect on hover -->
-                        <?php if ($entryImage !== '' || $videoPosterUrl !== ''): ?>
+                        <?php if ($entryImage !== '' || $videoPosterUrl !== '' || $isPlayableVideo): ?>
                             <?php if ($isPlayableVideo): ?>
                                 <button type="button"
                                         class="relative block w-full overflow-hidden <?= esc($imageClass) ?> text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/40"
@@ -353,7 +347,7 @@ $sectionClass = trim($cssClass . ' section');
                                          class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                                          loading="lazy"
                                          decoding="async">
-                                <?php else: ?>
+                                <?php elseif ($entryImage !== ''): ?>
                                     <?= view('components/responsive-image', [
                                         'src'      => $entryImage,
                                         'alt'      => $entryTitle,
@@ -363,6 +357,8 @@ $sectionClass = trim($cssClass . ' section');
                                         'sizes' => $cardImageSizes,
                                         'maxVariantWidth' => 640,
                                     ], ['saveData' => false]) ?>
+                                <?php else: ?>
+                                    <span class="absolute inset-0 bg-slate-900" aria-hidden="true"></span>
                                 <?php endif; ?>
                                 <?php if ($isPlayableVideo): ?>
                                     <span class="absolute inset-0 bg-slate-950/20 transition-colors group-hover:bg-slate-950/35" aria-hidden="true"></span>
@@ -558,7 +554,4 @@ $sectionClass = trim($cssClass . ' section');
         <?php endif; ?>
     </div>
 
-    <div data-video-listing
-         data-video-close-label="<?= esc(lang('Site.video_modal_close'), 'attr') ?>"
-         data-video-player-label="<?= esc(lang('Site.video_player_title'), 'attr') ?>"></div>
 </section>

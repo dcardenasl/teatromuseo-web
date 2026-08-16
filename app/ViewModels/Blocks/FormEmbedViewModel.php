@@ -35,7 +35,7 @@ class FormEmbedViewModel extends AbstractBlockViewModel
     }
 
     /**
-     * Definition injected by BlockRenderer's preload pass, or lazy fallback.
+     * Definition injected by BlockRenderer's preload pass.
      *
      * @return array<string, mixed>|null
      */
@@ -52,11 +52,7 @@ class FormEmbedViewModel extends AbstractBlockViewModel
             return is_array($definition) ? $definition : null;
         }
 
-        try {
-            return \Config\Services::siteFormService()->getDefinition($this->lang, $formKey);
-        } catch (\Throwable) {
-            return null;
-        }
+        return null;
     }
 
     /**
@@ -78,13 +74,6 @@ class FormEmbedViewModel extends AbstractBlockViewModel
             return is_scalar($key) ? (string) $key : '';
         }
 
-        try {
-            $key = \Config\Services::siteSettingsService()
-                ->get('recaptcha_site_key', env('RECAPTCHA_SITE_KEY', ''));
-
-            return is_scalar($key) ? (string) $key : '';
-        } catch (\Throwable) {
-            return '';
-        }
+        return '';
     }
 }

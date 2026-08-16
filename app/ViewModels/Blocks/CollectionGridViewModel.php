@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace App\ViewModels\Blocks;
 
-use App\Services\SiteCatalogService;
-use App\Services\SiteEntryService;
-use App\Services\SiteEventService;
 use App\ViewModels\Blocks\Listing\ListingDateResolver;
-use App\ViewModels\Blocks\Listing\ListingQuery;
+use App\ViewModels\Blocks\Listing\ListingVideoPresentation;
 use App\ViewModels\Blocks\Listing\Sources\CatalogItemsSource;
 use App\ViewModels\Blocks\Listing\Sources\EventItemsSource;
 
 class CollectionGridViewModel extends AbstractBlockViewModel
 {
-    private const ORDER_COLUMNS   = ['published_at', 'sort_order', 'created_at', 'title'];
     private const LAYOUT_VARIANTS = ['cards', 'compact', 'portfolio'];
     private const IMAGE_ASPECT_RATIOS = ['16/9', '4/3', '1/1', '3/4', '2/3'];
     private const SOURCE_TYPES = ['auto', 'cms_collection', 'catalog_items', 'event_items'];
@@ -22,26 +18,8 @@ class CollectionGridViewModel extends AbstractBlockViewModel
     public function vars(): array
     {
         $collectionKey = $this->configString('collection_key');
-        $categoryId = max(0, $this->configInt('category_id', 0));
         $sourceType = $this->resolveSourceType($collectionKey);
         $listingProjection = $this->listingProjection();
-        $itemsLimit    = max(1, min(100, $this->configInt('items_limit', 3)));
-
-        $configuredOrder = is_array($listingProjection['order'] ?? null) ? trim((string) ($listingProjection['order']['field'] ?? '')) : '';
-        $orderBy = $configuredOrder !== '' ? $configuredOrder : $this->configString('order_by');
-        if (! in_array($orderBy, self::ORDER_COLUMNS, true) && ! preg_match('/^(entry|block|taxonomy)\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/', $orderBy) && ! preg_match('/^field:[a-z][a-z0-9_]{0,49}$/', $orderBy)) {
-            $orderBy = 'published_at';
-        }
-
-        $configuredDirection = is_array($listingProjection['order'] ?? null)
-            ? strtolower(trim((string) ($listingProjection['order']['direction'] ?? '')))
-            : '';
-        $legacyDirection = strtolower($this->configString('order_direction', 'desc'));
-        $candidateDirection = $configuredDirection !== '' ? $configuredDirection : $legacyDirection;
-        $orderDirection = in_array($candidateDirection, ['asc', 'desc'], true)
-            || ($candidateDirection === 'upcoming' && $sourceType === 'cms_collection')
-            ? $candidateDirection
-            : 'desc';
 
         $layoutVariant = $this->configString('layout_variant');
         if (! in_array($layoutVariant, self::LAYOUT_VARIANTS, true)) {
@@ -56,12 +34,20 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         $navigation = is_array($this->block['navigation'] ?? null)
             ? $this->block['navigation']
             : [];
-        $canonicalViewAllUrl = $this->navigationUrl($navigation);
+        $canonicalViewAllUrl = $this->navigationUrl($navigation)
+            ?: $this->defaultListingUrl($sourceType, $collectionKey);
+        $viewAllLabel = trim((string) ($navigation['label'] ?? ''));
+        if ($viewAllLabel === '') {
+            $viewAllLabel = trim($this->dataString('view_all_label'));
+        }
+        if ($viewAllLabel === '' && $canonicalViewAllUrl !== '') {
+            $viewAllLabel = lang('Site.view_all');
+        }
 
         return [
             'sectionTitle'        => $this->dataString('section_title'),
             'sectionSubtitle'     => $this->dataString('section_subtitle'),
-            'viewAllLabel'        => (string) ($navigation['label'] ?? $this->dataString('view_all_label')),
+            'viewAllLabel'        => $viewAllLabel,
             'emptyMessage'        => $this->dataString('empty_message'),
             'collectionKey'       => $collectionKey,
             'layoutVariant'       => $layoutVariant,
@@ -71,7 +57,7 @@ class CollectionGridViewModel extends AbstractBlockViewModel
             'canonicalViewAllUrl' => $canonicalViewAllUrl,
             'entries'             => array_map(
                 fn (array $entry): array => $this->withEntryNavigation($entry, $canonicalViewAllUrl),
-                $this->resolvePreviewEntries($collectionKey, $sourceType, $itemsLimit, $orderBy, $orderDirection, $categoryId, $listingProjection),
+                $this->resolvePrefetchedEntries($sourceType, $listingProjection),
             ),
             'sectionClass'        => $layoutVariant === 'portfolio' ? 'section-lg bg-slate-50/50' : 'section',
             'containerClass'      => $layoutVariant === 'portfolio' ? 'max-w-6xl mx-auto px-4' : 'container-base',
@@ -117,122 +103,16 @@ class CollectionGridViewModel extends AbstractBlockViewModel
     }
 
     /**
-     * @param array<string, mixed> $listingProjection
-     * @return list<array<string, mixed>>
-     */
-    private function entries(string $collectionKey, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0, array $listingProjection = []): array
-    {
-        $service = $this->contextService('siteEntryService', SiteEntryService::class);
-        if ($service === null) {
-            return [];
-        }
-
-        try {
-            $query = [
-                'per_page'        => $itemsLimit,
-                'order_by'        => $orderBy,
-                'order_direction' => $orderDirection,
-                // normalizeCmsEntries()/projectionValue()/projectionMedia()
-                // only ever read listing_content.fields (the custom
-                // slot-projection dict) — never rich_text/image/hover_image/
-                // secondary_action/documents/publication_date/date_fields/
-                // video, so requesting the full blob here was pure overhead.
-                // See docs/audits/2026-08-12-auditoria-parte2-rendimiento-listados-publicos.md §2.C.
-                'include'         => 'listing_content.fields',
-                // Projection sources are logical paths resolved from the
-                // listing envelope, not fields accepted by public-read.
-                'fields'          => 'id,slug,title,excerpt,published_at,featured_image,listing_content',
-            ];
-            if (str_starts_with($orderBy, 'entry.') || str_starts_with($orderBy, 'block.') || str_starts_with($orderBy, 'taxonomy.')) {
-                $query['order_by'] = 'field:' . $orderBy;
-            }
-            if ($categoryId > 0) {
-                $query['category_id'] = $categoryId;
-            }
-            $result = $service->list($this->lang, $collectionKey, $query);
-
-            $entries = $result['data'] ?? [];
-            if (! is_array($entries)) {
-                return [];
-            }
-
-            $entries = array_values(array_filter(
-                $entries,
-                static fn (mixed $entry): bool => is_array($entry),
-            ));
-
-            return $this->normalizeCmsEntries($entries, $listingProjection);
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /**
-     * Resolve entries for preview mode, falling back to mock entries if empty.
+     * Resolve only the result prepared by the BFF page envelope.
      *
      * @param array<string, mixed> $listingProjection
      * @return list<array<string, mixed>>
      */
-    private function resolvePreviewEntries(string $collectionKey, string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection, int $categoryId = 0, array $listingProjection = []): array
+    private function resolvePrefetchedEntries(string $sourceType, array $listingProjection): array
     {
         $prefetched = $this->prefetchedEntries($sourceType, $listingProjection);
-        if ($prefetched !== null) {
-            return $prefetched;
-        }
 
-        if (($this->context['block_prefetch_complete'] ?? false) === true) {
-            return [];
-        }
-
-        if ($sourceType === 'event_items') {
-            return $this->externalEntries('event_items', $itemsLimit, $orderBy, $orderDirection, $listingProjection);
-        }
-
-        if ($sourceType === 'catalog_items') {
-            return $this->externalEntries('catalog_items', $itemsLimit, $orderBy, $orderDirection, $listingProjection);
-        }
-
-        $entries = [];
-        if ($collectionKey !== '') {
-            $entries = $this->entries($collectionKey, $itemsLimit, $orderBy, $orderDirection, $categoryId, $listingProjection);
-        }
-
-        if ($entries === [] && $this->isPreviewRequest()) {
-            return [
-                [
-                    'id' => 1,
-                    'slug' => 'mock-entry-1',
-                    'title' => 'Caso de Éxito de Ejemplo',
-                    'summary' => 'Resumen breve de la historia de éxito que ilustra la efectividad de nuestra metodología en proyectos reales.',
-                    'published_at' => date('Y-m-d H:i:s'),
-                    'featured_image' => $this->normalizeMediaReference(['source_kind' => 'external_url', 'file_id' => null, 'url' => 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80']),
-                    'categories' => [['title' => 'Casos de Éxito', 'slug' => 'casos']],
-                    'tags' => [['title' => 'Negocios', 'slug' => 'negocios']],
-                ],
-                [
-                    'id' => 2,
-                    'slug' => 'mock-entry-2',
-                    'title' => 'Lanzamiento de Nueva Solución',
-                    'summary' => 'Una descripción detallada de las ventajas y el impacto de nuestra última innovación tecnológica en el sector.',
-                    'published_at' => date('Y-m-d H:i:s', strtotime('-1 day')),
-                    'featured_image' => $this->normalizeMediaReference(['source_kind' => 'external_url', 'file_id' => null, 'url' => 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=600&q=80']),
-                    'categories' => [['title' => 'Innovación', 'slug' => 'innovacion']],
-                    'tags' => [['title' => 'Tecnología', 'slug' => 'tecnologia']],
-                ],
-                [
-                    'id' => 3,
-                    'slug' => 'mock-entry-3',
-                    'title' => 'Mejores Prácticas en el Sector',
-                    'summary' => 'Una guía completa de las tendencias actuales y recomendaciones clave para optimizar procesos y flujos de trabajo.',
-                    'published_at' => date('Y-m-d H:i:s', strtotime('-2 days')),
-                    'featured_image' => $this->normalizeMediaReference(['source_kind' => 'external_url', 'file_id' => null, 'url' => 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=600&q=80']),
-                    'categories' => [['title' => 'TeatroEscuela', 'slug' => 'teatroescuela']],
-                    'tags' => [['title' => 'Guías', 'slug' => 'guias']],
-                ]
-            ];
-        }
-
-        return $entries;
+        return $prefetched ?? [];
     }
 
     /**
@@ -299,6 +179,11 @@ class CollectionGridViewModel extends AbstractBlockViewModel
 
             $featuredImage = $this->mediaReferenceFromPayload($entry, 'featured_image');
             $entry['featured_image'] = $featuredImage['url'] !== '' ? $featuredImage : null;
+            $listingContent = is_array($entry['listing_content'] ?? null) ? $entry['listing_content'] : [];
+            $listingContent['video'] = ListingVideoPresentation::normalize(
+                is_array($listingContent['video'] ?? null) ? $listingContent['video'] : null,
+            );
+            $entry['listing_content'] = $listingContent;
             $imageSource = is_array($listingProjection['slots'] ?? null) ? trim((string) ($listingProjection['slots']['image'] ?? '')) : '';
             $projectedImage = $this->projectionMedia($entry, $imageSource);
             if ($projectedImage !== null) {
@@ -321,112 +206,16 @@ class CollectionGridViewModel extends AbstractBlockViewModel
         return $normalized;
     }
 
-    /**
-     * Cartelera is owned by the event domain, not by the CMS collections table.
-     * Keep the collection_grid presentation while routing this special source
-     * through the same event normalizer used by the full cartelera listing.
-     *
-     * @param array<string, mixed> $listingProjection
-     * @return list<array<string, mixed>>
-     */
-    private function externalEntries(string $sourceType, int $itemsLimit, string $orderBy, string $orderDirection, array $listingProjection = []): array
-    {
-        $source = match ($sourceType) {
-            'event_items' => $this->eventSource(),
-            'catalog_items' => $this->catalogSource(),
-            default => null,
-        };
-
-        if ($source === null) {
-            return [];
-        }
-
-        try {
-            $sort = $sourceType === 'event_items'
-                ? $this->eventSortField($orderBy)
-                : $this->catalogSortField($orderBy);
-            $direction = $orderDirection;
-            $gridFields = $sourceType === 'event_items' ? SiteEventService::GRID_FIELDS : SiteCatalogService::GRID_FIELDS;
-            $result = $source->fetch(
-                new ListingQuery(page: 1, perPage: $itemsLimit, orderBy: $sort, orderDirection: $direction, fields: $gridFields),
-                $this->lang
-            );
-
-            $entries = array_map(
-                fn (array $entry): array => $source->normalizeEntry($entry),
-                $result->data,
-            );
-
-            return array_map(function (array $entry) use ($listingProjection): array {
-                $slots = is_array($listingProjection['slots'] ?? null) ? $listingProjection['slots'] : [];
-                $title = $this->projectionValue($entry, trim((string) ($slots['title'] ?? '')));
-                $summary = $this->projectionValue($entry, trim((string) ($slots['summary'] ?? '')));
-                $image = $this->projectionMedia($entry, trim((string) ($slots['image'] ?? '')));
-                $date = $this->projectionValue($entry, trim((string) ($slots['date'] ?? '')));
-                if ($title !== '') {
-                    $entry['title'] = $title;
-                }
-                if ($summary !== '') {
-                    $entry['excerpt'] = $summary;
-                }
-                if ($image !== null) {
-                    $entry['featured_image'] = $image;
-                }
-                if ($date !== '') {
-                    $entry['display_date'] = $date;
-                }
-                return $entry;
-            }, $entries);
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    private function eventSortField(string $field): string
-    {
-        return match (trim($field)) {
-            'entry.title', 'title' => 'title',
-            'entry.event_type', 'event_type' => 'event_type',
-            'entry.slug', 'slug' => 'slug',
-            'entry.start_time', 'start_time', '' => '',
-            default => '',
-        };
-    }
-
-    private function catalogSortField(string $field): string
-    {
-        return match (trim($field)) {
-            'entry.title', 'title', 'name' => 'name',
-            'entry.slug', 'slug' => 'slug',
-            'entry.inventory_code', 'inventory_code' => 'inventory_code',
-            'entry.origin', 'origin' => 'origin',
-            'entry.period', 'period' => 'period',
-            'entry.creator', 'creator' => 'creator',
-            'entry.ubicacion', 'ubicacion' => 'ubicacion',
-            'entry.collection_number', 'collection_number' => 'collection_number',
-            'entry.collection_group', 'collection_group' => 'collection_group',
-            'entry.created_at', 'created_at' => 'created_at',
-            'entry.updated_at', 'updated_at' => 'updated_at',
-            default => 'name',
-        };
-    }
-
     private function eventSource(): EventItemsSource
     {
-        $service = $this->contextService('siteEventService', SiteEventService::class);
         return new EventItemsSource(
-            $service,
-            static fn (ListingQuery $query): string => '',
             fn (array $media): array => $this->normalizeMediaReference($media),
         );
     }
 
     private function catalogSource(): CatalogItemsSource
     {
-        $service = $this->contextService('siteCatalogService', SiteCatalogService::class);
         return new CatalogItemsSource(
-            $service,
-            static fn (ListingQuery $query): string => '',
             fn (array $media): array => $this->normalizeMediaReference($media),
         );
     }

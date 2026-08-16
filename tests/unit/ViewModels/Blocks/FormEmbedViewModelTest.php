@@ -4,33 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Unit\ViewModels\Blocks;
 
-use App\Services\SiteFormService;
-use App\Services\SiteSettingsService;
 use App\ViewModels\Blocks\FormEmbedViewModel;
 use CodeIgniter\Test\CIUnitTestCase;
-use Config\Services;
 
 /**
  * @internal
  */
 final class FormEmbedViewModelTest extends CIUnitTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $settings = $this->createMock(SiteSettingsService::class);
-        $settings->method('get')->willReturn('');
-        Services::injectMock('siteSettingsService', $settings);
-    }
-
-    protected function tearDown(): void
-    {
-        Services::reset(true);
-
-        parent::tearDown();
-    }
-
     public function testUsesInjectedFormDefinitionFromContext(): void
     {
         $definition = [
@@ -55,29 +36,20 @@ final class FormEmbedViewModelTest extends CIUnitTestCase
         $this->assertTrue($vars['hasCaptcha']);
     }
 
-    public function testFallsBackToServiceWhenDefinitionNotInjected(): void
+    public function testMissingDefinitionDoesNotOpenAServiceRead(): void
     {
-        $formService = $this->createMock(SiteFormService::class);
-        $formService->expects($this->once())
-            ->method('getDefinition')
-            ->with('es', 'newsletter')
-            ->willReturn(['fields' => [], 'submit_label' => 'Suscribirme']);
-        Services::injectMock('siteFormService', $formService);
-
         $vm = new FormEmbedViewModel(
             ['block_config' => ['form_key' => 'newsletter']],
             'es'
         );
 
-        $this->assertSame('Suscribirme', $vm->vars()['submitLabel']);
+        $this->assertNull($vm->vars()['formDefinition']);
+        $this->assertSame([], $vm->vars()['fields']);
+        $this->assertSame('Enviar', $vm->vars()['submitLabel']);
     }
 
     public function testUnavailableDefinitionDegradesGracefully(): void
     {
-        $formService = $this->createMock(SiteFormService::class);
-        $formService->method('getDefinition')->willReturn(null);
-        Services::injectMock('siteFormService', $formService);
-
         $vars = (new FormEmbedViewModel([], 'es'))->vars();
 
         $this->assertNull($vars['formDefinition']);
@@ -88,10 +60,6 @@ final class FormEmbedViewModelTest extends CIUnitTestCase
 
     public function testShowInfoBoxesRespectsExplicitFalse(): void
     {
-        $formService = $this->createMock(SiteFormService::class);
-        $formService->method('getDefinition')->willReturn(null);
-        Services::injectMock('siteFormService', $formService);
-
         $off = new FormEmbedViewModel(['block_config' => ['show_info_boxes' => 'false']], 'es');
         $on  = new FormEmbedViewModel([], 'es');
 

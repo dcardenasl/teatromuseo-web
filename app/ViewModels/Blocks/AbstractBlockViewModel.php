@@ -13,20 +13,16 @@ namespace App\ViewModels\Blocks;
  * BlockRenderer::VIEW_MODELS; the returned vars() are merged into the view
  * data before rendering.
  *
- * `$context` also carries collaborators a specific view model needs (the
- * current request, a Site*Service) that BlockRenderer — the legitimate
- * composition boundary — resolves once per render pass. View models read
- * them via contextRequest()/contextService() instead of calling
- * `service()`/`Config\Services::x()` themselves, so they stay constructible
- * with plain arrays in tests (DEEP-WEB-02,
- * docs/plans/2026-07-10-plan-maestro-robustez-mantenibilidad.md).
+ * `$context` carries the current request and the page-delivery envelope.
+ * Dynamic data is always resolved before rendering; ViewModels never receive
+ * domain services and cannot initiate remote I/O.
  */
 abstract class AbstractBlockViewModel
 {
     /**
      * @param array<string, mixed> $block   Raw block payload (block_key, block_config, block_data, children)
-     * @param array<string, mixed> $context Render-pass extras: formDefinition for form_embed,
-     *                                      request/site*Service collaborators for blocks that need them
+     * @param array<string, mixed> $context Render-pass extras: formDefinition,
+     *                                      request and prefetched block results
      */
     public function __construct(
         protected readonly array $block,
@@ -40,18 +36,6 @@ abstract class AbstractBlockViewModel
         $value = $this->context['request'] ?? null;
 
         return $value instanceof \CodeIgniter\HTTP\IncomingRequest ? $value : null;
-    }
-
-    /**
-     * @template T of object
-     * @param class-string<T> $type
-     * @return T|null
-     */
-    protected function contextService(string $key, string $type): ?object
-    {
-        $value = $this->context[$key] ?? null;
-
-        return $value instanceof $type ? $value : null;
     }
 
     /**
@@ -168,6 +152,23 @@ abstract class AbstractBlockViewModel
 
         $url = trim((string) ($navigation['url'] ?? ''));
         return $url !== '' ? $url : $fallback;
+    }
+
+    /**
+     * Resolve the public listing URL when an older or partially migrated
+     * block payload has no serialized navigation target. Domain-backed
+     * listings use the centralized locale-aware route map; CMS collections
+     * keep their stable collection key as the public path fallback.
+     */
+    protected function defaultListingUrl(string $sourceType, string $collectionKey): string
+    {
+        $path = match ($sourceType) {
+            'event_items' => \App\Support\PublicPaths::eventsSegment($this->lang),
+            'catalog_items' => \App\Support\PublicPaths::catalogSegment($this->lang),
+            default => trim($collectionKey, '/'),
+        };
+
+        return $path !== '' ? lang_url('/' . $path, $this->lang) : '';
     }
 
     protected function publicUrl(string $url, string $fallback = ''): string

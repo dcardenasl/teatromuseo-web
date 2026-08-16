@@ -4,85 +4,15 @@ declare(strict_types=1);
 
 namespace App\ViewModels\Blocks\Listing\Sources;
 
-use App\Services\SiteEventService;
 use App\Support\Slug;
-use App\ViewModels\Blocks\Listing\ListingQuery;
-use App\ViewModels\Blocks\Listing\ListingResult;
-use App\ViewModels\Blocks\Listing\ListingSourceInterface;
+use App\ViewModels\Blocks\Listing\ListingPresentationSourceInterface;
 use Closure;
 
-class EventItemsSource implements ListingSourceInterface
+/** Normalizes event rows already materialized by the BFF envelope. */
+final class EventItemsSource implements ListingPresentationSourceInterface
 {
-    public function __construct(
-        private ?SiteEventService $eventService,
-        private Closure $urlBuilder,
-        private Closure $mediaNormalizer
-    ) {
-    }
-
-    public function fetch(ListingQuery $query, string $lang): ListingResult
+    public function __construct(private Closure $mediaNormalizer)
     {
-        if ($this->eventService === null) {
-            return new ListingResult();
-        }
-
-        $apiQuery = [
-            'page' => $query->page,
-            'per_page' => $query->perPage,
-        ];
-
-        if ($query->fields !== '') {
-            $apiQuery['fields'] = $query->fields;
-        }
-
-        $sort = $this->apiSortField($query->orderBy);
-        if ($sort !== '') {
-            $apiQuery['sort'] = ($query->orderDirection === 'desc' ? '-' : '') . $sort;
-        }
-
-        if ($query->query !== '') {
-            $apiQuery['search'] = $query->query;
-        }
-
-        if ($query->tag !== '') {
-            $apiQuery['event_type'] = $query->tag;
-        }
-
-        try {
-            $result = $this->eventService->listEvents($lang, $apiQuery);
-            return new ListingResult($result['data'] ?? [], $result['meta']['pagination'] ?? []);
-        } catch (\Throwable) {
-            return new ListingResult();
-        }
-    }
-
-    public function facets(ListingQuery $query, string $lang): array
-    {
-        if ($this->eventService === null) {
-            return [];
-        }
-
-        $tags = [];
-
-        foreach ($this->eventService->listEventTypes($lang) as $eventTypeData) {
-            $eventType = (string) ($eventTypeData['slug'] ?? '');
-            if ($eventType === '') {
-                continue;
-            }
-
-            $tagQuery = clone $query;
-            $tagQuery->tag = $eventType;
-            $tagQuery->category = '';
-            $tagQuery->page = 1;
-
-            $tags[] = [
-                'slug' => $eventType,
-                'name' => (string) ($eventTypeData['name'] ?? $this->eventTypeLabel($eventType)),
-                'url' => ($this->urlBuilder)($tagQuery),
-            ];
-        }
-
-        return ['categories' => [], 'tags' => $tags];
     }
 
     public function normalizeEntry(array $entry): array
@@ -129,7 +59,9 @@ class EventItemsSource implements ListingSourceInterface
             'slug' => $eventType,
             'name' => $this->eventTypeLabel($eventType),
         ]];
-        $entry['tags'] = [];
+        $entry['tags'] = is_array($entry['tags'] ?? null)
+            ? array_values(array_filter($entry['tags'], 'is_array'))
+            : [];
 
         return $entry;
     }
@@ -152,31 +84,14 @@ class EventItemsSource implements ListingSourceInterface
         ];
     }
 
-    public function previewResult(): ListingResult
-    {
-        return new ListingResult();
-    }
-
     private function eventTypeLabel(string $eventType): string
     {
         $translationKey = 'Site.event_type_' . $eventType;
         $translated = lang($translationKey);
 
-        if ($translated !== $translationKey) {
-            return $translated;
-        }
-
-        return ucwords(str_replace(['-', '_'], ' ', $eventType));
-    }
-
-    private function apiSortField(string $field): string
-    {
-        return match (trim($field)) {
-            'entry.title', 'title' => 'title',
-            'entry.start_time', 'start_time', '' => 'agenda',
-            'entry.event_type', 'event_type', 'entry.slug', 'slug' => 'title',
-            default => 'agenda',
-        };
+        return $translated !== $translationKey
+            ? $translated
+            : ucwords(str_replace(['-', '_'], ' ', $eventType));
     }
 
     /** @return array<string, mixed> */

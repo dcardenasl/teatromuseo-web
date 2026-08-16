@@ -32,8 +32,10 @@ class WebApiClient implements WebApiClientInterface
     // fields (including TeatroEscuela start_date) were exposed. v11 also
     // invalidates responses that may contain the removed frontend file URL
     // fallback. v12 switches full-page delivery to the BFF page-resolve
-    // envelope and must not reuse any pre-cutover response shape.
-    private const CACHE_SCHEMA_VERSION = 12;
+    // envelope and must not reuse any pre-cutover response shape. v13
+    // invalidates payloads cached before listing cards exposed the normalized
+    // video projection used by the public video collection.
+    private const CACHE_SCHEMA_VERSION = 13;
 
     /**
      * Above this size, a response is worth a human looking at — either a
