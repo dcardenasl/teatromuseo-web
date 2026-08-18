@@ -100,6 +100,18 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
      */
     public function testSitemapXmlValid(): void
     {
+        $locale = $this->locale();
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [[
+                'slug' => 'home',
+                'page_type' => 'home',
+                'is_in_sitemap' => true,
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+            'collections' => [],
+            'entries' => [],
+        ]);
+
         // Act: GET sitemap.xml
         $result = $this->get('/sitemap.xml');
 
@@ -131,12 +143,17 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
     public function testSitemapPublishesTheLocalizedHomepageSlugOnce(): void
     {
         $locale = $this->locale();
-        $this->domainAdapter->fakeGet('public/' . $locale . '/pages', [[
-            'slug' => 'inicio',
-            'page_type' => 'home',
-            'is_in_sitemap' => true,
-            'updated_at' => '2026-08-10T00:00:00+00:00',
-        ]]);
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [[
+                'slug' => 'inicio',
+                'page_type' => 'home',
+                'is_in_sitemap' => true,
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+            'collections' => [],
+            'entries' => [],
+        ]);
+        service('cache')->delete('sitemap_v3_' . $locale);
 
         $result = $this->get('/sitemap.xml');
         $result->assertStatus(200);
@@ -145,33 +162,55 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/inicio') . '</loc>', $body);
     }
 
-    public function testSitemapUsesMinimalEntryFieldsAndPagedQuery(): void
+    public function testSitemapAcceptsFilteredPageProjectionWithoutInternalVisibilityFlag(): void
     {
         $locale = $this->locale();
-        service('cache')->delete('sitemap_v2_' . $locale);
-        $this->domainAdapter->fakeGet('public/' . $locale . '/pages', []);
-        $this->domainAdapter->fakeGet('public/' . $locale . '/collections', [[
+        service('cache')->delete('sitemap_v3_' . $locale);
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [[
+                'slug' => 'about',
+                'page_type' => 'about',
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+            'collections' => [],
+            'entries' => [],
+        ]);
+
+        $result = $this->get('/' . $locale . '/sitemap.xml');
+
+        $result->assertStatus(200);
+        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/about') . '</loc>', $result->response()->getBody());
+    }
+
+    public function testSitemapUsesOneBoundedBffProjection(): void
+    {
+        $locale = $this->locale();
+        service('cache')->delete('sitemap_v3_' . $locale);
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [],
+            'collections' => [[
             'collection_key' => 'news',
             'slug' => 'news',
-            'index_page' => ['localized_urls' => [$locale => '/aa/news']],
-        ]]);
-        $this->domainAdapter->fakeGet('public-read/' . $locale . '/entries/news', [[
-            'slug' => 'entry-one',
-            'is_published' => true,
-            'updated_at' => '2026-08-10T00:00:00+00:00',
-        ]], ['pagination' => ['current_page' => 1, 'total_pages' => 1, 'total' => 1, 'per_page' => 100]]);
+            'localized_slugs' => [$locale => 'news'],
+        ]],
+            'entries' => [[
+                'collection_key' => 'news',
+                'slug' => 'entry-one',
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+        ]);
+        service('cache')->delete('sitemap_v3_' . $locale);
 
         $result = $this->get('/' . $locale . '/sitemap.xml');
         $result->assertStatus(200);
 
-        $entryCalls = array_values(array_filter(
+        $sitemapCalls = array_values(array_filter(
             $this->domainAdapter->calls,
-            static fn (array $call): bool => ($call['path'] ?? '') === 'public-read/' . $locale . '/entries/news',
+            static fn (array $call): bool => ($call['path'] ?? '') === 'public-read/' . $locale . '/sitemap',
         ));
-        $this->assertCount(1, $entryCalls);
-        $this->assertSame(1, $entryCalls[0]['query']['page']);
-        $this->assertSame(100, $entryCalls[0]['query']['per_page']);
-        $this->assertSame('slug,is_published,updated_at', $entryCalls[0]['query']['fields']);
+        $this->assertCount(1, $sitemapCalls);
+        $this->assertSame([], $sitemapCalls[0]['query']);
+        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/news/entry-one') . '</loc>', $result->response()->getBody());
     }
 
     /**
