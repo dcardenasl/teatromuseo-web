@@ -29,6 +29,7 @@ use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
 use App\Services\SiteFormService;
 use App\Services\SitePageService;
+use App\Services\SiteSitemapService;
 use CodeIgniter\Config\BaseService;
 
 class Services extends BaseService
@@ -197,6 +198,16 @@ class Services extends BaseService
         }
 
         return new SiteEntryService(static::bffWebApiClient());
+    }
+
+    public static function siteSitemapService(bool $getShared = true): SiteSitemapService
+    {
+        if ($getShared) {
+            /** @var SiteSitemapService */
+            return static::getSharedInstance('siteSitemapService');
+        }
+
+        return new SiteSitemapService(static::bffWebApiClient());
     }
 
     public static function blockRenderer(bool $getShared = true): BlockRenderer

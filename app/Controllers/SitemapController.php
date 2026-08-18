@@ -10,7 +10,7 @@ use Config\Services;
 class SitemapController extends BasePublicWebController
 {
     private const CACHE_TTL = 3600;
-    private const CACHE_SCHEMA_VERSION = 2;
+    private const CACHE_SCHEMA_VERSION = 3;
 
     /**
      * Generate XML sitemap.
@@ -25,7 +25,22 @@ class SitemapController extends BasePublicWebController
         $xml = $cache->get($cacheKey);
 
         if ($xml === null) {
-            $xml = $this->generateSitemap($lang);
+            try {
+                $xml = $this->generateSitemap($lang);
+            } catch (\Throwable $exception) {
+                log_message('error', sprintf(
+                    'Sitemap projection unavailable for locale %s: %s: %s',
+                    $lang,
+                    $exception::class,
+                    $exception->getMessage(),
+                ));
+
+                return $this->response
+                    ->setStatusCode(503)
+                    ->setContentType('application/xml')
+                    ->setHeader('Retry-After', '60')
+                    ->setBody('<?xml version="1.0" encoding="UTF-8"?><sitemap-unavailable/>');
+            }
             $cache->save($cacheKey, $xml, self::CACHE_TTL);
         }
 
@@ -43,9 +58,10 @@ class SitemapController extends BasePublicWebController
      */
     private function generateSitemap(string $lang): string
     {
-        $pageService = Services::sitePageService();
-        $collectionService = Services::siteCollectionService();
-        $entryService = Services::siteEntryService();
+        $projection = Services::siteSitemapService()->get($lang);
+        if ($projection === null) {
+            throw new \RuntimeException('Public sitemap projection is unavailable.');
+        }
 
         $urls = [];
 
@@ -57,12 +73,14 @@ class SitemapController extends BasePublicWebController
             'priority'   => '1.0',
         ];
 
-        // Add pages
-        $pages = $pageService->listAll($lang, [
-            'fields' => 'slug,page_type,is_in_sitemap,updated_at,sitemap_changefreq,sitemap_priority',
-        ]);
+        // Add pages from the single BFF projection.
+        $pages = is_array($projection['pages'] ?? null) ? $projection['pages'] : [];
         foreach ($pages as $page) {
-            if (!isset($page['slug']) || !$page['is_in_sitemap']) {
+            // The BFF sitemap projection is already filtered by publication and
+            // sitemap visibility. Keep accepting the legacy flag when present,
+            // but do not require an internal source field at this boundary.
+            if (!isset($page['slug'])
+                || (array_key_exists('is_in_sitemap', $page) && ! $page['is_in_sitemap'])) {
                 continue;
             }
 
@@ -82,49 +100,48 @@ class SitemapController extends BasePublicWebController
             ];
         }
 
-        // Add collections and their entries
-        $collections = $collectionService->getAll($lang, [
-            'fields' => 'id,collection_key,slug,localized_slugs,index_page',
-        ]);
+        $collections = is_array($projection['collections'] ?? null) ? $projection['collections'] : [];
+        $entriesByCollection = [];
+        foreach (is_array($projection['entries'] ?? null) ? $projection['entries'] : [] as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $key = (string) ($entry['collection_key'] ?? '');
+            if ($key !== '') {
+                $entriesByCollection[$key][] = $entry;
+            }
+        }
+
         foreach ($collections as $collection) {
-            $collectionKey = $collection['collection_key'] ?? '';
-            $urlPath       = collection_url_path($collection);
+            if (! is_array($collection)) {
+                continue;
+            }
+            $collectionKey = (string) ($collection['collection_key'] ?? '');
+            $collection['index_page'] = [
+                'localized_slugs' => is_array($collection['localized_slugs'] ?? null)
+                    ? $collection['localized_slugs']
+                    : [],
+            ];
+            $urlPath = localized_collection_url_path($collection, $lang);
+            if ($urlPath === '' && trim((string) ($collection['slug'] ?? '')) !== '') {
+                $urlPath = '/' . trim((string) $collection['slug'], '/');
+            }
             if ($urlPath === '') {
                 continue;
             }
 
-            // Add entries. Use bounded page traversal so a large collection
-            // cannot be silently truncated at the old single 500-item call.
-            $page = 1;
-            $perPage = 100;
-            $maxPages = 1000;
-            do {
-                $result = $entryService->list($lang, $collectionKey, [
-                    'page' => $page,
-                    'per_page' => $perPage,
-                    'fields' => 'slug,is_published,updated_at',
-                ]);
-                $entries = is_array($result['data'] ?? null) ? $result['data'] : [];
-                foreach ($entries as $entry) {
-                    if (!isset($entry['slug']) || !($entry['is_published'] ?? true)) {
-                        continue;
-                    }
-
-                    $urls[] = [
-                        'loc'        => base_url('/' . $lang . $urlPath . '/' . $entry['slug']),
-                        'lastmod'    => $entry['updated_at'] ?? date('c'),
-                        'changefreq' => 'weekly',
-                        'priority'   => '0.7',
-                    ];
+            foreach ($entriesByCollection[$collectionKey] ?? [] as $entry) {
+                $slug = trim((string) ($entry['slug'] ?? ''), '/');
+                if ($slug === '') {
+                    continue;
                 }
-
-                $pagination = is_array($result['meta']['pagination'] ?? null)
-                    ? $result['meta']['pagination']
-                    : [];
-                $hasNext = ($pagination['has_next_page'] ?? false) === true
-                    || count($entries) >= $perPage;
-                $page++;
-            } while ($hasNext && $entries !== [] && $page <= $maxPages);
+                $urls[] = [
+                    'loc'        => base_url('/' . $lang . $urlPath . '/' . $slug),
+                    'lastmod'    => $entry['updated_at'] ?? date('c'),
+                    'changefreq' => $entry['sitemap_changefreq'] ?? 'weekly',
+                    'priority'   => $entry['sitemap_priority'] ?? '0.7',
+                ];
+            }
         }
 
         return $this->buildSitemapXml($urls);
