@@ -111,6 +111,14 @@ if (! is_array($resolvedSchemaData) || $resolvedSchemaData === []) {
 
 $analyticsProvider = $settings['analytics_provider'] ?? 'none';
 $analyticsId       = $settings['analytics_id'] ?? '';
+$staticAssetUrl = static function (string $path): string {
+    $path = ltrim($path, '/');
+    $url = base_url($path);
+    $absolutePath = FCPATH . $path;
+    $version = is_file($absolutePath) ? (string) (filemtime($absolutePath) ?: '') : '';
+
+    return $version === '' ? $url : $url . '?v=' . rawurlencode($version);
+};
 ?>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -127,6 +135,12 @@ $analyticsId       = $settings['analytics_id'] ?? '';
 <?php if ($faviconUrl !== ''): ?>
     <link rel="icon" href="<?= esc($faviconUrl) ?>">
 <?php endif; ?>
+<link rel="icon" type="image/svg+xml" href="<?= esc($staticAssetUrl('favicon.svg')) ?>">
+<link rel="icon" type="image/x-icon" href="<?= esc($staticAssetUrl('favicon.ico')) ?>">
+<link rel="icon" type="image/png" sizes="96x96" href="<?= esc($staticAssetUrl('favicon-96x96.png')) ?>">
+<link rel="apple-touch-icon" href="<?= esc($staticAssetUrl('apple-touch-icon.png')) ?>">
+<link rel="manifest" href="<?= esc($staticAssetUrl('site.webmanifest')) ?>">
+<meta name="theme-color" content="#ffffff">
 
 <?php foreach ($seoLocalizedUrls as $locale => $localizedUrl): ?>
     <link rel="alternate" hreflang="<?= esc($locale) ?>" href="<?= esc($localizedUrl) ?>">
