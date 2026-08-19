@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Favicon and app-icon set** — added a full favicon/manifest set (SVG, ICO, PNG sizes,
+  apple-touch-icon, web app manifest) with cache-busted asset URLs and a finite
+  Cache-Control TTL so a future brand update isn't stuck behind a year-long
+  immutable cache entry.
 - **`WebApiClient` reuses its cURL connection/TLS session across sequential
   calls** — every `get()`/`multiGet()`/`multiGetAcross()` handle now attaches
   a per-instance `CURLOPT_SHARE` (connection + SSL session + DNS cache), so
