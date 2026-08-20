@@ -55,7 +55,7 @@ final class PageDeliveryServiceTest extends TestCase
         $this->assertSame($lock->key, $lock->releasedKey);
     }
 
-    public function testInvalidatedSnapshotIsRegeneratedEvenWithoutSynchronousFallback(): void
+    public function testInvalidatedSnapshotIsServedWithoutVisitorRegeneration(): void
     {
         $stale = PageDeliveryResponse::success(
             ['title' => 'Stale snapshot'],
@@ -64,14 +64,7 @@ final class PageDeliveryServiceTest extends TestCase
             ['locale' => 'es', 'route' => 'home', 'cache' => 'stale'],
             ['domain' => 'web', 'state' => 'stale', 'stale' => true],
         );
-        $fresh = PageDeliveryResponse::success(
-            ['title' => 'Fresh composition'],
-            [],
-            [],
-            ['locale' => 'es', 'route' => 'home', 'cache' => 'fresh'],
-            ['domain' => 'web', 'state' => 'fresh', 'stale' => false],
-        );
-        $builder = new FixedBuilder(SnapshotBuildResult::built($fresh, 'revision-fresh'));
+        $builder = new FixedBuilder(SnapshotBuildResult::failed('must not run during delivery'));
         $service = new PageDeliveryService(
             synchronous: new RecordingDelivery(PageDeliveryResponse::failure(503, ['must not be called'])),
             snapshot: new RecordingDelivery($stale),
@@ -83,31 +76,8 @@ final class PageDeliveryServiceTest extends TestCase
 
         $result = $service->deliver(PageDeliveryRequest::home('es'));
 
-        $this->assertSame('Fresh composition', $result->page['title']);
-        $this->assertSame(1, $builder->calls);
-    }
-
-    public function testStaleSnapshotRemainsAvailableWhenRegenerationFails(): void
-    {
-        $stale = PageDeliveryResponse::success(
-            ['title' => 'Stale snapshot'],
-            [],
-            [],
-            ['locale' => 'es', 'route' => 'home', 'cache' => 'stale'],
-            ['domain' => 'web', 'state' => 'stale', 'stale' => true],
-        );
-        $service = new PageDeliveryService(
-            synchronous: new RecordingDelivery(PageDeliveryResponse::failure(503, ['must not be called'])),
-            snapshot: new RecordingDelivery($stale),
-            lock: new RecordingLock(),
-            mode: 'snapshot',
-            allowSynchronousFallback: false,
-            builder: new FixedBuilder(SnapshotBuildResult::failed('CMS unavailable')),
-        );
-
-        $result = $service->deliver(PageDeliveryRequest::home('es'));
-
         $this->assertSame('Stale snapshot', $result->page['title']);
+        $this->assertSame(0, $builder->calls);
     }
 
     public function testPreviewBypassesSnapshotEvenWhenSnapshotModeIsConfigured(): void

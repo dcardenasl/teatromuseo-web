@@ -42,24 +42,9 @@ final class PageDeliveryService implements PageDeliveryInterface
                 return $snapshot;
             }
 
-            if ($this->builder !== null) {
-                $build = $this->builder->build($request);
-                if ($build->state === 'built' && $build->response !== null) {
-                    return $build->response;
-                }
-
-                // Another worker may have completed the rebuild while this
-                // request was waiting for the single-flight lock.
-                if ($build->state === 'skipped') {
-                    $published = $this->snapshot->deliver($request);
-                    if ($published->isAvailable() && $this->isFreshSnapshot($published)) {
-                        return $published;
-                    }
-                }
-            }
-
-            // Preserve the stale snapshot when regeneration is unavailable or
-            // fails, keeping the site renderable during an upstream outage.
+            // Never rebuild from a visitor request. The stale snapshot keeps
+            // the site renderable while the serialized CLI warm-up replaces
+            // it outside the visitor process.
             return $snapshot;
         }
 

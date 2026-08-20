@@ -62,7 +62,12 @@ En un **collection listing**, la precarga representa una instantánea de la peti
 
 Si una fuente no responde, la instancia conserva datos stale cuando la política de caché los permite; en otro caso entrega un estado vacío o de preview. El render no reintenta la fuente de forma lazy.
 
-La precarga debe aprovechar concurrencia real entre CMS, catálogo y eventos cuando existan solicitudes independientes. La eficiencia se mide por el tiempo del lote completo, no por declarar paralelismo dentro de cada dominio mientras los dominios se esperan en serie.
+La precarga debe mantener una sola composición BFF por página y no abrir
+solicitudes independientes desde Web por cada bloque. En este hosting la
+composición del BFF es deliberadamente serial y acotada; introducir
+paralelismo dentro del request aumentaría procesos concurrentes sin resolver la
+causa. La entrega de visitantes usa snapshots compartidos para que esa
+composición ocurra en warm-up controlado, no durante cada visita.
 
 Las solicitudes idénticas pueden compartir una respuesta; una diferencia en filtros, orden, página o límite define una instancia distinta. Los bloques de detalle pueden compartir una proyección unificada de campos y después recibir el resultado común según su necesidad.
 

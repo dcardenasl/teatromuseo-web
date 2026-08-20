@@ -223,11 +223,14 @@ class App extends BaseConfig
     public int $webPageCacheTtl = ENVIRONMENT === 'production' ? 300 : 0;
 
     /**
-     * PageDelivery is the only public delivery path. Snapshot mode remains
-     * available for the bounded manifest; every other route is synchronous BFF.
+     * PageDelivery is the only public delivery path. Production serves the
+     * bounded manifest from shared snapshots so visitors do not pay the BFF
+     * composition cost. Local development keeps synchronous BFF delivery.
+     * Production fails closed when snapshots are unavailable; falling back to
+     * live composition would recreate the shared-hosting load spike.
      */
-    public string $pageDeliveryMode = 'sync';
-    public bool $pageDeliveryAllowSynchronousFallback = true;
+    public string $pageDeliveryMode = ENVIRONMENT === 'production' ? 'snapshot' : 'sync';
+    public bool $pageDeliveryAllowSynchronousFallback = ENVIRONMENT !== 'production';
 
     public string $pageSnapshotDirectory = '';
     public int $pageSnapshotStaleTtl = 86400;

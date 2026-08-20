@@ -70,6 +70,10 @@ page. It is static CI4 routing configuration, not discovered from Domain.
 - Controllers stay thin and call `Config\Services`.
 - `PageController::resolve()` resolves dynamic paths in this order:
   collection prefix/index, collection entry, CMS page, redirect, 404.
+- Production public delivery is snapshot-first for the explicit manifest;
+  synchronous BFF composition is reserved for local development, preview and
+  controlled warm-up. Do not enable synchronous fallback on the production
+  visitor path unless the snapshot backend is intentionally being recovered.
 - `FormController` validates required/email fields, honeypot, and required
   CAPTCHA tokens before submitting to Domain.
 - Public POST routes (`forms/*/submit`, `cache/invalidate`) use
