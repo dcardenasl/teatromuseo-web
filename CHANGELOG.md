@@ -26,9 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   takes one injected client instead of a per-domain map. Analytics writes keep their
   own `WEB_TRACKING_API_BASE_URL` straight to CMS, since tracking is a write and the
   BFF is read-only.
+- **Production page delivery no longer rebuilds a stale snapshot from a visitor
+  request** — `pageDeliveryMode` now defaults to `snapshot` with synchronous
+  fallback disabled in production (still `sync` in local development); a
+  visitor hitting a stale or missing snapshot is served the stale copy (or an
+  honest failure) instead of triggering a live BFF composition inline. Only
+  the serialized, lock-guarded `cache:warmup` cron regenerates snapshots now.
 
 ### Added
 
+- **`cache:warmup` guarded against overlapping runs** — the command now acquires
+  a non-blocking file lock (`App\Libraries\CommandLock`) before warming the
+  public page-snapshot cache and skips the run if another invocation already
+  holds it, instead of letting two overlapping cron invocations race against
+  the same snapshot store.
 - **Favicon and app-icon set** — added a full favicon/manifest set (SVG, ICO, PNG sizes,
   apple-touch-icon, web app manifest) with cache-busted asset URLs and a finite
   Cache-Control TTL so a future brand update isn't stuck behind a year-long
