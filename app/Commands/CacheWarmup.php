@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Libraries\CommandLock;
 use App\PageDelivery\PageDeliveryRequest;
 use App\PageDelivery\PublicSnapshotManifest;
 use App\PageDelivery\SnapshotBuildResult;
@@ -33,6 +34,23 @@ final class CacheWarmup extends BaseCommand
 
     /** @param array<string, mixed> $params */
     public function run(array $params = []): void
+    {
+        $lock = new CommandLock(WRITEPATH . 'cache/locks/public-cache-warmup.lock');
+        if (! $lock->acquire()) {
+            CLI::write('Public cache warm-up is already running; this invocation was skipped.', 'yellow');
+
+            return;
+        }
+
+        try {
+            $this->runLocked($params);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** @param array<string, mixed> $params */
+    private function runLocked(array $params): void
     {
         $locale = $this->option('locale', $params);
         $route = $this->option('route', $params);
