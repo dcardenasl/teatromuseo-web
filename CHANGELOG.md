@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Production now defaults to `noindex, nofollow` until this app becomes the
+  canonical public domain** — `Config\App::$defaultMetaRobots` (overridable via
+  `WEB_DEFAULT_META_ROBOTS`) backs the `<meta name="robots">` fallback on every
+  page/entry that doesn't declare its own `robots` value, and now also sets the
+  `X-Robots-Tag` response header on every request via `SecurityHeadersFilter`.
+  `public/robots.txt` disallows all crawling. Flip `WEB_DEFAULT_META_ROBOTS` to
+  `index, follow` (and update `robots.txt`) once this domain goes canonical.
+
 - **Detail page `<head>` metadata now comes straight from the BFF** —
   `robots`, `og:type`, `og:image`, `schema_data`, article publish/modified
   timestamps, and the per-locale hreflang set are read from the resolved page
