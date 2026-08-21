@@ -6,6 +6,7 @@ namespace Tests\Unit\Commands;
 
 use App\Commands\CacheWarmup;
 use App\Libraries\WebApiClientInterface;
+use App\PageDelivery\SnapshotPublisherInterface;
 use CodeIgniter\HTTP\CLIRequest;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\Services;
@@ -49,6 +50,35 @@ final class CacheWarmupTest extends CIUnitTestCase
             $config->pageDeliveryMode = $previousPageDeliveryMode;
             service('language')->setLocale($previousLanguageLocale);
             \Locale::setDefault($previousIntlLocale);
+        }
+    }
+
+    public function testStrictWarmupFailsClosedWhenSnapshotBackendIsDisabled(): void
+    {
+        $config = config('App');
+        $previousPageDeliveryMode = $config->pageDeliveryMode;
+        $client = new RecordingWarmupBffClient();
+        $store = $this->createMock(SnapshotPublisherInterface::class);
+        $store->expects($this->once())
+            ->method('status')
+            ->willReturn(['enabled' => false, 'backend' => 'null', 'shared' => false]);
+
+        Services::injectMock('request', new CLIRequest($config));
+        Services::injectMock('bffWebApiClient', $client);
+        Services::injectMock('pageSnapshotStore', $store);
+        $config->pageDeliveryMode = 'snapshot';
+
+        try {
+            $result = (new CacheWarmup(service('logger'), service('commands')))->run([
+                'locale' => 'es',
+                'route' => 'home',
+                'strict' => true,
+            ]);
+
+            self::assertSame(2, $result);
+            self::assertSame([], $client->calls);
+        } finally {
+            $config->pageDeliveryMode = $previousPageDeliveryMode;
         }
     }
 }

@@ -77,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Parallel alias resolution** — `ParallelAliasResolver` batches slug-to-ID lookups across collection items and events, eliminating sequential alias resolution calls.
 - **Performance documentation** — added the current `BLOCK_PREFETCH.md` contract, ADR, sparse-fieldset guidance, and pre-render examples.
 - **Cache warmup command** — `CacheWarmup` command pre-populates common page caches during deploy to avoid cold-start latency.
+- **Strict snapshot warmup** — `cache:warmup --strict` fails closed when the
+  snapshot backend is disabled or a manifest route cannot be warmed; production
+  snapshot mode enables this safety behavior by default.
 
 - **Configurable listing projections** — public collection grids and listings now consume CMS
   field projections for titles, summaries, dates, images, extra metadata, ordering, and filters.

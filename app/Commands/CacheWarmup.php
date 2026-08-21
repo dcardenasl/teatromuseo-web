@@ -24,48 +24,68 @@ final class CacheWarmup extends BaseCommand
     protected $group = 'Cache';
     protected $name = 'cache:warmup';
     protected $description = 'Warm public snapshots or BFF delivery serially';
-    protected $usage = 'php spark cache:warmup [--locale es] [--route home] [--force]';
+    protected $usage = 'php spark cache:warmup [--locale es] [--route home] [--force] [--strict]';
     protected $arguments = [];
     protected $options = [
         '--locale' => 'Specific locale from the configured manifest',
         '--route' => 'Specific route from the configured manifest',
         '--force' => 'Rebuild even when the active snapshot is still fresh',
+        '--strict' => 'Fail when snapshots are disabled or any route cannot be warmed',
     ];
 
     /** @param array<string, mixed> $params */
-    public function run(array $params = []): void
+    public function run(array $params = []): int
     {
         $lock = new CommandLock(WRITEPATH . 'cache/locks/public-cache-warmup.lock');
         if (! $lock->acquire()) {
             CLI::write('Public cache warm-up is already running; this invocation was skipped.', 'yellow');
 
-            return;
+            return 0;
         }
 
         try {
-            $this->runLocked($params);
+            return $this->runLocked($params);
         } finally {
             $lock->release();
         }
     }
 
     /** @param array<string, mixed> $params */
-    private function runLocked(array $params): void
+    private function runLocked(array $params): int
     {
         $locale = $this->option('locale', $params);
         $route = $this->option('route', $params);
         $force = CLI::getOption('force') !== null || isset($params['force']);
+        $strict = $this->strictMode($params);
         $requests = (new PublicSnapshotManifest())->requests($locale !== '' ? $locale : null, $route !== '' ? $route : null);
 
         CLI::write(sprintf('Snapshot warm-up: %d manifest entries (serial)', count($requests)), 'cyan');
         if ($requests === []) {
             CLI::error('The selected locale/route is not present in the configured manifest.');
-            return;
+            return 2;
         }
 
         if ((Services::pageSnapshotStore()->status()['enabled'] ?? false) !== true) {
-            $this->warmSynchronousDelivery($requests);
-            return;
+            if ($strict) {
+                CLI::error(
+                    'Snapshot warm-up cannot run: the shared snapshot backend is disabled. '
+                    . 'Configure WEB_PAGE_SNAPSHOT_DIR and WEB_PAGE_SNAPSHOT_SHARED=true.',
+                );
+                $this->writeReport([
+                    'summary' => [
+                        'generated_at' => gmdate(DATE_ATOM),
+                        'total' => count($requests),
+                        'successful_or_skipped' => 0,
+                        'status' => 'failed',
+                        'reason' => 'snapshot_backend_disabled',
+                        'strict' => true,
+                    ],
+                ]);
+
+                return 2;
+            }
+
+            return $this->warmSynchronousDelivery($requests);
         }
 
         $startedAt = microtime(true);
@@ -94,15 +114,19 @@ final class CacheWarmup extends BaseCommand
             'total' => count($requests),
             'successful_or_skipped' => $successful,
             'force' => $force,
+            'strict' => $strict,
+            'status' => $successful === count($requests) ? 'ok' : 'failed',
         ];
         $this->writeReport($report);
 
         CLI::newLine();
         CLI::write(sprintf('Warm-up completed: %d/%d successful or skipped.', $successful, count($requests)), $successful === count($requests) ? 'green' : 'yellow');
+
+        return $successful === count($requests) || ! $strict ? 0 : 1;
     }
 
     /** @param list<PageDeliveryRequest> $requests */
-    private function warmSynchronousDelivery(array $requests): void
+    private function warmSynchronousDelivery(array $requests): int
     {
         $config = config('App');
         $previousMode = $config->pageDeliveryMode;
@@ -171,10 +195,25 @@ final class CacheWarmup extends BaseCommand
             'total' => count($requests),
             'successful' => $successful,
             'mode' => 'sync',
+            'status' => $successful === count($requests) ? 'ok' : 'failed',
         ];
         $this->writeReport($report);
 
         CLI::write(sprintf('Warm-up completed: %d/%d routes composed.', $successful, count($requests)), $successful === count($requests) ? 'green' : 'yellow');
+
+        return $successful === count($requests) ? 0 : 1;
+    }
+
+    /** @param array<string, mixed> $params */
+    private function strictMode(array $params): bool
+    {
+        if (CLI::getOption('strict') !== null || isset($params['strict'])) {
+            return true;
+        }
+
+        return defined('ENVIRONMENT')
+            && ENVIRONMENT === 'production'
+            && config('App')->pageDeliveryMode === 'snapshot';
     }
 
     /** @param array<string, mixed> $params */
