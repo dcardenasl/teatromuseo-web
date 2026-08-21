@@ -251,13 +251,20 @@ class App extends BaseConfig
     public bool $pageSnapshotShared = false;
 
     /**
-     * Explicit route keys warmed by deploy/cron. `events` and `catalog` are
-     * resolved to their locale-specific public paths by PublicSnapshotManifest.
-     * CMS slugs must be appended explicitly in the deployment environment.
+     * Explicit route keys warmed by deploy/cron. Stable public route keys are
+     * resolved to locale-specific paths by PublicSnapshotManifest. Arbitrary
+     * CMS slugs must be appended only after their dependencies are verified.
      *
      * @var list<string>
      */
-    public array $pageSnapshotManifestRoutes = ['home', 'events', 'catalog'];
+    public array $pageSnapshotManifestRoutes = [
+        'home',
+        'events',
+        'catalog',
+        'contact',
+        'history',
+        'theatre_school',
+    ];
 
     /** @var list<string> */
     public array $pageSnapshotScopes = [

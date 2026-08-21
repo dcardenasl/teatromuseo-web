@@ -100,10 +100,13 @@ during an upstream outage and prevents an invalidation from causing a cold
 request storm. The webhook records the invalidation source and returns the
 number of affected snapshot identities.
 
-The default warm-up manifest contains the stable `home`, `events` and `catalog`
-route keys. `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES` may replace that list with an
-explicit deployment allow-list; it must include every high-traffic public route
-that should be snapshot-served.
+The default warm-up manifest contains the stable `home`, `events`, `catalog`,
+`contact`, `history` and `theatre_school` route keys. They resolve to the
+locale-specific public paths through `PublicSnapshotManifest`; no URL crawl or
+content-derived snapshot identity is involved. `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES`
+may replace that list with a narrower explicit deployment allow-list, but every
+route added to it must have its page dependencies and invalidation scopes
+verified first.
 
 `php spark cache:warmup` iterates the list serially, never crawls URLs generated
 by content, and writes a bounded JSON report. In production snapshot mode the

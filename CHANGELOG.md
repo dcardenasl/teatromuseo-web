@@ -80,6 +80,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Strict snapshot warmup** — `cache:warmup --strict` fails closed when the
   snapshot backend is disabled or a manifest route cannot be warmed; production
   snapshot mode enables this safety behavior by default.
+- **Expanded public snapshot manifest** — the default manifest now covers the
+  six stable canonical routes: home, events, contact, history, theatre school,
+  and catalog.
 
 - **Configurable listing projections** — public collection grids and listings now consume CMS
   field projections for titles, summaries, dates, images, extra metadata, ordering, and filters.
