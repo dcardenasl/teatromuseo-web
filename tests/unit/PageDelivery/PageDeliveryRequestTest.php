@@ -40,7 +40,7 @@ final class PageDeliveryRequestTest extends TestCase
         ], $preview->previewQuery());
     }
 
-    public function testBoundedVariantsRemainSnapshotEligible(): void
+    public function testQueryVariantsRemainSynchronousUntilRoutePolicyCoversThem(): void
     {
         $request = PageDeliveryRequest::home('es', query: [
             'category' => 'ceramics',
@@ -54,7 +54,7 @@ final class PageDeliveryRequestTest extends TestCase
             'filter_operator' => 'eq',
         ]);
 
-        $this->assertTrue($request->isSnapshotEligible());
+        $this->assertFalse($request->isSnapshotEligible());
     }
 
     public function testRoutePolicyCanDisableSnapshotsWithoutChangingTheRequestIdentity(): void
@@ -96,5 +96,10 @@ final class PageDeliveryRequestTest extends TestCase
         $second = PageDeliveryRequest::home('es', query: ['q' => 'two']);
 
         $this->assertNotSame($first->cacheKey(), $second->cacheKey());
+    }
+
+    public function testCanonicalRequestIsSnapshotEligible(): void
+    {
+        $this->assertTrue(PageDeliveryRequest::home('es')->isSnapshotEligible());
     }
 }

@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   visitor hitting a stale or missing snapshot is served the stale copy (or an
   honest failure) instead of triggering a live BFF composition inline. Only
   the serialized, lock-guarded `cache:warmup` cron regenerates snapshots now.
+- **Snapshot eligibility is canonical-only** — query-string variants remain
+  synchronous until a route-specific allow-list, bounded values, warmup
+  coverage, and invalidation contract exist together. This prevents silently
+  creating unpublished snapshot identities on the filesystem.
 
 ### Added
 

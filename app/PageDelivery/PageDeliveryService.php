@@ -24,10 +24,9 @@ final class PageDeliveryService implements PageDeliveryInterface
 
     public function deliver(PageDeliveryRequest $request): PageDeliveryResponse
     {
-        // Free-text search/filter variants are never snapshot-eligible (see
+        // Query variants are never snapshot-eligible (see
         // PageDeliveryRequest::isSnapshotEligible()) — route them through the
-        // same synchronous path as preview so they never reach the builder or
-        // the snapshot store.
+        // synchronous path so they never reach the builder or snapshot store.
         if ($request->preview || $this->mode === 'sync' || ! $request->isSnapshotEligible()) {
             return $this->synchronous->deliver($request);
         }

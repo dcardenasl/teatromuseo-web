@@ -21,6 +21,12 @@ synchronous composition or a snapshot.
   resolved by the BFF's `page-resolve` endpoint. Only routes explicitly present
   in `WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES` can use snapshots; all other routes are
   synchronous BFF requests and cannot create an unbounded snapshot store.
+- Snapshot eligibility is canonical-only: a request with a query variant is
+  synchronous even when the parameter looks bounded. Enabling a variant
+  requires a route-specific allow-list, bounded values, explicit warm-up
+  coverage and matching invalidation scopes. This prevents a new filter or
+  pagination value from silently multiplying files on the shared hosting
+  filesystem.
 
 ## Delivery envelope
 
