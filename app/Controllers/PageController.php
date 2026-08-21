@@ -152,7 +152,7 @@ class PageController extends BasePublicWebController
                 : 'article',
             'articlePublishedTime' => $entry['published_at'] ?? null,
             'articleModifiedTime' => $this->dateValue($entry['updated_at'] ?? null),
-            'metaRobots' => $this->metadataValue($translation, 'robots', null) ?: 'index, follow',
+            'metaRobots' => $this->metadataValue($translation, 'robots', null) ?: config('App')->defaultMetaRobots,
             'schemaData' => $this->schemaData($translation['schema_data'] ?? null),
             'renderedBlocks' => Services::blockRenderer()->render($blocks, $lang, $renderContext),
             'localized_urls' => $this->resolveEntryLocalizedUrls($collection, $entry, $lang, $resolvedSlug),

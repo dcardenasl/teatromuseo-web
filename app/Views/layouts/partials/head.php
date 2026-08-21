@@ -111,6 +111,7 @@ if (! is_array($resolvedSchemaData) || $resolvedSchemaData === []) {
 
 $analyticsProvider = $settings['analytics_provider'] ?? 'none';
 $analyticsId       = $settings['analytics_id'] ?? '';
+$defaultMetaRobots = config('App')->defaultMetaRobots ?? 'index, follow';
 $staticAssetUrl = static function (string $path): string {
     $path = ltrim($path, '/');
     $url = base_url($path);
@@ -126,7 +127,7 @@ $staticAssetUrl = static function (string $path): string {
 <title><?= esc($resolvedTitle) ?></title>
 <meta name="description" content="<?= esc($resolvedDescription) ?>">
 
-<meta name="robots" content="<?= esc((isset($metaRobots) && trim((string) $metaRobots) !== '') ? $metaRobots : 'index, follow') ?>">
+<meta name="robots" content="<?= esc((isset($metaRobots) && trim((string) $metaRobots) !== '') ? $metaRobots : $defaultMetaRobots) ?>">
 
 <?php if ($resolvedCanonicalUrl !== ''): ?>
     <link rel="canonical" href="<?= esc($resolvedCanonicalUrl) ?>">

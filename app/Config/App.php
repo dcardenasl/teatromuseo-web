@@ -200,6 +200,15 @@ class App extends BaseConfig
      */
     public bool $trackingEnabled = ENVIRONMENT !== 'production';
 
+    /**
+     * Beta is not a search destination. Production defaults to noindex while
+     * remaining explicitly overridable when this application is promoted to
+     * the canonical public domain.
+     */
+    public string $defaultMetaRobots = ENVIRONMENT === 'production'
+        ? 'noindex, nofollow'
+    : 'index, follow';
+
     /** Directory where page-view events wait for the analytics cron worker. */
     public string $analyticsQueueDirectory = WRITEPATH . 'analytics-queue';
 
@@ -422,6 +431,13 @@ class App extends BaseConfig
             env('WEB_TRACKING_ENABLED'),
             $this->trackingEnabled,
         );
+
+        $defaultMetaRobots = env('WEB_DEFAULT_META_ROBOTS');
+        if (is_string($defaultMetaRobots)
+            && preg_match('/^[a-z]+(?:\s*,\s*[a-z]+)*$/i', trim($defaultMetaRobots)) === 1
+        ) {
+            $this->defaultMetaRobots = trim($defaultMetaRobots);
+        }
 
         $trackingQueueDirectory = env('WEB_TRACKING_QUEUE_DIR');
         if (is_string($trackingQueueDirectory) && trim($trackingQueueDirectory) !== '') {

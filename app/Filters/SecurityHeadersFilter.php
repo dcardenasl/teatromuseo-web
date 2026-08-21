@@ -40,6 +40,7 @@ class SecurityHeadersFilter implements FilterInterface
         // The allowlist can be tightened later via .env (Config\App::$csp*)
         // without touching code.
         $appConfig = config('App');
+        $response->setHeader('X-Robots-Tag', $appConfig->defaultMetaRobots);
         $csp = implode('; ', [
             'object-src ' . $this->cspSources($appConfig->cspObjectSrc),
             "base-uri 'self'",

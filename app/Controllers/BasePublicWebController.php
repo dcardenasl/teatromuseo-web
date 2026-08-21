@@ -283,7 +283,7 @@ abstract class BasePublicWebController extends BaseController
             'metaDescription' => (string) ($page['metaDescription'] ?? $excerpt),
             'canonicalUrl' => (string) ($page['canonicalUrl'] ?? site_url($this->request->getPath())),
             'ogImage' => (string) ($page['ogImage'] ?? ''),
-            'metaRobots' => (string) ($page['metaRobots'] ?? 'index, follow'),
+            'metaRobots' => (string) ($page['metaRobots'] ?? config('App')->defaultMetaRobots),
             'schemaData' => $schemaData,
             'renderedBlocks' => Services::blockRenderer()->render($this->pageBlocks($page), $lang, $context),
             'localized_urls' => is_array($page['localized_urls'] ?? null) ? $page['localized_urls'] : [],
@@ -348,7 +348,7 @@ abstract class BasePublicWebController extends BaseController
             'articleModifiedTime' => $page['updated_at'] ?? null,
             'metaRobots' => (isset($translation['robots']) && trim((string) $translation['robots']) !== '')
                 ? (string) $translation['robots']
-                : 'index, follow',
+                : config('App')->defaultMetaRobots,
             'schemaData' => $schemaData,
             'renderedBlocks' => \Config\Services::blockRenderer()->render($blocks, $lang, $context),
             'localized_urls' => $this->resolveLocalizedPageUrls($page, $lang),
