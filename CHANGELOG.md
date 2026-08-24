@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Page-view tracking is now enabled by default outside tests** —
+  `Config\App::$trackingEnabled` flips from `ENVIRONMENT !== 'production'` to
+  `ENVIRONMENT !== 'testing'`. Tracking only ever writes one local event file
+  to the analytics queue during a visit; the actual CMS call happens later
+  from `analytics:flush`, so it no longer competes with public delivery for a
+  worker or DB connection. Set `WEB_TRACKING_ENABLED=false` to opt back out
+  on hosting that cannot support the queue.
+
 - **Production now defaults to `noindex, nofollow` until this app becomes the
   canonical public domain** — `Config\App::$defaultMetaRobots` (overridable via
   `WEB_DEFAULT_META_ROBOTS`) backs the `<meta name="robots">` fallback on every
