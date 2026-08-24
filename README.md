@@ -54,7 +54,7 @@ WEB_API_KEY=web_api_test_key
 WEB_API_TIMEOUT=5
 WEB_API_CONNECT_TIMEOUT=1
 WEB_API_STALE_TTL=86400
-WEB_TRACKING_ENABLED=false
+WEB_TRACKING_ENABLED=true
 WEB_TRACKING_QUEUE_DIR=writable/analytics-queue
 WEB_TRACKING_QUEUE_BATCH_SIZE=100
 WEB_TRACKING_QUEUE_MAX_ATTEMPTS=5
@@ -72,7 +72,9 @@ invalidación rechaza claves vacías o incorrectas.
 ### Tracking asíncrono
 
 El tracking público se encola localmente en `writable/analytics-queue` y no
-hace una llamada HTTP durante la visita. Configura un cron del hosting cada
+hace una llamada HTTP durante la visita. Está activo por defecto fuera de
+tests; `WEB_TRACKING_ENABLED=false` lo desactiva explícitamente. El deploy por
+FTP no instala tareas programadas, así que configura un cron del hosting cada
 minuto:
 
 ```cron
@@ -82,6 +84,19 @@ minuto:
 La carpeta `writable/analytics-queue` debe ser escribible por PHP. Los eventos
 que no pueden enviarse se reintentan y, después del límite configurado, pasan a
 `writable/analytics-queue/failed` para diagnóstico.
+
+Después de desplegar o cambiar el `.env`, reinicia PHP/opcache si el hosting lo
+requiere y verifica una visita nueva con:
+
+```bash
+php spark analytics:flush --limit 1
+tail -f writable/logs/analytics-cron.log
+```
+
+El proceso debe reportar `sent=1` (o más) y la cantidad de archivos en
+`writable/analytics-queue/pending` debe bajar. Un cron cada 15 minutos con
+límite 20 solo permite procesar 80 eventos por hora; para este flujo debe ser
+cada minuto con límite 100.
 
 `CSP_*` se deja abierto por defecto en el starter para que los seeders puedan
 cargar imágenes, documentos y embeds remotos durante la puesta en marcha. Si

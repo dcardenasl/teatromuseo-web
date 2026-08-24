@@ -194,11 +194,13 @@ class App extends BaseConfig
     public int $webApiStaleTtl = 86400;
 
     /**
-     * First-party page-view tracking is disabled in production by default.
-     * Tracking is best-effort and must never compete with public delivery for
-     * a PHP worker or database connection.
+     * First-party page-view tracking uses a local queue, so it is enabled by
+     * default for every runtime except tests. The visitor request only writes
+     * one local event file; the CMS call runs later from analytics:flush.
+     * Set WEB_TRACKING_ENABLED=false only when tracking is intentionally off
+     * or the hosting filesystem cannot support the queue.
      */
-    public bool $trackingEnabled = ENVIRONMENT !== 'production';
+    public bool $trackingEnabled = ENVIRONMENT !== 'testing';
 
     /**
      * Beta is not a search destination. Production defaults to noindex while
