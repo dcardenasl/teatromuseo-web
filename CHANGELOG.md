@@ -18,7 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rendered first — generic or one visitor's confirmation — was replayed to
   everyone else for the cache TTL. A render reached with an active session
   (`PublicSession::current()`) is now always served `no-store, private` and
-  never written to the cache; anonymous renders are unaffected.
+  never written to the cache; anonymous renders are unaffected. That alone
+  wasn't sufficient: CodeIgniter's native `PageCache::before()` looks up the
+  cache by method+URI only, with no regard for cookies, and returns a hit
+  *before the controller ever runs* — so a stale, session-less entry cached
+  from an earlier anonymous visit was still replayed to the very request this
+  fix was meant to protect. The `pagecache` filter alias now points to a new
+  `App\Filters\SessionAwarePageCache`, which skips the cache lookup entirely
+  when the request carries a session cookie.
 - **A form with `has_captcha` enabled but no `recaptcha_site_key` configured
   could block every submission** — `form_embed.php` only renders the reCAPTCHA
   widget when both are set, but `FormController` required the token off
