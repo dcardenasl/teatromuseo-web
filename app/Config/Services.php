@@ -248,7 +248,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteFormService');
         }
 
-        return new SiteFormService(static::bffWebApiClient());
+        return new SiteFormService(static::bffWebApiClient(), static::cmsDomainWriteClient());
     }
 
     public static function siteSettingsService(bool $getShared = true): SiteSettingsService
@@ -259,6 +259,31 @@ class Services extends BaseService
         }
 
         return new SiteSettingsService(static::bffWebApiClient());
+    }
+
+    /**
+     * Direct-to-Domain client for the `webappkey`-gated `/api/v1/public/*`
+     * write endpoints (e.g. form submissions) — the BFF has no route for
+     * these; only Domain reads go through it. Reuses the same
+     * WEB_TRACKING_API_BASE_URL/WEB_API_KEY pair AnalyticsQueue's
+     * CurlAnalyticsTransport already calls directly for tracking writes.
+     */
+    public static function cmsDomainWriteClient(bool $getShared = true): WebApiClientInterface
+    {
+        if ($getShared) {
+            /** @var WebApiClientInterface */
+            return static::getSharedInstance('cmsDomainWriteClient');
+        }
+
+        $config = config('App');
+
+        return new WebApiClient(
+            $config->trackingApiBaseUrl,
+            $config->webApiKey,
+            $config->webApiTimeout,
+            $config->webApiStaleTtl,
+            $config->webApiConnectTimeout,
+        );
     }
 
 }

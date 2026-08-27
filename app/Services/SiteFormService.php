@@ -4,9 +4,27 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Libraries\WebApiClientInterface;
+
 class SiteFormService extends BaseSiteService
 {
     private const CACHE_TTL = 300;
+
+    /**
+     * `$apiClient` (the BFF) still serves form *definitions* — the BFF has a
+     * direct-DB public-read seam for those. Submissions need the Domain's
+     * own validation, CAPTCHA verification, and email-job dispatch, none of
+     * which the BFF has a route for — `public/submissions` is one of the
+     * `webappkey`-gated `/api/v1/public/*` domain endpoints the Web app
+     * calls directly (see teatromuseo-web/CLAUDE.md and AnalyticsQueue's
+     * identical direct-to-Domain pattern for tracking writes).
+     */
+    public function __construct(
+        WebApiClientInterface $apiClient,
+        private readonly WebApiClientInterface $domainClient,
+    ) {
+        parent::__construct($apiClient);
+    }
 
     /**
      * Fetch the public form definition for the given language and form key.
@@ -40,7 +58,7 @@ class SiteFormService extends BaseSiteService
             $payload['captcha_token'] = $captchaToken;
         }
 
-        $response = $this->apiClient->post('public/submissions', $payload);
+        $response = $this->domainClient->post('public/submissions', $payload);
 
         if (! $response['ok']) {
             return [
