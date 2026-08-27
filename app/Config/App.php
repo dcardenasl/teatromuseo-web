@@ -188,6 +188,18 @@ class App extends BaseConfig
     public int $webApiConnectTimeout = 1;
 
     /**
+     * Timeout (seconds) for the direct-to-Domain form submission write
+     * (cmsDomainWriteClient — see Config\Services). Deliberately separate
+     * from webApiTimeout above: that one guards an *optional* page block a
+     * visitor never asked for, while a form submission is a single
+     * user-initiated action they are already waiting on. It also runs
+     * slower than a page read when the Domain's QUEUE_DRIVER=sync, since
+     * notification/autoreply emails are then sent synchronously through the
+     * Hub inside this same request. Override with WEB_FORM_SUBMIT_TIMEOUT.
+     */
+    public int $formSubmitTimeout = 15;
+
+    /**
      * TTL (seconds) for the long-lived stale cache copy served when the
      * Domain API is down. Set WEB_API_STALE_TTL=0 in .env to disable.
      */
@@ -434,6 +446,11 @@ class App extends BaseConfig
         $webApiStaleTtl = env('WEB_API_STALE_TTL');
         if (is_numeric($webApiStaleTtl) && (int) $webApiStaleTtl >= 0) {
             $this->webApiStaleTtl = (int) $webApiStaleTtl;
+        }
+
+        $formSubmitTimeout = env('WEB_FORM_SUBMIT_TIMEOUT');
+        if (is_numeric($formSubmitTimeout) && (int) $formSubmitTimeout > 0) {
+            $this->formSubmitTimeout = (int) $formSubmitTimeout;
         }
 
         $this->trackingEnabled = $this->parseBoolean(

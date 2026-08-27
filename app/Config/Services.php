@@ -267,6 +267,9 @@ class Services extends BaseService
      * these; only Domain reads go through it. Reuses the same
      * WEB_TRACKING_API_BASE_URL/WEB_API_KEY pair AnalyticsQueue's
      * CurlAnalyticsTransport already calls directly for tracking writes.
+     * Uses `formSubmitTimeout`, not the fast `webApiTimeout` shared by page
+     * reads — this write can run synchronously through the Hub for email
+     * dispatch (Domain QUEUE_DRIVER=sync) and needs real headroom.
      */
     public static function cmsDomainWriteClient(bool $getShared = true): WebApiClientInterface
     {
@@ -280,7 +283,7 @@ class Services extends BaseService
         return new WebApiClient(
             $config->trackingApiBaseUrl,
             $config->webApiKey,
-            $config->webApiTimeout,
+            $config->formSubmitTimeout,
             $config->webApiStaleTtl,
             $config->webApiConnectTimeout,
         );
