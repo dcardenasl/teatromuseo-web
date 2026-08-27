@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Public contact form silently swallowed its own success/error message** —
+  `BasePublicWebController::render()` wrote every rendered page into the
+  shared `ResponseCache` unconditionally, including the redirect target after
+  a form POST, which reads visitor-specific flashdata (`form_sent_*`,
+  `form_errors_*`, and the generic success/error/warning banner). Because
+  that cache is keyed only by URL and ignores cookies, whichever version
+  rendered first — generic or one visitor's confirmation — was replayed to
+  everyone else for the cache TTL. A render reached with an active session
+  (`PublicSession::current()`) is now always served `no-store, private` and
+  never written to the cache; anonymous renders are unaffected.
+- **A form with `has_captcha` enabled but no `recaptcha_site_key` configured
+  could block every submission** — `form_embed.php` only renders the reCAPTCHA
+  widget when both are set, but `FormController` required the token off
+  `has_captcha` alone, so a visitor with no widget to fill had no way to
+  satisfy the check. `FormController` now requires the token only when the
+  same condition the view uses is true (new `SiteSettingsService`), and
+  always forwards a token if one was actually submitted regardless. The
+  Domain re-verifies the token independently on every submission either way.
+
 ### Changed
 
 - **Page-view tracking is now enabled by default outside tests** —
