@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Form submissions timed out with "No se pudo enviar el formulario" once
+  the Domain's `QUEUE_DRIVER` was switched to `sync`** — that switch makes
+  `FormSubmissionService::dispatchEmailJobs()` call the Hub synchronously to
+  queue notification/autoreply emails inside the same request instead of
+  just inserting a DB row, so the Domain's response now legitimately takes
+  longer (confirmed: the email still arrived even when Web reported a
+  timeout — the Domain kept working after Web gave up waiting). The new
+  `cmsDomainWriteClient()` was reusing `webApiTimeout` (2s, deliberately
+  short — meant to keep one slow *optional* page block from holding a
+  shared-hosting worker), not appropriate for a single user-initiated
+  submission the visitor is already waiting on. New `formSubmitTimeout`
+  (15s, `WEB_FORM_SUBMIT_TIMEOUT`) is used for this client instead;
+  `webApiTimeout` and every page-read path are unaffected.
 - **Public contact form silently swallowed its own success/error message** —
   `BasePublicWebController::render()` wrote every rendered page into the
   shared `ResponseCache` unconditionally, including the redirect target after
