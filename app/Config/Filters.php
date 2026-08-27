@@ -11,7 +11,6 @@ use CodeIgniter\Filters\DebugToolbar;
 use CodeIgniter\Filters\ForceHTTPS;
 use CodeIgniter\Filters\Honeypot;
 use CodeIgniter\Filters\InvalidChars;
-use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
 
@@ -37,7 +36,10 @@ class Filters extends BaseFilters
         'throttle'        => \App\Filters\ThrottleFilter::class,
         'cors'           => Cors::class,
         'forcehttps'     => ForceHTTPS::class,
-        'pagecache'      => PageCache::class,
+        // A stock PageCache::before() would serve a stale, session-less hit
+        // to a session-bearing request before the controller ever runs —
+        // see SessionAwarePageCache's docblock.
+        'pagecache'      => \App\Filters\SessionAwarePageCache::class,
         'performance'    => PerformanceMetrics::class,
         'correlationid'   => \App\Filters\CorrelationIdFilter::class,
         'requestTelemetry' => \App\Filters\RequestTelemetryFilter::class,
