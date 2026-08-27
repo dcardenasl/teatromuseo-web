@@ -29,6 +29,7 @@ use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
 use App\Services\SiteFormService;
 use App\Services\SitePageService;
+use App\Services\SiteSettingsService;
 use App\Services\SiteSitemapService;
 use CodeIgniter\Config\BaseService;
 
@@ -248,6 +249,16 @@ class Services extends BaseService
         }
 
         return new SiteFormService(static::bffWebApiClient());
+    }
+
+    public static function siteSettingsService(bool $getShared = true): SiteSettingsService
+    {
+        if ($getShared) {
+            /** @var SiteSettingsService */
+            return static::getSharedInstance('siteSettingsService');
+        }
+
+        return new SiteSettingsService(static::bffWebApiClient());
     }
 
 }

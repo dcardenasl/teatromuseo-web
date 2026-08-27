@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Services\SiteFormService;
+use App\Services\SiteSettingsService;
 use CodeIgniter\Security\Exceptions\SecurityException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -26,16 +27,23 @@ final class FormControllerTest extends CIUnitTestCase
         parent::setUp();
 
         Services::resetSingle('siteFormService');
+        Services::resetSingle('siteSettingsService');
         Services::resetSingle('cache');
         Services::resetSingle('security');
         $_COOKIE = [];
         service('superglobals')->setCookieArray([]);
         $this->csrfToken = bin2hex(random_bytes(16));
+
+        // No test exercises the real Domain settings lookup — default to "no
+        // reCAPTCHA site key configured" so has_captcha alone never blocks a
+        // submission. mockRecaptchaSiteKey() overrides this per test.
+        $this->mockRecaptchaSiteKey('');
     }
 
     protected function tearDown(): void
     {
         Services::resetSingle('siteFormService');
+        Services::resetSingle('siteSettingsService');
         Services::resetSingle('cache');
         Services::resetSingle('security');
         $_COOKIE = [];
@@ -43,6 +51,14 @@ final class FormControllerTest extends CIUnitTestCase
         $this->disableThrottleInTests();
 
         parent::tearDown();
+    }
+
+    private function mockRecaptchaSiteKey(string $siteKey): void
+    {
+        $settingsService = $this->createMock(SiteSettingsService::class);
+        $settingsService->method('getRecaptchaSiteKey')->willReturn($siteKey);
+
+        Services::injectMock('siteSettingsService', $settingsService);
     }
 
     public function testHoneypotFilledRedirectsSilentlyWithoutSubmitting(): void
@@ -76,6 +92,8 @@ final class FormControllerTest extends CIUnitTestCase
 
     public function testSubmitValidationFailsWhenCaptchaIsRequiredButMissing(): void
     {
+        $this->mockRecaptchaSiteKey('test-site-key');
+
         $formService = $this->createMock(SiteFormService::class);
         $formService->expects($this->once())
             ->method('getDefinition')
@@ -102,6 +120,51 @@ final class FormControllerTest extends CIUnitTestCase
         $result->assertStatus(302);
         $errors = session()->getFlashdata('form_errors_contact');
         $this->assertArrayHasKey('_captcha', $errors);
+    }
+
+    /**
+     * A form can have has_captcha=true in the Domain while the site-wide
+     * recaptcha_site_key setting is unset. form_embed.php never renders the
+     * widget in that case (FormEmbedViewModel::recaptchaSiteKey()), so a
+     * visitor has no way to produce a token — the submission must still go
+     * through instead of demanding input the page never offered.
+     */
+    public function testSubmitDoesNotRequireCaptchaWhenSiteKeyIsNotConfigured(): void
+    {
+        $this->mockRecaptchaSiteKey('');
+
+        $formService = $this->createMock(SiteFormService::class);
+        $formService->expects($this->once())
+            ->method('getDefinition')
+            ->with('es', 'contact')
+            ->willReturn([
+                'form_key'    => 'contact',
+                'has_captcha' => 1,
+                'fields'      => [
+                    [
+                        'field_key'   => 'email',
+                        'field_type'  => 'email',
+                        'is_required' => 1,
+                    ],
+                ],
+            ]);
+        $formService->expects($this->once())
+            ->method('submit')
+            ->with('contact', ['email' => 'ada@example.com'], null)
+            ->willReturn([
+                'ok'       => true,
+                'id'       => 123,
+                'messages' => [],
+            ]);
+
+        Services::injectMock('siteFormService', $formService);
+
+        $result = $this->postForm('forms/contact/submit', [
+                'email' => 'ada@example.com',
+            ]);
+
+        $result->assertStatus(302);
+        $this->assertTrue(session()->getFlashdata('form_sent_contact'));
     }
 
     public function testSubmitValidationFailsWhenRequiredFieldIsEmpty(): void
