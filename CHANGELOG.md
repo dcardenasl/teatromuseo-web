@@ -120,6 +120,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Submit-button spinner on public forms** — `form_embed.php`'s submit
+  button now shows an inline spinner (`data-public-form-spinner`) while a
+  submission is in flight, alongside the existing disabled/`aria-busy`
+  state. Submissions can legitimately take a few seconds now that the
+  Domain may send notification/autoreply emails synchronously
+  (`QUEUE_DRIVER=sync`), so the button-disable alone wasn't enough visible
+  feedback that the message was actually being sent.
 - **`cache:warmup` guarded against overlapping runs** — the command now acquires
   a non-blocking file lock (`App\Libraries\CommandLock`) before warming the
   public page-snapshot cache and skips the run if another invocation already
