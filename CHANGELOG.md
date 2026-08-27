@@ -34,6 +34,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same condition the view uses is true (new `SiteSettingsService`), and
   always forwards a token if one was actually submitted regardless. The
   Domain re-verifies the token independently on every submission either way.
+- **`publicForms.js`'s redirect-follow fetch consumed the confirmation
+  flash before the visitor ever saw it** — `FormController` always ends in
+  `redirect()->back()` with the success/error message in one-shot session
+  flashdata, meant to be read by the *next* request. With `redirect: 'follow'`,
+  the submit fetch itself performed that next request (to build a response
+  body it then discarded) before calling `window.location.assign()`, so the
+  visitor's own subsequent navigation always landed on a request where the
+  flash was already gone — regardless of any of the caching behavior above.
+  The fetch now uses `redirect: 'manual'` (resolving opaque on the expected
+  POST-redirect-GET path) and a single `reload()` performs the one request
+  that actually reads the flash.
+- **Every contact-form submission failed with a generic "no se pudo
+  enviar" error** — `SiteFormService::submit()` posted to `public/submissions`
+  through the BFF client, but the BFF only proxies form *definition* reads
+  (`GET (:segment)/forms/(:segment)`) — it has no route at all for
+  submissions, so every POST 404'd server-side (confirmed in production logs
+  going back to before this investigation started). Per this repo's own
+  architecture, `webappkey`-gated `/api/v1/public/*` Domain endpoints that
+  need real validation/side-effects (CAPTCHA verification, email-job
+  dispatch) are called directly, not through the BFF — `AnalyticsQueue`
+  already does this for tracking writes. `submit()` now posts through a new
+  direct-to-Domain client (`Config\Services::cmsDomainWriteClient()`, reusing
+  `WEB_TRACKING_API_BASE_URL`/`WEB_API_KEY`); `getDefinition()` is unchanged
+  and still reads through the BFF.
 
 ### Changed
 
