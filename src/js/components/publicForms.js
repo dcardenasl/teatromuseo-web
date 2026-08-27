@@ -19,11 +19,13 @@ const readCookie = (name) => {
 const setPending = (form, pending) => {
   form.dataset.submitting = pending ? '1' : '0';
   const button = form.querySelector('button[type="submit"]');
+  if (!button) return;
 
-  if (button) {
-    button.disabled = pending;
-    button.setAttribute('aria-busy', pending ? 'true' : 'false');
-  }
+  button.disabled = pending;
+  button.setAttribute('aria-busy', pending ? 'true' : 'false');
+
+  const spinner = button.querySelector('[data-public-form-spinner]');
+  if (spinner) spinner.hidden = !pending;
 };
 
 const showError = (form) => {

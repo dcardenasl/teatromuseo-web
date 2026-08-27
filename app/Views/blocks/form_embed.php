@@ -216,8 +216,12 @@ $isChild = $context['is_child'] ?? false;
                         <?php endforeach; ?>
 
                         <button type="submit"
-                                class="btn btn-primary w-full rounded-xl px-6 py-3.5 text-sm font-semibold">
-                            <?= esc($submitLabel) ?>
+                                class="btn btn-primary w-full rounded-xl px-6 py-3.5 text-sm font-semibold inline-flex items-center justify-center gap-2">
+                            <svg data-public-form-spinner hidden class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span data-public-form-label><?= esc($submitLabel) ?></span>
                         </button>
                         <p data-public-form-error class="mt-2 text-sm text-rose-700" role="alert" hidden>
                             <?= esc(lang('Site.form_submit_error')) ?>
