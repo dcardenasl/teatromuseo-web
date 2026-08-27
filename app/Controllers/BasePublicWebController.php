@@ -20,8 +20,16 @@ abstract class BasePublicWebController extends BaseController
         $this->finishRouteResolution();
         $preview = $this->request->getGet('preview') === '1';
         $pageCacheTtl = config('App')->webPageCacheTtl;
-        $cacheable = ! $preview && $pageCacheTtl > 0;
-        if (! $preview && $pageCacheTtl > 0) {
+        // A session cookie only exists on this site after a form POST engaged
+        // the CSRF/session machinery (see PublicSession::current()). Such a
+        // render may read visitor-specific flashdata (form_sent_*, generic
+        // success/error/warning — see flash_messages.php), so it must never
+        // be written into the shared, cookie-blind ResponseCache: doing so
+        // either hides one visitor's confirmation behind an earlier bare
+        // page, or leaks it to every other visitor for the cache TTL.
+        $hasActiveSession = \App\Support\PublicSession::current() !== null;
+        $cacheable = ! $preview && $pageCacheTtl > 0 && ! $hasActiveSession;
+        if ($cacheable) {
             // CodeIgniter resets ResponseCache's TTL at the start of every
             // request. Set it only for rendered public HTML responses; form
             // posts, redirects and preview requests stay uncached.
