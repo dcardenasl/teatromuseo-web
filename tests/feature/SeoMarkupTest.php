@@ -682,8 +682,13 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         // Description should fall back to entry excerpt
         $this->assertStringContainsString('<meta name="description" content="' . $entryExcerpt . '">', $body);
 
-        // Robots should fall back to \'index, follow\'
-        $this->assertStringContainsString('<meta name="robots" content="index, follow">', $body);
+        // Robots should fall back to the configured site default (overridable
+        // via WEB_DEFAULT_META_ROBOTS; currently 'noindex, nofollow' while this
+        // app stays out of search indexes pre-launch — see CHANGELOG.md).
+        $this->assertStringContainsString(
+            '<meta name="robots" content="' . config('App')->defaultMetaRobots . '">',
+            $body,
+        );
     }
 
     private function localizedPath(int $position = 0, string $suffix = ''): string
