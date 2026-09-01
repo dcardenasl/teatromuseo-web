@@ -40,6 +40,7 @@ class SecurityHeadersFilter implements FilterInterface
         // The allowlist can be tightened later via .env (Config\App::$csp*)
         // without touching code.
         $appConfig = config('App');
+        $response->setHeader('X-Robots-Tag', $appConfig->defaultMetaRobots);
         $csp = implode('; ', [
             'object-src ' . $this->cspSources($appConfig->cspObjectSrc),
             "base-uri 'self'",
@@ -50,7 +51,7 @@ class SecurityHeadersFilter implements FilterInterface
         ]);
         $response->setHeader('Content-Security-Policy', $csp);
 
-        if (ENVIRONMENT === 'production') {
+        if (ENVIRONMENT === 'production' || env('CI_ENVIRONMENT') === 'production') {
             $response->setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
 

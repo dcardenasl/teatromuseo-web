@@ -18,6 +18,9 @@ if (!empty($name)):
                     'alt'      => $name,
                     'class'    => 'w-full h-full object-cover',
                     'variants' => $photo['variants'] ?? null,
+                    'preferredVariant' => 'thumb',
+                    'sizes'    => '7rem',
+                    'maxVariantWidth' => 160,
                 ], ['saveData' => false]) ?>
             <?php else: ?>
                 <!-- Initials fallback -->

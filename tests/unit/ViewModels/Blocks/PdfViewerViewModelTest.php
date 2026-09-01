@@ -37,7 +37,7 @@ final class PdfViewerViewModelTest extends CIUnitTestCase
         $this->assertFalse($vars['allowDownload']);
     }
 
-    public function testConfiguredHubPdfReferenceBuildsPreviewUrl(): void
+    public function testConfiguredHubPdfReferenceWithoutUrlStaysUnresolved(): void
     {
         $vm = new PdfViewerViewModel([
             'block_config' => [
@@ -51,6 +51,6 @@ final class PdfViewerViewModelTest extends CIUnitTestCase
 
         $vars = $vm->vars();
 
-        $this->assertSame('/files/42/view', $vars['pdfUrl']);
+        $this->assertSame('', $vars['pdfUrl']);
     }
 }

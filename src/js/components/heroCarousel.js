@@ -7,6 +7,31 @@ const parseSlides = (root) => {
   }
 };
 
+const imageSource = (slide) => {
+  const image = slide?.image || {};
+  const variants = image.variants && typeof image.variants === 'object'
+    ? image.variants
+    : {};
+  const candidates = Object.values(variants)
+    .filter((variant) => variant && typeof variant === 'object' && typeof variant.url === 'string' && variant.url !== '')
+    .map((variant) => ({
+      url: variant.url,
+      width: Number(variant.width || 0),
+    }))
+    .filter((variant) => variant.width > 0)
+    .sort((left, right) => left.width - right.width)
+    .filter((variant, index, sorted) => index === 0 || variant.width !== sorted[index - 1].width);
+  const preferred = ['lg', 'md', 'sd', 'sm', 'thumb']
+    .map((key) => variants[key])
+    .find((variant) => variant && typeof variant.url === 'string' && variant.url !== '');
+  const fallback = preferred?.url || image.url || image.external_url || '';
+
+  return {
+    src: fallback,
+    srcset: candidates.map((variant) => `${variant.url} ${variant.width}w`).join(', '),
+  };
+};
+
 const initHeroCarousel = (root) => {
   const slides = parseSlides(root);
   if (!slides.length) return;
@@ -19,7 +44,18 @@ const initHeroCarousel = (root) => {
   const prev = root.querySelector('[data-hero-prev]');
   const next = root.querySelector('[data-hero-next]');
   const dots = Array.from(root.querySelectorAll('[data-hero-dot]'));
-  const autoplayEnabled = root.dataset.autoplay !== '0';
+  const autoplayRequested = root.dataset.autoplay === '1';
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const connectionType = typeof connection?.effectiveType === 'string'
+    ? connection.effectiveType
+    : '';
+  const networkConstrained = connection?.saveData === true
+    || ['slow-2g', '2g'].includes(connectionType);
+  const reducedMotion = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const autoplayEnabled = autoplayRequested && !networkConstrained && !reducedMotion;
+  const prefetchEnabled = slides.length > 1 && !networkConstrained;
+  const prefetchAhead = connectionType === '3g' ? 1 : 2;
   const slideDuration = Math.max(1000, Number(root.dataset.interval || 6000));
   const hoverTarget = image || root;
   const overlay = root.querySelector('[data-hero-overlay]');
@@ -31,6 +67,60 @@ const initHeroCarousel = (root) => {
   };
   const transitionClassList = Object.values(transitionClassNames);
   let hasRendered = false;
+  let prefetchScheduled = false;
+  const prefetchedSources = new Set();
+  const prefetchImages = new Map();
+
+  /**
+   * Warm the browser cache without competing with the critical first image.
+   * The detached image preserves the current responsive srcset selection and
+   * is intentionally low priority; it never changes the rendered DOM.
+   */
+  const prefetchSlide = (index) => {
+    if (!prefetchEnabled) return;
+
+    const source = imageSource(slides[index]);
+    const sourceKey = source.srcset || source.src;
+    if (sourceKey === '' || prefetchedSources.has(sourceKey)) return;
+
+    prefetchedSources.add(sourceKey);
+    const preload = document.createElement('img');
+    preload.decoding = 'async';
+    preload.loading = 'eager';
+    preload.fetchPriority = 'low';
+    const releasePrefetchImage = () => {
+      prefetchImages.delete(sourceKey);
+    };
+    preload.addEventListener('load', releasePrefetchImage, { once: true });
+    preload.addEventListener('error', releasePrefetchImage, { once: true });
+    prefetchImages.set(sourceKey, preload);
+    if (source.srcset !== '') {
+      preload.srcset = source.srcset;
+      preload.sizes = '100vw';
+    }
+    preload.src = source.src;
+  };
+
+  const schedulePrefetch = () => {
+    if (!prefetchEnabled || document.visibilityState === 'hidden' || prefetchScheduled) return;
+
+    prefetchScheduled = true;
+    const run = () => {
+      prefetchScheduled = false;
+      if (document.visibilityState === 'hidden') return;
+
+      const count = Math.min(prefetchAhead, slides.length - 1);
+      for (let offset = 1; offset <= count; offset += 1) {
+        prefetchSlide((current + offset) % slides.length);
+      }
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run, { timeout: 2000 });
+    } else {
+      window.setTimeout(run, 300);
+    }
+  };
 
   // The button is the touch target (min 24x24 for a11y); the visual pill is a
   // nested span so it can stay small while the button's hit area stays large.
@@ -104,6 +194,7 @@ const initHeroCarousel = (root) => {
       remainingMs = slideDuration;
       paused = false;
       render();
+      schedulePrefetch();
       clearProgress();
       startedAt = Date.now();
       updateProgress();
@@ -159,15 +250,18 @@ const initHeroCarousel = (root) => {
     if (!slide) return;
 
     if (image) {
-      const imageUrl = slide.image?.url || slide.image?.external_url || '';
-      const shouldAnimate = hasRendered && image.getAttribute('src') !== imageUrl;
+      const source = imageSource(slide);
+      const shouldAnimate = hasRendered && image.getAttribute('src') !== source.src;
 
-      // A carousel reuses one <img> node. Any responsive candidates rendered
-      // for the first slide would otherwise keep winning source selection after
-      // src changes, leaving the browser on the first image forever.
-      image.removeAttribute('srcset');
-      image.removeAttribute('sizes');
-      image.src = imageUrl;
+      image.classList.remove('opacity-50');
+      if (source.srcset !== '') {
+        image.srcset = source.srcset;
+        image.sizes = '100vw';
+      } else {
+        image.removeAttribute('srcset');
+        image.removeAttribute('sizes');
+      }
+      image.src = source.src;
       image.alt = slide.image_alt_text || slide.heading || '';
 
       transitionClassList.forEach((className) => image.classList.remove(className));
@@ -179,8 +273,21 @@ const initHeroCarousel = (root) => {
       }
     }
     if (link) {
-      link.href = slide.cta_url || '#';
-      link.setAttribute('aria-label', slide.heading || '');
+      const destination = typeof slide.cta_url === 'string' ? slide.cta_url.trim() : '';
+      const hasDestination = destination !== '' && destination !== '#';
+      if (hasDestination) {
+        link.href = destination;
+        link.removeAttribute('aria-hidden');
+        link.removeAttribute('tabindex');
+        link.classList.remove('pointer-events-none');
+        link.setAttribute('aria-label', slide.heading || '');
+      } else {
+        link.removeAttribute('href');
+        link.setAttribute('aria-hidden', 'true');
+        link.setAttribute('tabindex', '-1');
+        link.classList.add('pointer-events-none');
+        link.removeAttribute('aria-label');
+      }
     }
     captionTitles.forEach((node) => {
       node.textContent = slide.heading || '';
@@ -196,11 +303,18 @@ const initHeroCarousel = (root) => {
     });
 
     if (overlay) {
-      if (slide.overlay_color) {
-        overlay.style.background = slide.overlay_color;
+      const captionPosition = root.dataset.captionPosition || 'below';
+      const isOverlayCaption = captionPosition.startsWith('overlay');
+      if (!isOverlayCaption) {
+        overlay.style.display = 'none';
       } else {
-        const overlayOpacity = root.dataset.overlayPct || '0';
-        overlay.style.background = `linear-gradient(to bottom, rgba(15, 23, 42, ${overlayOpacity / 100}) 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, ${overlayOpacity / 100}) 100%)`;
+        overlay.style.display = 'block';
+        if (slide.overlay_color) {
+          overlay.style.background = slide.overlay_color;
+        } else {
+          const overlayOpacity = root.dataset.overlayPct || '0';
+          overlay.style.background = `linear-gradient(to bottom, rgba(15, 23, 42, ${overlayOpacity / 100}) 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, ${overlayOpacity / 100}) 100%)`;
+        }
       }
     }
     if (captionCard || captionTitles.length) {
@@ -232,6 +346,7 @@ const initHeroCarousel = (root) => {
     remainingMs = slideDuration;
     paused = false;
     render();
+    schedulePrefetch();
     start();
   };
 
@@ -258,10 +373,17 @@ const initHeroCarousel = (root) => {
     hoverTarget.addEventListener('mouseleave', resumeProgress, { passive: true });
   }
 
-  start();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && autoplayEnabled) {
+      schedulePrefetch();
+    }
+  }, { passive: true });
+
   render();
   clearProgress();
   updateProgress();
+  start();
+  if (autoplayEnabled) schedulePrefetch();
 };
 
 export const initHeroCarousels = () => {

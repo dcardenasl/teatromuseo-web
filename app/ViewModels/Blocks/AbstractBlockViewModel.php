@@ -13,20 +13,16 @@ namespace App\ViewModels\Blocks;
  * BlockRenderer::VIEW_MODELS; the returned vars() are merged into the view
  * data before rendering.
  *
- * `$context` also carries collaborators a specific view model needs (the
- * current request, a Site*Service) that BlockRenderer — the legitimate
- * composition boundary — resolves once per render pass. View models read
- * them via contextRequest()/contextService() instead of calling
- * `service()`/`Config\Services::x()` themselves, so they stay constructible
- * with plain arrays in tests (DEEP-WEB-02,
- * docs/plans/2026-07-10-plan-maestro-robustez-mantenibilidad.md).
+ * `$context` carries the current request and the page-delivery envelope.
+ * Dynamic data is always resolved before rendering; ViewModels never receive
+ * domain services and cannot initiate remote I/O.
  */
 abstract class AbstractBlockViewModel
 {
     /**
      * @param array<string, mixed> $block   Raw block payload (block_key, block_config, block_data, children)
-     * @param array<string, mixed> $context Render-pass extras: formDefinition for form_embed,
-     *                                      request/site*Service collaborators for blocks that need them
+     * @param array<string, mixed> $context Render-pass extras: formDefinition,
+     *                                      request and prefetched block results
      */
     public function __construct(
         protected readonly array $block,
@@ -40,18 +36,6 @@ abstract class AbstractBlockViewModel
         $value = $this->context['request'] ?? null;
 
         return $value instanceof \CodeIgniter\HTTP\IncomingRequest ? $value : null;
-    }
-
-    /**
-     * @template T of object
-     * @param class-string<T> $type
-     * @return T|null
-     */
-    protected function contextService(string $key, string $type): ?object
-    {
-        $value = $this->context[$key] ?? null;
-
-        return $value instanceof $type ? $value : null;
     }
 
     /**
@@ -102,7 +86,117 @@ abstract class AbstractBlockViewModel
     }
 
     /**
-     * @return array{source_kind: string, file_id: int|null, url: string}
+     * @param array<mixed> $default
+     * @return array<mixed>
+     */
+    protected function configArray(string $key, array $default = []): array
+    {
+        $value = $this->config()[$key] ?? $default;
+
+        return is_array($value) ? $value : $default;
+    }
+
+    /**
+     * @param array<mixed> $default
+     * @return array<mixed>
+     */
+    protected function dataArray(string $key, array $default = []): array
+    {
+        $value = $this->data()[$key] ?? $default;
+
+        return is_array($value) ? $value : $default;
+    }
+
+    /**
+     * Attach the localized detail URL contract to a listing entry.
+     *
+     * The listing navigation is already resolved for the active locale by
+     * the CMS block serializer. The entry slug follows the same rule: use the
+     * locale-specific API projection when available, otherwise the canonical
+     * slug returned by the source.
+     *
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    protected function withEntryNavigation(array $entry, string $listingUrl): array
+    {
+        $localized = is_array($entry['localized'] ?? null) ? $entry['localized'] : [];
+        $localizedSlugs = is_array($entry['localized_slugs'] ?? null) ? $entry['localized_slugs'] : [];
+        $slug = trim((string) ($localized['slug'] ?? $localizedSlugs[$this->lang] ?? $entry['slug'] ?? ''));
+        $listingUrl = rtrim(trim($listingUrl), '/');
+        $url = $listingUrl !== '' && $slug !== ''
+            ? $listingUrl . '/' . ltrim($slug, '/')
+            : '';
+
+        $entry['navigation'] = [
+            'status' => $url !== '' ? 'resolved' : 'slug_not_available',
+            'target_type' => 'entry_detail',
+            'target_id' => is_numeric($entry['id'] ?? null) ? (int) $entry['id'] : null,
+            'slug' => $slug !== '' ? $slug : null,
+            'url' => $url !== '' ? $url : null,
+        ];
+
+        return $entry;
+    }
+
+    /** @param array<string, mixed> $navigation */
+    protected function navigationUrl(array $navigation, string $fallback = ''): string
+    {
+        $routePath = \App\Support\PublicPaths::routePath(
+            (string) ($navigation['route_key'] ?? ''),
+            $this->lang,
+        );
+        if ($routePath !== null) {
+            return lang_url($routePath, $this->lang);
+        }
+
+        $url = trim((string) ($navigation['url'] ?? ''));
+        return $url !== '' ? $url : $fallback;
+    }
+
+    /**
+     * Resolve the public listing URL when an older or partially migrated
+     * block payload has no serialized navigation target. Domain-backed
+     * listings use the centralized locale-aware route map; CMS collections
+     * keep their stable collection key as the public path fallback.
+     */
+    protected function defaultListingUrl(string $sourceType, string $collectionKey): string
+    {
+        $path = match ($sourceType) {
+            'event_items' => \App\Support\PublicPaths::eventsSegment($this->lang),
+            'catalog_items' => \App\Support\PublicPaths::catalogSegment($this->lang),
+            default => trim($collectionKey, '/'),
+        };
+
+        return $path !== '' ? lang_url('/' . $path, $this->lang) : '';
+    }
+
+    protected function publicUrl(string $url, string $fallback = ''): string
+    {
+        $url = trim($url);
+        if ($url === '' || $url === '#') {
+            return $fallback;
+        }
+
+        if (preg_match('/^(https?:)?\/\//', $url)) {
+            return $url;
+        }
+
+        $canonicalPath = \App\Support\PublicPaths::canonicalPath($url, $this->lang);
+        if ($canonicalPath !== null) {
+            $query = parse_url($url, PHP_URL_QUERY);
+            $fragment = parse_url($url, PHP_URL_FRAGMENT);
+            $suffix = $query !== null ? '?' . $query : '';
+            $suffix .= $fragment !== null ? '#' . $fragment : '';
+
+            return lang_url($canonicalPath . $suffix, $this->lang);
+        }
+
+        return lang_url($url, $this->lang);
+    }
+
+    /**
+     * @return array{source_kind: string, file_id: int|null, url: string, variants: array<string, array<string, mixed>>|null}
      */
     protected function configMediaReference(string $key): array
     {
@@ -119,10 +213,24 @@ abstract class AbstractBlockViewModel
 
     /**
      * @param mixed $value
-     * @return array{source_kind: string, file_id: int|null, url: string}
+     * @return array{source_kind: string, file_id: int|null, url: string, variants: array<string, array<string, mixed>>|null}
      */
     protected function normalizeMediaReference(mixed $value): array
     {
+        if (is_int($value) || (is_string($value) && ctype_digit(trim($value)))) {
+            $value = [
+                'source_kind' => 'hub_file',
+                'file_id'     => (int) $value,
+                'url'         => '',
+            ];
+        } elseif (is_string($value) && trim($value) !== '') {
+            $value = [
+                'source_kind' => 'external_url',
+                'file_id'     => null,
+                'url'         => trim($value),
+            ];
+        }
+
         if (! is_array($value)) {
             return $this->emptyMediaReference();
         }
@@ -134,9 +242,23 @@ abstract class AbstractBlockViewModel
             ? (int) $value['file_id']
             : null;
         $url = is_string($value['url'] ?? null) ? trim($value['url']) : '';
+        $variants = $this->normalizeMediaVariants($value['variants'] ?? null);
 
-        if ($sourceKind === 'hub_file' && $fileId !== null && $url === '') {
-            $url = '/files/' . $fileId . '/view';
+        // Older CMS payloads used `file` for the same Hub-owned media
+        // reference that is now called `hub_file`. Keep the alias at this
+        // boundary so views can consume either version without fabricating a
+        // `/files/{id}/view` URL.
+        if ($sourceKind === 'file') {
+            $sourceKind = 'hub_file';
+        }
+        if ($sourceKind === '' && $fileId !== null) {
+            $sourceKind = 'hub_file';
+        }
+        if ($sourceKind === '' && $url !== '') {
+            $sourceKind = 'external_url';
+        }
+        if ($sourceKind === 'hub_file' && preg_match('#(?:^|/)files/\d+/view(?:[/?]|$)#i', $url) === 1) {
+            $url = '';
         }
 
         if (($sourceKind === 'hub_file' && $fileId === null)
@@ -149,6 +271,7 @@ abstract class AbstractBlockViewModel
             'source_kind' => $sourceKind,
             'file_id' => $fileId,
             'url' => $url,
+            'variants' => $variants,
         ];
     }
 
@@ -156,19 +279,42 @@ abstract class AbstractBlockViewModel
      * Resolve a canonical nested media reference from a payload.
      *
      * @param array<string, mixed> $payload
-     * @return array{source_kind: string, file_id: int|null, url: string}
+     * @return array{source_kind: string, file_id: int|null, url: string, variants: array<string, array<string, mixed>>|null}
      */
     protected function mediaReferenceFromPayload(array $payload, string $key): array
     {
         $value = $payload[$key] ?? null;
 
-        return is_array($value)
-            ? $this->normalizeMediaReference($value)
-            : $this->emptyMediaReference();
+        if ($value !== null) {
+            $normalized = $this->normalizeMediaReference($value);
+            if ($normalized['file_id'] !== null || $normalized['url'] !== '') {
+                return $normalized;
+            }
+        }
+
+        // Before media_reference became canonical, some public payloads
+        // exposed the relational fields beside the media field. Accept both
+        // the generic `{key}_*` spelling and the entry-era
+        // `featured_file_id`/`featured_image_url` spelling.
+        $legacyPrefix = str_ends_with($key, '_image')
+            ? substr($key, 0, -6)
+            : $key;
+        $fileId = $payload[$key . '_file_id'] ?? $payload[$legacyPrefix . '_file_id'] ?? null;
+        $url = $payload[$key . '_url'] ?? $payload[$legacyPrefix . '_image_url'] ?? null;
+
+        if ($fileId !== null || (is_string($url) && trim($url) !== '')) {
+            return $this->normalizeMediaReference([
+                'source_kind' => is_numeric($fileId) && (int) $fileId > 0 ? 'hub_file' : 'external_url',
+                'file_id'     => $fileId,
+                'url'         => is_scalar($url) ? trim((string) $url) : '',
+            ]);
+        }
+
+        return $this->emptyMediaReference();
     }
 
     /**
-     * @return array{source_kind: string, file_id: null, url: string}
+     * @return array{source_kind: string, file_id: null, url: string, variants: null}
      */
     private function emptyMediaReference(): array
     {
@@ -176,7 +322,51 @@ abstract class AbstractBlockViewModel
             'source_kind' => 'external_url',
             'file_id'     => null,
             'url'         => '',
+            'variants'    => null,
         ];
+    }
+
+    /**
+     * Keep only usable variant metadata already supplied by the public source.
+     * The Web app never derives a variant URL from a file ID or an original URL.
+     *
+     * @return array<string, array<string, mixed>>|null
+     */
+    private function normalizeMediaVariants(mixed $value): ?array
+    {
+        if (is_string($value) && trim($value) !== '') {
+            $decoded = json_decode($value, true);
+            $value = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $variants = [];
+        foreach ($value as $key => $variant) {
+            if (is_string($variant)) {
+                $variant = ['url' => $variant];
+            }
+            if (! is_array($variant)) {
+                continue;
+            }
+
+            $variantUrl = is_scalar($variant['url'] ?? null) ? trim((string) $variant['url']) : '';
+            if ($variantUrl === '' || preg_match('#(?:^|/)files/\d+/view(?:[/?]|$)#i', $variantUrl) === 1) {
+                continue;
+            }
+
+            $variant['url'] = $variantUrl;
+            foreach (['width', 'height'] as $dimension) {
+                if (is_numeric($variant[$dimension] ?? null) && (int) $variant[$dimension] > 0) {
+                    $variant[$dimension] = (int) $variant[$dimension];
+                }
+            }
+            $variants[strtolower(trim((string) $key))] = $variant;
+        }
+
+        return $variants !== [] ? $variants : null;
     }
 
     /**

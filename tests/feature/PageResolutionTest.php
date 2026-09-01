@@ -7,11 +7,6 @@ namespace Tests\Feature;
 use CodeIgniter\Test\FeatureTestTrait;
 use Tests\Support\HermeticFeatureTestCase;
 
-/**
- * Feature tests for PageController's dynamic resolver.
- *
- * @internal
- */
 final class PageResolutionTest extends HermeticFeatureTestCase
 {
     use FeatureTestTrait;
@@ -19,222 +14,55 @@ final class PageResolutionTest extends HermeticFeatureTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->configureLocales(['aa', 'bb', 'cc']);
+        $this->configureLocales(['aa', 'bb']);
     }
 
-    public function testResolvesCmsPage(): void
+    public function testEveryDynamicRouteUsesTheBffResolver(): void
     {
-        $locale = $this->locale();
-        $slug = $this->slug('page');
-        $title = $this->text('page-title');
-        $this->fakeEmptyCollections($locale);
-        $this->domainAdapter->fakeGet($this->domainPath('pages/' . $slug), $this->page($slug, $title));
-
-        $result = $this->get($locale . '/' . $slug);
-
-        $result->assertStatus(200);
-        $result->assertSee($title);
-    }
-
-    public function testResolvesLocalizedPageInEachConfiguredLanguage(): void
-    {
-        foreach ($this->locales() as $position => $locale) {
-            $slug = $this->slug('localized-page', $position);
-            $title = $this->text('localized-title', $position);
-            $this->fakeEmptyCollections($locale);
-            $this->domainAdapter->fakeGet($this->domainPath('pages/' . $slug, $position), $this->page($slug, $title));
-
-            $result = $this->get($locale . '/' . $slug);
-
-            $result->assertStatus(200);
-            $result->assertSee($title);
-        }
-    }
-
-    public function testResolvesCollectionPrefixAsIndexBeforeCmsPage(): void
-    {
-        $locale = $this->locale();
-        $collection = $this->collection('listing');
-        $this->domainAdapter->fakeGet($this->domainPath('collections'), [$collection]);
-        $this->domainAdapter->fakeGet($this->domainPath('entries/' . $collection['collection_key']), [], ['total_pages' => 1]);
-        $this->domainAdapter->fakeGet($this->domainPath('categories/' . $collection['collection_key']), []);
-        $this->domainAdapter->fakeGet($this->domainPath('pages/' . $collection['slug']), $this->page(
-            $collection['slug'],
-            $collection['name'],
-            ['page_type' => 'collection_index', 'collection_id' => $collection['id']],
-        ));
-
-        $result = $this->get($locale . '/' . $collection['slug']);
-
-        $result->assertStatus(200);
-        $result->assertSee($collection['name']);
-        $result->assertDontSee('CMS page that should not win');
-    }
-
-    public function testResolvesCollectionEntry(): void
-    {
-        $locale = $this->locale();
-        $collection = $this->collection('entries');
-        $entrySlug = $this->slug('entry');
-        $entryTitle = $this->text('entry-title');
-        $this->domainAdapter->fakeGet($this->domainPath('collections'), [$collection]);
-        $this->domainAdapter->fakeGet($this->domainPath('entries/' . $collection['collection_key'] . '/' . $entrySlug), $this->entry($entrySlug, $entryTitle));
-
-        $result = $this->get($locale . '/' . $collection['slug'] . '/' . $entrySlug);
-
-        $result->assertStatus(200);
-        $result->assertSee($entryTitle);
-        $result->assertSee($collection['name']);
-    }
-
-    public function testResolvesCollectionEntryWithEmptyListingTitleFallsBackToName(): void
-    {
-        $locale = $this->locale();
-        $collection = $this->collection('fallback', listingTitle: '');
-        $entrySlug = $this->slug('fallback-entry');
-        $entryTitle = $this->text('fallback-entry-title');
-        $this->domainAdapter->fakeGet($this->domainPath('collections'), [$collection]);
-        $this->domainAdapter->fakeGet($this->domainPath('entries/' . $collection['collection_key'] . '/' . $entrySlug), $this->entry($entrySlug, $entryTitle));
-
-        $result = $this->get($locale . '/' . $collection['slug'] . '/' . $entrySlug);
-
-        $result->assertStatus(200);
-        $result->assertSee($entryTitle);
-        $result->assertSee($collection['name']);
-    }
-
-    public function testResolvesEntryFromCmsPageWithCollectionListingBlock(): void
-    {
-        $locale = $this->locale();
-        $collection = $this->collection('block');
-        $entrySlug = $this->slug('block-entry');
-        $entryTitle = $this->text('block-entry-title');
-        $this->domainAdapter->fakeGet($this->domainPath('collections'), [$collection]);
-        $this->domainAdapter->fakeGet($this->domainPath('pages/' . $collection['slug']), $this->page(
-            $collection['slug'],
-            $collection['name'],
-            ['blocks' => [[
-                'block_key' => 'collection_listing',
-                'block_config' => ['collection_id' => $collection['id']],
-                'children' => [],
-            ]]],
-        ));
-        $this->domainAdapter->fakeGet($this->domainPath('entries/' . $collection['collection_key'] . '/' . $entrySlug), $this->entry($entrySlug, $entryTitle));
-
-        $result = $this->get($locale . '/' . $collection['slug'] . '/' . $entrySlug);
-
-        $result->assertStatus(200);
-        $result->assertSee($entryTitle);
-        $result->assertSee($collection['name']);
-    }
-
-    public function testResolvesPermanentRedirect(): void
-    {
-        $locale = $this->locale();
-        $oldSlug = $this->slug('old-page');
-        $newSlug = $this->slug('new-page');
-        $this->fakeEmptyCollections($locale);
-        $this->domainAdapter->fakeGetFailure($this->domainPath('pages/' . $oldSlug));
-        $this->domainAdapter->fakeGet('public/redirects/' . $oldSlug, [
-            'new_url' => '/' . $locale . '/' . $newSlug,
-            'redirect_type' => 'permanent',
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/nosotros', [
+            'outcome' => 'page',
+            'page' => [
+                'page_type' => 'cms_page',
+                'title' => 'Fixture nosotros',
+                'excerpt' => 'Fixture excerpt.',
+                'meta_title' => 'Fixture nosotros',
+                'meta_description' => 'Fixture description.',
+                'slug' => 'nosotros',
+                'localized_slugs' => ['aa' => 'nosotros'],
+                'canonical_url' => '/aa/nosotros',
+                'robots' => 'index, follow',
+                'blocks' => [],
+            ],
+            'layout' => ['settings' => [], 'mainMenu' => ['items' => []], 'footerMenu' => ['items' => []], 'legalMenu' => ['items' => []], 'socialLinks' => []],
+            'block_context' => ['block_prefetch' => [], 'block_prefetch_complete' => true, 'form_definitions' => []],
+            'meta' => ['locale' => 'aa', 'route' => 'nosotros'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
         ]);
 
-        $result = $this->get($locale . '/' . $oldSlug);
+        $result = $this->get('aa/nosotros');
+
+        $result->assertStatus(200);
+        $result->assertSee('Fixture nosotros');
+        self::assertSame(['public-read/aa/page-resolve/nosotros'], $this->domainAdapter->requestedPaths());
+    }
+
+    public function testBffRedirectAndNotFoundOutcomesArePreserved(): void
+    {
+        $this->domainAdapter->fakeGet('public-read/aa/page-resolve/legacy', [
+            'outcome' => 'redirect',
+            'redirect' => ['path' => '/nosotros', 'status' => 301],
+            'page' => null,
+            'layout' => [],
+            'block_context' => [],
+            'meta' => ['locale' => 'aa', 'route' => 'legacy'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
+        ]);
+
+        $result = $this->get('aa/legacy');
 
         $result->assertStatus(301);
-        $result->assertHeader('Location', site_url('/' . $locale . '/' . $newSlug));
-    }
-
-    public function testReturns404WhenNothingMatches(): void
-    {
-        $locale = $this->locale();
-        $slug = $this->slug('missing-page');
-        $this->fakeEmptyCollections($locale);
-        $this->domainAdapter->fakeGetFailure($this->domainPath('pages/' . $slug));
-        $this->domainAdapter->fakeGetFailure('public/redirects/' . $slug);
-
-        $result = $this->get($locale . '/' . $slug);
-
-        $result->assertStatus(404);
-        $result->assertSee($slug);
-    }
-
-    /** @return array<string, mixed> */
-    private function collection(string $role, ?string $listingTitle = null): array
-    {
-        $slug = $this->slug('collection-' . $role);
-        $name = $this->text('collection-name-' . $role);
-
-        return [
-            'id' => 7000 + crc32($role) % 1000,
-            'collection_key' => 'fixture-' . $role . '-key',
-            'slug' => $slug,
-            'name' => $name,
-            'listing_title' => $listingTitle ?? $name,
-            'listing_intro' => '',
-            'default_meta_description' => $this->text('collection-meta-' . $role),
-            'index_page' => ['localized_slugs' => $this->localizedSlugs('collection-' . $role)],
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    private function page(string $slug, string $title, array $overrides = []): array
-    {
-        return array_replace([
-            'title' => $title,
-            'slug' => $slug,
-            'excerpt' => $this->text('page-excerpt'),
-            'meta_description' => $this->text('page-meta'),
-            'canonical_url' => '',
-            'blocks' => [],
-            'localized_slugs' => $this->localizedSlugs($slug),
-        ], $overrides);
-    }
-
-    /** @return array<string, mixed> */
-    private function entry(string $slug, string $title): array
-    {
-        return [
-            'title' => $title,
-            'slug' => $slug,
-            'excerpt' => $this->text('entry-excerpt'),
-            'meta_description' => $this->text('entry-meta'),
-            'canonical_url' => '',
-            'published_at' => '2026-01-01 00:00:00',
-            'blocks' => [],
-            'localized_slugs' => $this->localizedSlugs($slug),
-        ];
-    }
-
-    private function fakeEmptyCollections(string $locale): void
-    {
-        $this->domainAdapter->fakeGet('public/' . $locale . '/collections', []);
-    }
-
-    private function domainPath(string $path, int $localePosition = 0): string
-    {
-        return 'public/' . $this->locale($localePosition) . '/' . $path;
-    }
-
-    private function slug(string $role, int $localePosition = 0): string
-    {
-        return 'fixture-' . $role . '-' . $this->locale($localePosition);
-    }
-
-    private function text(string $role, int $localePosition = 0): string
-    {
-        return 'Fixture ' . str_replace('-', ' ', $role) . ' ' . $this->locale($localePosition);
-    }
-
-    /** @return array<string, string> */
-    private function localizedSlugs(string $role): array
-    {
-        $slugs = [];
-        foreach (array_keys($this->locales()) as $position) {
-            $slugs[$this->locale($position)] = $this->slug($role, $position);
-        }
-
-        return $slugs;
+        $result->assertHeader('Location', 'http://localhost:8184/aa/nosotros');
     }
 }

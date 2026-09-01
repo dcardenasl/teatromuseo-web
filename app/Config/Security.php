@@ -35,7 +35,7 @@ class Security extends BaseConfig
      *
      * Token name for Cross Site Request Forgery protection.
      */
-    public string $tokenName = 'csrf_test_name';
+    public string $tokenName = 'teatromuseo_csrf_token';
 
     /**
      * --------------------------------------------------------------------------
@@ -53,7 +53,19 @@ class Security extends BaseConfig
      *
      * Cookie name for Cross Site Request Forgery protection.
      */
-    public string $cookieName = 'csrf_cookie_name';
+    public string $cookieName = ENVIRONMENT === 'production'
+        ? '__Host-teatromuseo-csrf'
+    : 'teatromuseo_csrf';
+
+    /**
+     * Cookie name copied after PageCache for same-origin form JavaScript.
+     *
+     * The readable copy is never authoritative: native CSRF verification
+     * compares the request header against the HttpOnly cookie above.
+     */
+    public string $readableCookieName = ENVIRONMENT === 'production'
+        ? '__Host-teatromuseo-csrf-readable'
+    : 'teatromuseo_csrf_readable';
 
     /**
      * --------------------------------------------------------------------------

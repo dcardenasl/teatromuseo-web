@@ -35,22 +35,24 @@ class FormEmbedViewModel extends AbstractBlockViewModel
     }
 
     /**
-     * Definition injected by BlockRenderer's preload pass, or lazy fallback.
+     * Definition injected by BlockRenderer's preload pass.
      *
      * @return array<string, mixed>|null
      */
     private function resolveFormDefinition(string $formKey): ?array
     {
-        $injected = $this->context['formDefinition'] ?? null;
-        if (is_array($injected)) {
-            return $injected;
+        if (array_key_exists('formDefinition', $this->context)) {
+            return is_array($this->context['formDefinition']) ? $this->context['formDefinition'] : null;
         }
 
-        try {
-            return \Config\Services::siteFormService()->getDefinition($this->lang, $formKey);
-        } catch (\Throwable) {
-            return null;
+        if (is_array($this->context['form_definitions'] ?? null)
+            && array_key_exists($formKey, $this->context['form_definitions'])) {
+            $definition = $this->context['form_definitions'][$formKey];
+
+            return is_array($definition) ? $definition : null;
         }
+
+        return null;
     }
 
     /**
@@ -65,13 +67,13 @@ class FormEmbedViewModel extends AbstractBlockViewModel
 
     private function recaptchaSiteKey(): string
     {
-        try {
-            $key = \Config\Services::siteSettingsService()
-                ->get('recaptcha_site_key', env('RECAPTCHA_SITE_KEY', ''));
+        $settings = $this->context['settings'] ?? null;
+        if (is_array($settings) && array_key_exists('recaptcha_site_key', $settings)) {
+            $key = $settings['recaptcha_site_key'];
 
             return is_scalar($key) ? (string) $key : '';
-        } catch (\Throwable) {
-            return '';
         }
+
+        return '';
     }
 }

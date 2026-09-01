@@ -14,7 +14,7 @@ final class PlatformHealthE2ETest extends TestCase
     {
         yield 'api' => ['http://127.0.0.1:8180/ready'];
         yield 'admin' => ['http://127.0.0.1:8182/health'];
-        yield 'web' => ['http://127.0.0.1:8186/health'];
+        yield 'web' => ['http://127.0.0.1:8184/health'];
         yield 'domain' => ['http://127.0.0.1:8190/ready'];
     }
 

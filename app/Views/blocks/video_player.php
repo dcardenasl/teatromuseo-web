@@ -48,6 +48,8 @@ if ($videoUrl === '') {
                         'alt'      => $heading !== '' ? $heading : 'Video Poster',
                         'class'    => 'absolute inset-0 w-full h-full object-cover group-hover/video:scale-[1.01] transition-transform duration-500',
                         'variants' => $poster['variants'] ?? null,
+                        'preferredVariant' => 'lg',
+                        'sizes'    => '(max-width: 1023px) calc(100vw - 2rem), 1024px',
                     ], ['saveData' => false]) ?>
                     <!-- Overlay Dark Mask -->
                     <div class="absolute inset-0 bg-slate-950/40 group-hover/video:bg-slate-950/30 transition-colors duration-300"></div>

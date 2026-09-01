@@ -24,6 +24,9 @@ class Cache extends BaseConfig
      * The name of the preferred handler that should be used. If for some reason
      * it is not available, the $backupHandler will be used in its place.
      */
+    // APCu is process-local and can never be authoritative for public data on
+    // a multi-worker deployment. File is the safe shared-hosting default;
+    // Redis/Memcached may be selected explicitly when provided by hosting.
     public string $handler = 'file';
 
     /**
@@ -45,7 +48,7 @@ class Cache extends BaseConfig
      * This string is added to all cache item names to help avoid collisions
      * if you run multiple applications with the same cache engine.
      */
-    public string $prefix = '';
+    public string $prefix = 'tm_web_';
 
     /**
      * --------------------------------------------------------------------------
@@ -172,7 +175,10 @@ class Cache extends BaseConfig
      *
      * @var bool|list<string>
      */
-    public $cacheQueryString = false;
+    // Public listings use query parameters for pagination and filters. Include
+    // the complete query string in the response-cache key so one listing
+    // variant can never serve another variant's HTML.
+    public $cacheQueryString = true;
 
     /**
      * --------------------------------------------------------------------------
@@ -196,5 +202,5 @@ class Cache extends BaseConfig
      *
      * @var list<int>
      */
-    public array $cacheStatusCodes = [];
+    public array $cacheStatusCodes = [200];
 }

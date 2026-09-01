@@ -42,6 +42,9 @@ final class GalleryBlockPresentationModesTest extends CIUnitTestCase
 
         $this->assertStringContainsString('role="dialog"', $html);
         $this->assertStringContainsString('aria-modal="true"', $html);
+        $this->assertStringContainsString('z-[100]', $html);
+        $this->assertStringContainsString('h-full min-h-0 min-w-0 flex-1', $html);
+        $this->assertStringContainsString('const modalInteractiveSelector =', $html);
         $this->assertStringContainsString('const openImageLabel =', $html);
         $this->assertStringContainsString('const openImageCaptionLabel =', $html);
     }

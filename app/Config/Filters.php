@@ -11,7 +11,6 @@ use CodeIgniter\Filters\DebugToolbar;
 use CodeIgniter\Filters\ForceHTTPS;
 use CodeIgniter\Filters\Honeypot;
 use CodeIgniter\Filters\InvalidChars;
-use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
 
@@ -37,8 +36,14 @@ class Filters extends BaseFilters
         'throttle'        => \App\Filters\ThrottleFilter::class,
         'cors'           => Cors::class,
         'forcehttps'     => ForceHTTPS::class,
-        'pagecache'      => PageCache::class,
+        // A stock PageCache::before() would serve a stale, session-less hit
+        // to a session-bearing request before the controller ever runs —
+        // see SessionAwarePageCache's docblock.
+        'pagecache'      => \App\Filters\SessionAwarePageCache::class,
         'performance'    => PerformanceMetrics::class,
+        'correlationid'   => \App\Filters\CorrelationIdFilter::class,
+        'requestTelemetry' => \App\Filters\RequestTelemetryFilter::class,
+        'csrfCookie'      => \App\Filters\CsrfCookieFilter::class,
     ];
 
     /**
@@ -57,10 +62,24 @@ class Filters extends BaseFilters
     public array $required = [
         'before' => [
             'forcehttps', // Force Global Secure Requests
+            // These must run before PageCache so a cache hit receives a fresh
+            // request ID and emits telemetry instead of replaying headers
+            // from the request that populated the cached response.
+            'correlationid',
+            'requestTelemetry',
             'pagecache',  // Web Page Caching
         ],
         'after' => [
+            'securityheaders',
             'pagecache',   // Web Page Caching
+            // Must run after PageCache so cached HTML/headers never contain a
+            // visitor-specific CSRF token, while cache hits still receive one.
+            'csrfCookie',
+            // Required after-filters still run when PageCache short-circuits
+            // the controller, so tracking also works on cache hits.
+            'tracking',
+            'requestTelemetry',
+            'correlationid',
             'performance', // Performance Metrics
             // 'toolbar',     // Debug Toolbar
         ],
@@ -74,6 +93,8 @@ class Filters extends BaseFilters
      *     before: array<string, array{except: list<string>|string}>|list<string>,
      *     after: array<string, array{except: list<string>|string}>|list<string>
      * }
+     *
+     * @see https://codeigniter.com/user_guide/incoming/filters.html#globals
      */
     public array $globals = [
         'before' => [
@@ -81,8 +102,6 @@ class Filters extends BaseFilters
         ],
         'after' => [
             'secureheaders',   // CI4 native: emits headers from Config\Security::$secureHeaders
-            'securityheaders', // App-defined: X-Frame-Options, X-CTO, Referrer-Policy, Permissions-Policy, HSTS in prod
-            'tracking',        // First-party page-view tracking (fire-and-forget to Domain CMS)
         ],
     ];
 

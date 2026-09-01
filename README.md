@@ -18,7 +18,7 @@ de `ci4-website-builder-domain`.
 | :--- | :--- | :--- |
 | API Hub | `8180` | `http://localhost:8180/` |
 | Admin | `8182` | `http://localhost:8182/` |
-| Sitio público | `8186` | `http://localhost:8186/` |
+| Sitio público | `8184` | `http://localhost:8184/` |
 | Domain CMS | `8190` | `http://localhost:8190/` |
 
 Usa `localhost` para navegar. No mezcles `localhost` y `127.0.0.1` durante
@@ -32,7 +32,7 @@ Desde la raíz del monorepo:
 cd ci4-website-builder-api && php spark serve --port 8180
 cd ci4-website-builder-domain && php spark serve --port 8190
 cd ci4-website-builder-admin && php spark serve --port 8182
-cd ci4-website-builder-web && php spark serve --port 8186
+cd ci4-website-builder-web && php spark serve --port 8184
 ```
 
 Para trabajar en assets del sitio público:
@@ -47,12 +47,17 @@ npm run dev:js
 Variables principales:
 
 ```dotenv
-app.baseURL=http://localhost:8186/
+app.baseURL=http://localhost:8184/
 app.defaultLocale=es
 WEB_API_BASE_URL=http://localhost:8190
 WEB_API_KEY=web_api_test_key
-WEB_API_TIMEOUT=15
+WEB_API_TIMEOUT=5
+WEB_API_CONNECT_TIMEOUT=1
 WEB_API_STALE_TTL=86400
+WEB_TRACKING_ENABLED=true
+WEB_TRACKING_QUEUE_DIR=writable/analytics-queue
+WEB_TRACKING_QUEUE_BATCH_SIZE=100
+WEB_TRACKING_QUEUE_MAX_ATTEMPTS=5
 CSP_IMAGE_SRC="self http: https: data:"
 CSP_FRAME_SRC="self http: https:"
 CSP_MEDIA_SRC="self http: https:"
@@ -63,6 +68,35 @@ cache.handler=file
 
 `CACHE_INVALIDATE_KEY` debe estar configurado en producción. El webhook de
 invalidación rechaza claves vacías o incorrectas.
+
+### Tracking asíncrono
+
+El tracking público se encola localmente en `writable/analytics-queue` y no
+hace una llamada HTTP durante la visita. Está activo por defecto fuera de
+tests; `WEB_TRACKING_ENABLED=false` lo desactiva explícitamente. El deploy por
+FTP no instala tareas programadas, así que configura un cron del hosting cada
+minuto:
+
+```cron
+* * * * * cd /ruta/absoluta/teatromuseo-web && php spark analytics:flush --limit 100 >> writable/logs/analytics-cron.log 2>&1
+```
+
+La carpeta `writable/analytics-queue` debe ser escribible por PHP. Los eventos
+que no pueden enviarse se reintentan y, después del límite configurado, pasan a
+`writable/analytics-queue/failed` para diagnóstico.
+
+Después de desplegar o cambiar el `.env`, reinicia PHP/opcache si el hosting lo
+requiere y verifica una visita nueva con:
+
+```bash
+php spark analytics:flush --limit 1
+tail -f writable/logs/analytics-cron.log
+```
+
+El proceso debe reportar `sent=1` (o más) y la cantidad de archivos en
+`writable/analytics-queue/pending` debe bajar. Un cron cada 15 minutos con
+límite 20 solo permite procesar 80 eventos por hora; para este flujo debe ser
+cada minuto con límite 100.
 
 `CSP_*` se deja abierto por defecto en el starter para que los seeders puedan
 cargar imágenes, documentos y embeds remotos durante la puesta en marcha. Si
@@ -109,6 +143,23 @@ npm run lint:js
 npm run build:all
 ```
 
+Para ejecutar el contrato HTTP cross-repo en CI o con los cuatro servicios
+locales levantados, configura las URLs y una clave registrada en los tres
+dominios:
+
+```bash
+DOMAIN_CONTRACT_CMS_BASE_URL=http://localhost:8190 \
+DOMAIN_CONTRACT_CATALOG_BASE_URL=http://localhost:8191 \
+DOMAIN_CONTRACT_EVENTS_BASE_URL=http://localhost:8193 \
+DOMAIN_CONTRACT_APP_KEY="$WEB_API_KEY" \
+composer test:contract:integration
+```
+
+El gate verifica `401` sin `X-App-Key` y el envelope `200` autenticado de CMS,
+Catalog y Events. Si las claves difieren, se pueden usar
+`DOMAIN_CONTRACT_CMS_APP_KEY`, `DOMAIN_CONTRACT_CATALOG_APP_KEY` y
+`DOMAIN_CONTRACT_EVENTS_APP_KEY` por separado.
+
 La política de PHPStan baseline es decreasing-only: no agregues deuda nueva al
 baseline para cerrar cambios ordinarios.
 
@@ -116,8 +167,8 @@ baseline para cerrar cambios ordinarios.
 
 Con los cuatro servidores activos:
 
-1. Abrir `http://localhost:8186/` y confirmar redirección/localización.
-2. Abrir `http://localhost:8186/es`.
+1. Abrir `http://localhost:8184/` y confirmar redirección/localización.
+2. Abrir `http://localhost:8184/es`.
 3. Abrir una colección publicada.
 4. Abrir una entrada publicada.
 5. Enviar un formulario CMS válido.

@@ -25,6 +25,8 @@ final class HeroSliderViewModelTest extends CIUnitTestCase
             'children' => [
                 [
                     'block_config' => [
+                        'navigation_mode' => 'internal',
+                        'navigation_target_type' => 'page',
                         'image' => [
                             'source_kind' => 'external_url',
                             'file_id'     => null,
@@ -35,8 +37,8 @@ final class HeroSliderViewModelTest extends CIUnitTestCase
                         'heading'   => 'First',
                         'subtitle'  => 'Sub',
                         'cta_label' => 'Go',
-                        'cta_url'   => '/contacto',
                     ],
+                    'navigation' => ['status' => 'resolved', 'route_key' => null, 'url' => '/es/contacto'],
                 ],
             ],
         ], 'es');
@@ -62,6 +64,46 @@ final class HeroSliderViewModelTest extends CIUnitTestCase
 
         $this->assertStringStartsWith('data:image/svg+xml', $slides[0]['image']['url']);
         $this->assertStringContainsString(rawurlencode('No image slide'), $slides[0]['image']['url']);
+    }
+
+    public function testCanonicalizesLegacySlideDestinationForCurrentLocale(): void
+    {
+        $vm = new HeroSliderViewModel([
+            'children' => [[
+                'block_config' => [
+                    'navigation_mode' => 'internal',
+                    'navigation_target_type' => 'event_listing',
+                ],
+                'navigation' => ['status' => 'resolved', 'route_key' => 'events', 'url' => null],
+                'block_data' => ['heading' => 'Programming'],
+            ]],
+        ], 'en');
+
+        $this->assertStringContainsString('/en/programming', $vm->vars()['slides'][0]['cta_url']);
+    }
+
+    public function testMissingSlideDestinationDoesNotBecomeHashLink(): void
+    {
+        $vm = new HeroSliderViewModel([
+            'children' => [['block_data' => ['heading' => 'No destination']]],
+        ], 'es');
+
+        $this->assertSame('', $vm->vars()['slides'][0]['cta_url']);
+    }
+
+    public function testAutoplayFollowsTheBlockConfiguration(): void
+    {
+        $autoplayVm = new HeroSliderViewModel([
+            'block_config' => ['autoplay' => true],
+            'children' => [['block_data' => ['heading' => 'Autoplay hero']]],
+        ], 'es');
+        $staticVm = new HeroSliderViewModel([
+            'block_config' => ['autoplay' => false],
+            'children' => [['block_data' => ['heading' => 'Static hero']]],
+        ], 'es');
+
+        $this->assertTrue($autoplayVm->vars()['autoplay']);
+        $this->assertFalse($staticVm->vars()['autoplay']);
     }
 
     public function testInvalidPositionsFallBackToDefaults(): void

@@ -35,6 +35,7 @@ final class CollectionListingViewHierarchyTest extends CIUnitTestCase
             'orderBy' => 'published_at',
             'orderDirection' => 'desc',
             'layoutVariant' => 'portfolio',
+            'imageAspectRatio' => '16/9',
             'cssClass' => '',
             'showSearch' => true,
             'showCategories' => true,

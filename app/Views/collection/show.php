@@ -39,7 +39,7 @@ $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $fe
 <div class="bg-white border-b border-slate-100">
     <div class="container-narrow py-3">
         <nav class="flex items-center gap-2 text-sm text-text-muted" aria-label="Breadcrumb">
-            <a href="<?= lang_url('/') ?>" class="hover:text-primary transition-colors">
+            <a href="<?= lang_url(\App\Support\PublicPaths::homepagePath(service('request')->getLocale())) ?>" class="hover:text-primary transition-colors">
                 <?= esc($homeLabel) ?>
             </a>
             <span aria-hidden="true">/</span>
@@ -79,10 +79,16 @@ $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $fe
                 <?php if (!empty($published_at) && !$isPortfolio): ?>
                     <time datetime="<?= esc($published_at) ?>">
                         <span class="sr-only"><?= esc($publishedLabel) ?>: </span>
-                        <?= esc(date('d M Y', strtotime($published_at))) ?>
+                        <?= esc(format_localized_date($published_at, $lang)) ?>
                     </time>
                 <?php endif; ?>
             </div>
+
+            <?php if (trim((string) ($excerpt ?? '')) !== ''): ?>
+                <p class="mt-5 max-w-3xl text-lg leading-relaxed text-text-secondary">
+                    <?= nl2br(esc((string) $excerpt)) ?>
+                </p>
+            <?php endif; ?>
         </header>
 
         <!-- Featured image -->
@@ -93,6 +99,8 @@ $featuredImageUrl = is_string($featuredImage['url'] ?? null) ? trim((string) $fe
                     'alt'           => $title,
                     'class'         => 'w-full aspect-video object-cover',
                     'variants'      => $featuredImage['variants'] ?? null,
+                    'preferredVariant' => 'lg',
+                    'sizes'         => '(max-width: 639px) 100vw, (max-width: 1023px) calc(100vw - 2rem), 1024px',
                     'loading'       => 'eager',
                     'fetchPriority' => 'high',
                 ], ['saveData' => false]) ?>

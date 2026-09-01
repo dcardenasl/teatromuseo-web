@@ -4,70 +4,171 @@ declare(strict_types=1);
 
 namespace Config;
 
+use App\Analytics\CurlAnalyticsTransport;
+use App\Libraries\AnalyticsQueue;
 use App\Libraries\BlockRenderer;
 use App\Libraries\CacheInvalidator;
+use App\Libraries\HtmlResponseCacheRegistry;
 use App\Libraries\WebApiClient;
 use App\Libraries\WebApiClientInterface;
-use App\Services\SiteCategoryService;
+use App\PageDelivery\FileRegenerationLock;
+use App\PageDelivery\FileSnapshotStore;
+use App\PageDelivery\NullRegenerationLock;
+use App\PageDelivery\NullSnapshotStore;
+use App\PageDelivery\PageDeliveryInterface;
+use App\PageDelivery\PageDeliveryService;
+use App\PageDelivery\RegenerationLockInterface;
+use App\PageDelivery\SnapshotBuilder;
+use App\PageDelivery\SnapshotBuilderInterface;
+use App\PageDelivery\SnapshotPageDeliveryAdapter;
+use App\PageDelivery\SnapshotPublisherInterface;
+use App\PageDelivery\SynchronousPageDeliveryAdapter;
+use App\PageDelivery\SystemClock;
+use App\Services\PublicReadDiagnosticsService;
 use App\Services\SiteCollectionService;
 use App\Services\SiteEntryService;
 use App\Services\SiteFormService;
-use App\Services\SiteLanguageService;
-use App\Services\SiteMenuService;
 use App\Services\SitePageService;
-use App\Services\SiteRedirectService;
 use App\Services\SiteSettingsService;
-use App\Services\SiteTagService;
-use App\Services\SocialLinksService;
+use App\Services\SiteSitemapService;
 use CodeIgniter\Config\BaseService;
 
 class Services extends BaseService
 {
-    public static function webApiClient(bool $getShared = true): WebApiClientInterface
+    public static function publicReadDiagnostics(bool $getShared = true): PublicReadDiagnosticsService
+    {
+        if ($getShared) {
+            /** @var PublicReadDiagnosticsService */
+            return static::getSharedInstance('publicReadDiagnostics');
+        }
+
+        return new PublicReadDiagnosticsService(static::bffWebApiClient());
+    }
+
+    public static function pageDelivery(bool $getShared = true): PageDeliveryInterface
+    {
+        if ($getShared) {
+            /** @var PageDeliveryInterface */
+            return static::getSharedInstance('pageDelivery');
+        }
+
+        $config = config('App');
+        $clock = new SystemClock();
+
+        return new PageDeliveryService(
+            synchronous: new SynchronousPageDeliveryAdapter(
+                static::bffWebApiClient(),
+            ),
+            snapshot: new SnapshotPageDeliveryAdapter(
+                static::pageSnapshotStore(),
+                $clock,
+                $config->pageSnapshotStaleTtl,
+            ),
+            lock: static::pageRegenerationLock(),
+            mode: $config->pageDeliveryMode,
+            allowSynchronousFallback: $config->pageDeliveryAllowSynchronousFallback,
+            builder: static::snapshotBuilder(),
+        );
+    }
+
+    public static function pageSnapshotStore(bool $getShared = true): SnapshotPublisherInterface
+    {
+        if ($getShared) {
+            /** @var SnapshotPublisherInterface */
+            return static::getSharedInstance('pageSnapshotStore');
+        }
+
+        $config = config('App');
+        $directory = $config->pageSnapshotDirectory;
+
+        return $directory !== '' && $config->pageSnapshotShared
+            ? new FileSnapshotStore(
+                $directory,
+                $config->pageSnapshotMaxBytes,
+                $config->pageSnapshotRetention,
+                $config->pageSnapshotCompression,
+            )
+            : new NullSnapshotStore();
+    }
+
+    public static function pageRegenerationLock(bool $getShared = true): RegenerationLockInterface
+    {
+        if ($getShared) {
+            /** @var RegenerationLockInterface */
+            return static::getSharedInstance('pageRegenerationLock');
+        }
+
+        $config = config('App');
+        $directory = $config->pageSnapshotDirectory;
+
+        return $directory !== '' && $config->pageSnapshotShared
+            ? new FileRegenerationLock($directory . DIRECTORY_SEPARATOR . 'locks', $config->pageSnapshotLockTtl)
+            : new NullRegenerationLock();
+    }
+
+    public static function snapshotBuilder(bool $getShared = true): SnapshotBuilderInterface
+    {
+        if ($getShared) {
+            /** @var SnapshotBuilderInterface */
+            return static::getSharedInstance('snapshotBuilder');
+        }
+
+        $config = config('App');
+        $clock = new SystemClock();
+
+        return new SnapshotBuilder(
+            synchronous: new SynchronousPageDeliveryAdapter(
+                static::bffWebApiClient(),
+            ),
+            publisher: static::pageSnapshotStore(),
+            lock: static::pageRegenerationLock(),
+            clock: $clock,
+            ttl: $config->pageSnapshotTtl,
+            scopes: $config->pageSnapshotScopes,
+        );
+    }
+
+    /**
+     * Single public-read client. CMS, Catalog and Event paths are routed by the
+     * BFF, so the website no longer needs one HTTP client per domain database.
+     */
+    public static function bffWebApiClient(bool $getShared = true): WebApiClientInterface
     {
         if ($getShared) {
             /** @var WebApiClientInterface */
-            return static::getSharedInstance('webApiClient');
+            return static::getSharedInstance('bffWebApiClient');
         }
 
         $config = config('App');
 
         return new WebApiClient(
-            $config->webApiBaseUrl,
-            $config->webApiKey,
+            $config->bffApiBaseUrl,
+            $config->bffApiKey,
             $config->webApiTimeout,
-            $config->webApiStaleTtl
+            $config->webApiStaleTtl,
+            $config->webApiConnectTimeout,
         );
     }
 
-    public static function siteSettingsService(bool $getShared = true): SiteSettingsService
+    public static function analyticsQueue(bool $getShared = true): AnalyticsQueue
     {
         if ($getShared) {
-            /** @var SiteSettingsService */
-            return static::getSharedInstance('siteSettingsService');
+            /** @var AnalyticsQueue */
+            return static::getSharedInstance('analyticsQueue');
         }
 
-        return new SiteSettingsService(static::webApiClient());
-    }
+        $config = config('App');
 
-    public static function siteLanguageService(bool $getShared = true): SiteLanguageService
-    {
-        if ($getShared) {
-            /** @var SiteLanguageService */
-            return static::getSharedInstance('siteLanguageService');
-        }
-
-        return new SiteLanguageService(static::webApiClient());
-    }
-
-    public static function siteMenuService(bool $getShared = true): SiteMenuService
-    {
-        if ($getShared) {
-            /** @var SiteMenuService */
-            return static::getSharedInstance('siteMenuService');
-        }
-
-        return new SiteMenuService(static::webApiClient());
+        return new AnalyticsQueue(
+            directory: $config->analyticsQueueDirectory,
+            maxAttempts: $config->trackingQueueMaxAttempts,
+            transport: new CurlAnalyticsTransport(
+                trackUrl: rtrim($config->trackingApiBaseUrl, '/') . '/api/v1/public/track',
+                apiKey: $config->webApiKey,
+                timeoutMs: $config->trackingQueueTimeoutMs,
+                connectTimeoutMs: $config->trackingQueueConnectTimeoutMs,
+            ),
+        );
     }
 
     public static function sitePageService(bool $getShared = true): SitePageService
@@ -77,7 +178,7 @@ class Services extends BaseService
             return static::getSharedInstance('sitePageService');
         }
 
-        return new SitePageService(static::webApiClient());
+        return new SitePageService(static::bffWebApiClient());
     }
 
     public static function siteCollectionService(bool $getShared = true): SiteCollectionService
@@ -87,7 +188,7 @@ class Services extends BaseService
             return static::getSharedInstance('siteCollectionService');
         }
 
-        return new SiteCollectionService(static::webApiClient());
+        return new SiteCollectionService(static::bffWebApiClient());
     }
 
     public static function siteEntryService(bool $getShared = true): SiteEntryService
@@ -97,37 +198,17 @@ class Services extends BaseService
             return static::getSharedInstance('siteEntryService');
         }
 
-        return new SiteEntryService(static::webApiClient());
+        return new SiteEntryService(static::bffWebApiClient());
     }
 
-    public static function siteCategoryService(bool $getShared = true): SiteCategoryService
+    public static function siteSitemapService(bool $getShared = true): SiteSitemapService
     {
         if ($getShared) {
-            /** @var SiteCategoryService */
-            return static::getSharedInstance('siteCategoryService');
+            /** @var SiteSitemapService */
+            return static::getSharedInstance('siteSitemapService');
         }
 
-        return new SiteCategoryService(static::webApiClient());
-    }
-
-    public static function siteTagService(bool $getShared = true): SiteTagService
-    {
-        if ($getShared) {
-            /** @var SiteTagService */
-            return static::getSharedInstance('siteTagService');
-        }
-
-        return new SiteTagService(static::webApiClient());
-    }
-
-    public static function siteRedirectService(bool $getShared = true): SiteRedirectService
-    {
-        if ($getShared) {
-            /** @var SiteRedirectService */
-            return static::getSharedInstance('siteRedirectService');
-        }
-
-        return new SiteRedirectService(static::webApiClient());
+        return new SiteSitemapService(static::bffWebApiClient());
     }
 
     public static function blockRenderer(bool $getShared = true): BlockRenderer
@@ -150,6 +231,16 @@ class Services extends BaseService
         return new CacheInvalidator();
     }
 
+    public static function htmlResponseCacheRegistry(bool $getShared = true): HtmlResponseCacheRegistry
+    {
+        if ($getShared) {
+            /** @var HtmlResponseCacheRegistry */
+            return static::getSharedInstance('htmlResponseCacheRegistry');
+        }
+
+        return new HtmlResponseCacheRegistry(static::cache());
+    }
+
     public static function siteFormService(bool $getShared = true): SiteFormService
     {
         if ($getShared) {
@@ -157,16 +248,45 @@ class Services extends BaseService
             return static::getSharedInstance('siteFormService');
         }
 
-        return new SiteFormService(static::webApiClient());
+        return new SiteFormService(static::bffWebApiClient(), static::cmsDomainWriteClient());
     }
 
-    public static function socialLinksService(bool $getShared = true): SocialLinksService
+    public static function siteSettingsService(bool $getShared = true): SiteSettingsService
     {
         if ($getShared) {
-            /** @var SocialLinksService */
-            return static::getSharedInstance('socialLinksService');
+            /** @var SiteSettingsService */
+            return static::getSharedInstance('siteSettingsService');
         }
 
-        return new SocialLinksService(static::webApiClient());
+        return new SiteSettingsService(static::bffWebApiClient());
     }
+
+    /**
+     * Direct-to-Domain client for the `webappkey`-gated `/api/v1/public/*`
+     * write endpoints (e.g. form submissions) — the BFF has no route for
+     * these; only Domain reads go through it. Reuses the same
+     * WEB_TRACKING_API_BASE_URL/WEB_API_KEY pair AnalyticsQueue's
+     * CurlAnalyticsTransport already calls directly for tracking writes.
+     * Uses `formSubmitTimeout`, not the fast `webApiTimeout` shared by page
+     * reads — this write can run synchronously through the Hub for email
+     * dispatch (Domain QUEUE_DRIVER=sync) and needs real headroom.
+     */
+    public static function cmsDomainWriteClient(bool $getShared = true): WebApiClientInterface
+    {
+        if ($getShared) {
+            /** @var WebApiClientInterface */
+            return static::getSharedInstance('cmsDomainWriteClient');
+        }
+
+        $config = config('App');
+
+        return new WebApiClient(
+            $config->trackingApiBaseUrl,
+            $config->webApiKey,
+            $config->formSubmitTimeout,
+            $config->webApiStaleTtl,
+            $config->webApiConnectTimeout,
+        );
+    }
+
 }

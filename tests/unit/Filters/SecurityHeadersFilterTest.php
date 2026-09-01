@@ -63,5 +63,6 @@ final class SecurityHeadersFilterTest extends CIUnitTestCase
         $this->assertStringContainsString("frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com", $header);
         $this->assertStringContainsString("media-src 'self' https:", $header);
         $this->assertStringContainsString("object-src 'self' https:", $header);
+        $this->assertSame(config('App')->defaultMetaRobots, $response->getHeaderLine('X-Robots-Tag'));
     }
 }

@@ -35,6 +35,8 @@ class HeroSliderViewModel extends AbstractBlockViewModel
             'controlsPosition'  => $controlsPosition,
             'transition'        => $transition,
             'cssClass'          => trim($this->configString('css_class')),
+            // Autoplay is editorial block configuration. The browser applies
+            // accessibility and connection-budget guards at runtime.
             'autoplay'          => $this->configBool('autoplay', true),
             'intervalMs'        => max(1000, $this->configInt('interval', 6000)),
             'overlayPct'        => max(0, min(80, $this->configInt('overlay_opacity', 0))),
@@ -76,7 +78,7 @@ class HeroSliderViewModel extends AbstractBlockViewModel
                 'heading'        => $heading,
                 'subtitle'       => $this->childString($childData, 'subtitle'),
                 'cta_label'      => $this->childString($childData, 'cta_label'),
-                'cta_url'        => lang_url($this->childString($childData, 'cta_url', '#'), $this->lang),
+                'cta_url'        => $this->slideUrl($child, $childData, $childConfig),
                 'text_color'     => $textColor,
                 'overlay_color'  => $overlayColor,
             ];
@@ -108,5 +110,24 @@ class HeroSliderViewModel extends AbstractBlockViewModel
         $value = $childData[$key] ?? null;
 
         return is_scalar($value) ? (string) $value : $default;
+    }
+
+    /**
+     * @param array<string, mixed> $child
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $config
+     */
+    private function slideUrl(array $child, array $data, array $config): string
+    {
+        $mode = strtolower(trim((string) ($config['navigation_mode'] ?? 'none')));
+        if ($mode === 'external') {
+            return $this->publicUrl($this->childString($data, 'external_url'), '');
+        }
+        if ($mode !== 'internal') {
+            return '';
+        }
+
+        $navigation = is_array($child['navigation'] ?? null) ? $child['navigation'] : [];
+        return $this->navigationUrl($navigation, '');
     }
 }

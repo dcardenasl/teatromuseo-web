@@ -11,9 +11,7 @@ use CodeIgniter\Config\BaseConfig;
  */
 class Feature extends BaseConfig
 {
-    /**
-     * Use improved new auto routing instead of the legacy version.
-     */
+    /** Use CodeIgniter's current auto-routing implementation. */
     public bool $autoRoutesImproved = true;
 
     /**

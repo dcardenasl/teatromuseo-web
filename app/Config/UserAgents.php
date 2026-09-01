@@ -122,21 +122,9 @@ class UserAgents extends BaseConfig
      * @var array<string, string>
      */
     public array $mobiles = [
-        // legacy array, old values commented out
         'mobileexplorer' => 'Mobile Explorer',
-        // 'openwave'             => 'Open Wave',
-        // 'opera mini'           => 'Opera Mini',
-        // 'operamini'            => 'Opera Mini',
-        // 'elaine'               => 'Palm',
         'palmsource' => 'Palm',
-        // 'digital paths'        => 'Palm',
-        // 'avantgo'              => 'Avantgo',
-        // 'xiino'                => 'Xiino',
         'palmscape' => 'Palmscape',
-        // 'nokia'                => 'Nokia',
-        // 'ericsson'             => 'Ericsson',
-        // 'blackberry'           => 'BlackBerry',
-        // 'motorola'             => 'Motorola'
 
         // Phones and Manufacturers
         'motorola'             => 'Motorola',

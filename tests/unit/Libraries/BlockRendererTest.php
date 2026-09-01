@@ -110,8 +110,103 @@ final class BlockRendererTest extends CIUnitTestCase
         $this->assertStringContainsString('child-block', $html);
     }
 
+    public function testRequiresExactlyOneCmsDeclaredHeadingOwner(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'page_header',
+                'block_config' => [],
+                'block_data' => ['heading' => 'Página principal'],
+                'presentation' => ['owns_page_heading' => true],
+                'children' => [],
+            ],
+            [
+                'block_key' => 'page_header',
+                'block_config' => [],
+                'block_data' => ['heading' => 'Sección secundaria'],
+                'presentation' => ['owns_page_heading' => true],
+                'children' => [],
+            ],
+        ]);
+
+        self::assertSame(0, preg_match_all('/<h1\b/i', $html));
+        self::assertSame(2, preg_match_all('/<h2\b/i', $html));
+        $this->assertStringContainsString('Página principal', $html);
+        $this->assertStringContainsString('Sección secundaria', $html);
+    }
+
     public function testEmptyBlockListReturnsEmptyString(): void
     {
         $this->assertSame('', $this->renderer->render([]));
+    }
+
+    public function testInjectsPrefetchedEventIntoDetailBlock(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'event_item_header',
+                'block_config' => [],
+                'block_data' => ['event_id' => 201],
+                'children' => [],
+            ],
+        ], 'es', [
+            'block_prefetch_complete' => true,
+            'block_prefetch' => [
+                '0' => [
+                    'ok' => true,
+                    'status' => 200,
+                    'data' => [[
+                        'id' => 201,
+                        'title' => 'Prefetched event',
+                        'event_type' => 'festival',
+                        'occurrences' => [],
+                    ]],
+                    'meta' => [],
+                ],
+            ],
+        ]);
+
+        $this->assertStringContainsString('Prefetched event', $html);
+    }
+
+    public function testNormalizesHomepageNavigationToTheLocalizedPublicSlug(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'page_header',
+                'block_config' => [],
+                'block_data' => [
+                    'heading' => 'Cartelera',
+                    'breadcrumb_label' => 'Inicio',
+                ],
+                'navigation' => ['url' => '/es/inicio'],
+                'children' => [],
+            ],
+        ], 'es');
+
+        $this->assertStringContainsString('href="' . site_url('/es/inicio') . '"', $html);
+    }
+
+    public function testNormalizesNestedHomepageNavigationToTheLocalizedPublicSlug(): void
+    {
+        $html = $this->renderer->render([
+            [
+                'block_key' => 'hero_slider',
+                'block_config' => [],
+                'block_data' => [],
+                'children' => [[
+                    'block_key' => 'hero_slide',
+                    'block_config' => ['navigation_mode' => 'internal'],
+                    'block_data' => [
+                        'heading' => 'Visítanos',
+                        'image_alt_text' => 'Visítanos',
+                    ],
+                    'navigation' => ['url' => '/es/inicio'],
+                    'children' => [],
+                ]],
+            ],
+        ], 'es');
+
+        $this->assertStringContainsString('href="' . site_url('/es/inicio') . '"', $html);
     }
 }

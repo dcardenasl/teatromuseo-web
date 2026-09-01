@@ -18,7 +18,7 @@ class App extends BaseConfig
      *
      * E.g., http://example.com/
      */
-    public string $baseURL = 'http://localhost:8186/';
+    public string $baseURL = 'http://localhost:8184/';
 
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.
@@ -126,7 +126,7 @@ class App extends BaseConfig
      *
      * @var list<string>
      */
-    public array $supportedLocales = ['es', 'en'];
+    public array $supportedLocales = ['es', 'en', 'fr', 'pt'];
 
     /**
      * --------------------------------------------------------------------------
@@ -139,7 +139,9 @@ class App extends BaseConfig
      * @see https://www.php.net/manual/en/timezones.php for list of timezones
      *      supported by PHP.
      */
-    public string $appTimezone = 'UTC';
+    // Public-facing dates use the museum's venue timezone. API and database
+    // technical timestamps remain UTC and are converted when rendered.
+    public string $appTimezone = 'America/Santiago';
 
     /**
      * --------------------------------------------------------------------------
@@ -158,23 +160,142 @@ class App extends BaseConfig
      * Website Builder API Configuration
      * --------------------------------------------------------------------------
      *
-     * Configuration for communicating with the ci4-website-builder-domain API
-     * Configured via environment variables: WEB_API_BASE_URL and WEB_API_KEY
+     * Configuration for BFF public reads and the separate analytics write
+     * surface. Public reads use only the BFF settings below; analytics keeps
+     * its own CMS write endpoint and key.
      */
-    public string $webApiBaseUrl = '';
+    public string $trackingApiBaseUrl = '';
     public string $webApiKey = '';
+
+    /** Base URL for the direct public-read BFF. */
+    public string $bffApiBaseUrl = 'http://localhost:8188';
+
+    /** Shared application key registered for the BFF public-read surface. */
+    public string $bffApiKey = '';
 
     /**
      * Timeout (seconds) for requests against the Domain API.
-     * Override with WEB_API_TIMEOUT in .env.
+     * Override with WEB_API_TIMEOUT in .env. Two seconds keeps one slow
+     * optional block from holding a shared-hosting worker for the full page.
      */
-    public int $webApiTimeout = 15;
+    public int $webApiTimeout = 2;
+
+    /**
+     * Connection-establishment timeout (seconds) for Domain API requests.
+     * A slow connection must not hold a shared-hosting worker for the full
+     * response deadline. Override with WEB_API_CONNECT_TIMEOUT in .env.
+     */
+    public int $webApiConnectTimeout = 1;
+
+    /**
+     * Timeout (seconds) for the direct-to-Domain form submission write
+     * (cmsDomainWriteClient — see Config\Services). Deliberately separate
+     * from webApiTimeout above: that one guards an *optional* page block a
+     * visitor never asked for, while a form submission is a single
+     * user-initiated action they are already waiting on. It also runs
+     * slower than a page read when the Domain's QUEUE_DRIVER=sync, since
+     * notification/autoreply emails are then sent synchronously through the
+     * Hub inside this same request. Override with WEB_FORM_SUBMIT_TIMEOUT.
+     */
+    public int $formSubmitTimeout = 15;
 
     /**
      * TTL (seconds) for the long-lived stale cache copy served when the
      * Domain API is down. Set WEB_API_STALE_TTL=0 in .env to disable.
      */
     public int $webApiStaleTtl = 86400;
+
+    /**
+     * First-party page-view tracking uses a local queue, so it is enabled by
+     * default for every runtime except tests. The visitor request only writes
+     * one local event file; the CMS call runs later from analytics:flush.
+     * Set WEB_TRACKING_ENABLED=false only when tracking is intentionally off
+     * or the hosting filesystem cannot support the queue.
+     */
+    public bool $trackingEnabled = ENVIRONMENT !== 'testing';
+
+    /**
+     * Beta is not a search destination. Production defaults to noindex while
+     * remaining explicitly overridable when this application is promoted to
+     * the canonical public domain.
+     */
+    public string $defaultMetaRobots = ENVIRONMENT === 'production'
+        ? 'noindex, nofollow'
+    : 'index, follow';
+
+    /** Directory where page-view events wait for the analytics cron worker. */
+    public string $analyticsQueueDirectory = WRITEPATH . 'analytics-queue';
+
+    /** Maximum queued events processed by one cron invocation. */
+    public int $trackingQueueBatchSize = 100;
+
+    /** Number of delivery attempts before an event is quarantined. */
+    public int $trackingQueueMaxAttempts = 5;
+
+    /** CLI transport timeouts; these never run during a visitor request. */
+    public int $trackingQueueTimeoutMs = 5000;
+    public int $trackingQueueConnectTimeoutMs = 1000;
+
+    /**
+     * TTL (seconds) for full HTML response caching on public pages.
+     *
+     * Keep this disabled outside production so feature tests and local
+     * development always render against the current upstream data.
+     * Override with WEB_PAGE_CACHE_TTL in .env.
+     */
+    public int $webPageCacheTtl = ENVIRONMENT === 'production' ? 300 : 0;
+
+    /**
+     * PageDelivery is the only public delivery path. Production serves the
+     * bounded manifest from shared snapshots so visitors do not pay the BFF
+     * composition cost. Local development keeps synchronous BFF delivery.
+     * Production fails closed when snapshots are unavailable; falling back to
+     * live composition would recreate the shared-hosting load spike.
+     */
+    public string $pageDeliveryMode = ENVIRONMENT === 'production' ? 'snapshot' : 'sync';
+    public bool $pageDeliveryAllowSynchronousFallback = ENVIRONMENT !== 'production';
+
+    public string $pageSnapshotDirectory = '';
+    public int $pageSnapshotStaleTtl = 86400;
+    public int $pageSnapshotTtl = 300;
+    public int $pageSnapshotMaxBytes = 5242880;
+    public int $pageSnapshotRetention = 3;
+    public int $pageSnapshotLockTtl = 900;
+    public string $pageSnapshotCompression = 'gzip';
+    public bool $pageSnapshotShared = false;
+
+    /**
+     * Explicit route keys warmed by deploy/cron. Stable public route keys are
+     * resolved to locale-specific paths by PublicSnapshotManifest. Arbitrary
+     * CMS slugs must be appended only after their dependencies are verified.
+     *
+     * @var list<string>
+     */
+    public array $pageSnapshotManifestRoutes = [
+        'home',
+        'events',
+        'catalog',
+        'contact',
+        'history',
+        'theatre_school',
+    ];
+
+    /** @var list<string> */
+    public array $pageSnapshotScopes = [
+        'settings',
+        'menus',
+        'pages',
+        'collections',
+        'entries',
+        'taxonomies',
+        'events',
+        'event_types',
+        'categories',
+        'techniques',
+        'collection_items',
+        'redirects',
+        'forms',
+    ];
 
     /**
      * --------------------------------------------------------------------------
@@ -275,20 +396,20 @@ class App extends BaseConfig
             throw new \LogicException(
                 'Missing app.baseURL in .env. '
                 . 'Set app.baseURL to your website URL. '
-                . 'Example: app.baseURL=http://localhost:8186/'
+                . 'Example: app.baseURL=http://localhost:8184/'
             );
         }
 
-        // Load Website Builder API configuration from .env
-        $webApiBaseUrl = env('WEB_API_BASE_URL');
-        if (! is_string($webApiBaseUrl) || trim($webApiBaseUrl) === '') {
+        // Load the separate analytics write endpoint from .env.
+        $trackingApiBaseUrl = env('WEB_TRACKING_API_BASE_URL');
+        if (! is_string($trackingApiBaseUrl) || trim($trackingApiBaseUrl) === '') {
             throw new \LogicException(
-                'Missing WEB_API_BASE_URL in .env. '
-                . 'Set WEB_API_BASE_URL to your domain API server URL. '
-                . 'Example: WEB_API_BASE_URL=http://localhost:8190'
+                'Missing WEB_TRACKING_API_BASE_URL in .env. '
+                . 'Set WEB_TRACKING_API_BASE_URL to the CMS write endpoint. '
+                . 'Example: WEB_TRACKING_API_BASE_URL=http://localhost:8190'
             );
         }
-        $this->webApiBaseUrl = $webApiBaseUrl;
+        $this->trackingApiBaseUrl = rtrim($trackingApiBaseUrl, '/');
 
         $webApiKey = env('WEB_API_KEY');
         if (! is_string($webApiKey) || trim($webApiKey) === '') {
@@ -300,15 +421,133 @@ class App extends BaseConfig
         }
         $this->webApiKey = $webApiKey;
 
+        $bffApiBaseUrl = env('BFF_API_BASE_URL') ?: $this->bffApiBaseUrl;
+        $this->bffApiBaseUrl = rtrim((string) $bffApiBaseUrl, '/');
+
+        $bffApiKey = env('BFF_API_KEY') ?: $webApiKey;
+        if (! is_string($bffApiKey) || trim($bffApiKey) === '') {
+            throw new \LogicException(
+                'Missing BFF_API_KEY in .env. Set the application key registered in the BFF.'
+            );
+        }
+        $this->bffApiKey = $bffApiKey;
+
         // Optional tuning knobs — silently keep defaults when absent.
         $webApiTimeout = env('WEB_API_TIMEOUT');
         if (is_numeric($webApiTimeout) && (int) $webApiTimeout > 0) {
             $this->webApiTimeout = (int) $webApiTimeout;
         }
 
+        $webApiConnectTimeout = env('WEB_API_CONNECT_TIMEOUT');
+        if (is_numeric($webApiConnectTimeout) && (int) $webApiConnectTimeout > 0) {
+            $this->webApiConnectTimeout = min($this->webApiTimeout, (int) $webApiConnectTimeout);
+        }
+
         $webApiStaleTtl = env('WEB_API_STALE_TTL');
         if (is_numeric($webApiStaleTtl) && (int) $webApiStaleTtl >= 0) {
             $this->webApiStaleTtl = (int) $webApiStaleTtl;
+        }
+
+        $formSubmitTimeout = env('WEB_FORM_SUBMIT_TIMEOUT');
+        if (is_numeric($formSubmitTimeout) && (int) $formSubmitTimeout > 0) {
+            $this->formSubmitTimeout = (int) $formSubmitTimeout;
+        }
+
+        $this->trackingEnabled = $this->parseBoolean(
+            env('WEB_TRACKING_ENABLED'),
+            $this->trackingEnabled,
+        );
+
+        $defaultMetaRobots = env('WEB_DEFAULT_META_ROBOTS');
+        if (is_string($defaultMetaRobots)
+            && preg_match('/^[a-z]+(?:\s*,\s*[a-z]+)*$/i', trim($defaultMetaRobots)) === 1
+        ) {
+            $this->defaultMetaRobots = trim($defaultMetaRobots);
+        }
+
+        $trackingQueueDirectory = env('WEB_TRACKING_QUEUE_DIR');
+        if (is_string($trackingQueueDirectory) && trim($trackingQueueDirectory) !== '') {
+            $trackingQueueDirectory = trim($trackingQueueDirectory);
+            $this->analyticsQueueDirectory = str_starts_with($trackingQueueDirectory, DIRECTORY_SEPARATOR)
+                ? rtrim($trackingQueueDirectory, DIRECTORY_SEPARATOR)
+                : ROOTPATH . trim($trackingQueueDirectory, " /\\");
+        }
+
+        $trackingQueueBatchSize = env('WEB_TRACKING_QUEUE_BATCH_SIZE');
+        if (is_numeric($trackingQueueBatchSize) && (int) $trackingQueueBatchSize > 0) {
+            $this->trackingQueueBatchSize = min(500, (int) $trackingQueueBatchSize);
+        }
+
+        $trackingQueueMaxAttempts = env('WEB_TRACKING_QUEUE_MAX_ATTEMPTS');
+        if (is_numeric($trackingQueueMaxAttempts) && (int) $trackingQueueMaxAttempts > 0) {
+            $this->trackingQueueMaxAttempts = min(20, (int) $trackingQueueMaxAttempts);
+        }
+
+        $trackingQueueTimeout = env('WEB_TRACKING_QUEUE_TIMEOUT_MS');
+        if (is_numeric($trackingQueueTimeout) && (int) $trackingQueueTimeout > 0) {
+            $this->trackingQueueTimeoutMs = min(30000, (int) $trackingQueueTimeout);
+        }
+
+        $trackingQueueConnectTimeout = env('WEB_TRACKING_QUEUE_CONNECT_TIMEOUT_MS');
+        if (is_numeric($trackingQueueConnectTimeout) && (int) $trackingQueueConnectTimeout > 0) {
+            $this->trackingQueueConnectTimeoutMs = min(
+                $this->trackingQueueTimeoutMs,
+                (int) $trackingQueueConnectTimeout,
+            );
+        }
+
+        $webPageCacheTtl = env('WEB_PAGE_CACHE_TTL');
+        if (is_numeric($webPageCacheTtl) && (int) $webPageCacheTtl >= 0) {
+            $this->webPageCacheTtl = (int) $webPageCacheTtl;
+        }
+
+        $pageDeliveryMode = strtolower(trim((string) (env('WEB_PAGE_DELIVERY_MODE') ?? '')));
+        if (in_array($pageDeliveryMode, ['snapshot', 'sync'], true)) {
+            $this->pageDeliveryMode = $pageDeliveryMode;
+        }
+        $this->pageDeliveryAllowSynchronousFallback = $this->parseBoolean(
+            env('WEB_PAGE_DELIVERY_ALLOW_SYNC_FALLBACK'),
+            $this->pageDeliveryAllowSynchronousFallback,
+        );
+        $pageSnapshotDirectory = env('WEB_PAGE_SNAPSHOT_DIR');
+        if (is_string($pageSnapshotDirectory) && trim($pageSnapshotDirectory) !== '') {
+            $this->pageSnapshotDirectory = rtrim(trim($pageSnapshotDirectory), DIRECTORY_SEPARATOR);
+        }
+        $pageSnapshotStaleTtl = env('WEB_PAGE_SNAPSHOT_STALE_TTL');
+        if (is_numeric($pageSnapshotStaleTtl) && (int) $pageSnapshotStaleTtl >= 0) {
+            $this->pageSnapshotStaleTtl = (int) $pageSnapshotStaleTtl;
+        }
+        $pageSnapshotTtl = env('WEB_PAGE_SNAPSHOT_TTL');
+        if (is_numeric($pageSnapshotTtl) && (int) $pageSnapshotTtl > 0) {
+            $this->pageSnapshotTtl = (int) $pageSnapshotTtl;
+        }
+        $pageSnapshotMaxBytes = env('WEB_PAGE_SNAPSHOT_MAX_BYTES');
+        if (is_numeric($pageSnapshotMaxBytes) && (int) $pageSnapshotMaxBytes >= 131072) {
+            $this->pageSnapshotMaxBytes = min(50 * 1024 * 1024, (int) $pageSnapshotMaxBytes);
+        }
+        $pageSnapshotRetention = env('WEB_PAGE_SNAPSHOT_RETENTION');
+        if (is_numeric($pageSnapshotRetention) && (int) $pageSnapshotRetention > 0) {
+            $this->pageSnapshotRetention = min(10, (int) $pageSnapshotRetention);
+        }
+        $pageSnapshotLockTtl = env('WEB_PAGE_SNAPSHOT_LOCK_TTL');
+        if (is_numeric($pageSnapshotLockTtl) && (int) $pageSnapshotLockTtl > 0) {
+            $this->pageSnapshotLockTtl = min(3600, (int) $pageSnapshotLockTtl);
+        }
+        $pageSnapshotCompression = strtolower(trim((string) (env('WEB_PAGE_SNAPSHOT_COMPRESSION') ?? '')));
+        if (in_array($pageSnapshotCompression, ['gzip', 'none'], true)) {
+            $this->pageSnapshotCompression = $pageSnapshotCompression;
+        }
+        $this->pageSnapshotShared = $this->parseBoolean(env('WEB_PAGE_SNAPSHOT_SHARED'), false);
+
+        $manifestRoutes = env('WEB_PAGE_SNAPSHOT_MANIFEST_ROUTES');
+        if (is_string($manifestRoutes) && trim($manifestRoutes) !== '') {
+            $routes = array_values(array_filter(
+                array_map(static fn (string $route): string => trim($route, " /\t\n\r\0\x0B"), explode(',', $manifestRoutes)),
+                static fn (string $route): bool => $route !== '',
+            ));
+            if ($routes !== []) {
+                $this->pageSnapshotManifestRoutes = $routes;
+            }
         }
 
         $this->cspObjectSrc = $this->parseCspSources(env('CSP_OBJECT_SRC'), $this->cspObjectSrc);
@@ -333,5 +572,22 @@ class App extends BaseConfig
         $sources = preg_split('/[\s,]+/', trim($raw)) ?: [];
 
         return $sources !== [] ? $sources : $default;
+    }
+
+    private function parseBoolean(mixed $raw, bool $default): bool
+    {
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        if (! is_string($raw)) {
+            return $default;
+        }
+
+        return match (strtolower(trim($raw))) {
+            '1', 'true', 'yes', 'on' => true,
+            '0', 'false', 'no', 'off' => false,
+            default => $default,
+        };
     }
 }

@@ -1,0 +1,87 @@
+{
+    "version": 1,
+    "locales": [
+        "es",
+        "en",
+        "fr",
+        "pt"
+    ],
+    "routes": {
+        "homepage": {
+            "es": "inicio",
+            "en": "home",
+            "fr": "accueil",
+            "pt": "inicio"
+        },
+        "events": {
+            "es": "cartelera",
+            "en": "programming",
+            "fr": "programmation",
+            "pt": "programacao"
+        },
+        "catalog": {
+            "es": "museo/coleccion",
+            "en": "museum/collection",
+            "fr": "musee/collection",
+            "pt": "museu/colecao"
+        },
+        "contact": {
+            "es": "contacto",
+            "en": "contact",
+            "fr": "contact",
+            "pt": "contato"
+        },
+        "history": {
+            "es": "historia",
+            "en": "history",
+            "fr": "histoire",
+            "pt": "nossa-historia"
+        },
+        "theatre_school": {
+            "es": "teatroescuela",
+            "en": "theaterschool",
+            "fr": "theatreecole",
+            "pt": "escola-de-teatro"
+        }
+    },
+    "aliases": {
+        "homepage": [
+            "accueil",
+            "home",
+            "inicio"
+        ],
+        "events": [
+            "cartelera",
+            "eventos",
+            "events",
+            "programacao",
+            "programmation",
+            "programme",
+            "programming"
+        ],
+        "catalog": [
+            "musee/collection",
+            "museo/coleccion",
+            "museu/colecao",
+            "museum/collection"
+        ],
+        "contact": [
+            "contact",
+            "contacto",
+            "contato"
+        ],
+        "history": [
+            "histoire",
+            "historia",
+            "history",
+            "nossa-historia"
+        ],
+        "theatre_school": [
+            "cursos",
+            "escola-de-teatro",
+            "teatroescuela",
+            "theaterschool",
+            "theatreecole"
+        ]
+    }
+}

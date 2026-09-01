@@ -42,6 +42,7 @@ final class CollectionListingCtaLabelTest extends CIUnitTestCase
             'orderBy' => 'published_at',
             'orderDirection' => 'desc',
             'layoutVariant' => 'cards',
+            'imageAspectRatio' => '16/9',
             'cssClass' => '',
             'showSearch' => false,
             'showCategories' => false,
@@ -104,5 +105,71 @@ final class CollectionListingCtaLabelTest extends CIUnitTestCase
         $this->assertStringContainsString('Ver más', $html);
         $this->assertStringNotContainsString('Ver proyecto', $html);
         $this->assertStringNotContainsString('Leer artículo', $html);
+    }
+
+    public function testListingCardsUseAnOptimizedVariantForAbsoluteImageUrls(): void
+    {
+        $vars = $this->baseVars([
+            'collection_type' => 'catalog',
+        ]);
+        $vars['entries'][0]['featured_image'] = [
+            'url' => 'https://cdn.example.com/cover-original.jpg',
+            'variants' => [
+                'sm' => ['url' => 'https://cdn.example.com/cover_sm.webp', 'width' => 400, 'height' => 300],
+            ],
+        ];
+
+        $html = view('blocks/collection_listing', $vars);
+
+        $this->assertStringContainsString('src="https://cdn.example.com/cover_sm.webp"', $html);
+        $this->assertStringNotContainsString('src="https://cdn.example.com/cover-original.jpg"', $html);
+    }
+
+    public function testListingVideoUsesItsYouTubePosterAndModalTrigger(): void
+    {
+        $vars = $this->baseVars(['collection_type' => 'video']);
+        $vars['entries'][0] = [
+            'title' => 'Video de prueba',
+            'featured_image' => null,
+            'listing_content' => [
+                'video' => [
+                    'provider' => 'youtube',
+                    'id' => 'dQw4w9WgXcQ',
+                    'embed_url' => 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1',
+                    'poster_url' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+                ],
+            ],
+        ];
+
+        $html = view('blocks/collection_listing', $vars);
+        $html = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $this->assertStringContainsString('data-video-listing', $html);
+        $this->assertStringContainsString('data-video-trigger', $html);
+        $this->assertStringContainsString('https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', $html);
+        $this->assertStringContainsString('Reproducir: Video de prueba', $html);
+    }
+
+    public function testListingVimeoWithoutPosterStillRendersItsModalTrigger(): void
+    {
+        $vars = $this->baseVars(['collection_type' => 'video']);
+        $vars['entries'][0] = [
+            'title' => 'Vimeo de prueba',
+            'featured_image' => null,
+            'listing_content' => [
+                'video' => [
+                    'provider' => 'vimeo',
+                    'id' => '12345678',
+                    'embed_url' => 'https://player.vimeo.com/video/12345678?autoplay=1',
+                    'poster_url' => '',
+                ],
+            ],
+        ];
+
+        $html = html_entity_decode(view('blocks/collection_listing', $vars), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $this->assertStringContainsString('data-video-trigger', $html);
+        $this->assertStringContainsString('https://player.vimeo.com/video/12345678?autoplay=1', $html);
+        $this->assertStringContainsString('bg-slate-900', $html);
     }
 }

@@ -52,6 +52,9 @@ $linkLabel = esc($data['link_label'] ?? '');
                         'alt'      => $title,
                         'class'    => 'w-full h-auto object-cover max-h-60 hover:scale-[1.02] transition-transform duration-500',
                         'variants' => $image['variants'] ?? null,
+                        'preferredVariant' => 'md',
+                        'sizes'    => '(max-width: 767px) calc(100vw - 4rem), (max-width: 1023px) calc(50vw - 2rem), 480px',
+                        'maxVariantWidth' => 800,
                     ], ['saveData' => false]) ?>
                 </div>
             <?php endif; ?>

@@ -100,6 +100,18 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
      */
     public function testSitemapXmlValid(): void
     {
+        $locale = $this->locale();
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [[
+                'slug' => 'home',
+                'page_type' => 'home',
+                'is_in_sitemap' => true,
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+            'collections' => [],
+            'entries' => [],
+        ]);
+
         // Act: GET sitemap.xml
         $result = $this->get('/sitemap.xml');
 
@@ -126,6 +138,79 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
             $this->assertNotNull($url->loc, 'Each <url> must have <loc>');
             $this->assertNotEmpty((string) $url->loc, '<loc> must not be empty');
         }
+    }
+
+    public function testSitemapPublishesTheLocalizedHomepageSlugOnce(): void
+    {
+        $locale = $this->locale();
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [[
+                'slug' => 'inicio',
+                'page_type' => 'home',
+                'is_in_sitemap' => true,
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+            'collections' => [],
+            'entries' => [],
+        ]);
+        service('cache')->delete('sitemap_v3_' . $locale);
+
+        $result = $this->get('/sitemap.xml');
+        $result->assertStatus(200);
+        $body = $result->response()->getBody();
+
+        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/inicio') . '</loc>', $body);
+    }
+
+    public function testSitemapAcceptsFilteredPageProjectionWithoutInternalVisibilityFlag(): void
+    {
+        $locale = $this->locale();
+        service('cache')->delete('sitemap_v3_' . $locale);
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [[
+                'slug' => 'about',
+                'page_type' => 'about',
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+            'collections' => [],
+            'entries' => [],
+        ]);
+
+        $result = $this->get('/' . $locale . '/sitemap.xml');
+
+        $result->assertStatus(200);
+        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/about') . '</loc>', $result->response()->getBody());
+    }
+
+    public function testSitemapUsesOneBoundedBffProjection(): void
+    {
+        $locale = $this->locale();
+        service('cache')->delete('sitemap_v3_' . $locale);
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/sitemap', [
+            'pages' => [],
+            'collections' => [[
+            'collection_key' => 'news',
+            'slug' => 'news',
+            'localized_slugs' => [$locale => 'news'],
+        ]],
+            'entries' => [[
+                'collection_key' => 'news',
+                'slug' => 'entry-one',
+                'updated_at' => '2026-08-10T00:00:00+00:00',
+            ]],
+        ]);
+        service('cache')->delete('sitemap_v3_' . $locale);
+
+        $result = $this->get('/' . $locale . '/sitemap.xml');
+        $result->assertStatus(200);
+
+        $sitemapCalls = array_values(array_filter(
+            $this->domainAdapter->calls,
+            static fn (array $call): bool => ($call['path'] ?? '') === 'public-read/' . $locale . '/sitemap',
+        ));
+        $this->assertCount(1, $sitemapCalls);
+        $this->assertSame([], $sitemapCalls[0]['query']);
+        $this->assertStringContainsString('<loc>' . base_url('/' . $locale . '/news/entry-one') . '</loc>', $result->response()->getBody());
     }
 
     /**
@@ -163,6 +248,81 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
 
         // Assert: Canonical has no query parameters
         $this->assertStringNotContainsString('?', $canonical, 'Canonical URL must not have query parameters');
+    }
+
+    public function testHomepageCanonicalAndHreflangUseTheLocalizedSlug(): void
+    {
+        $this->domainAdapter->fakeGet('public/' . $this->locale() . '/pages/home', [
+            'title' => 'Fixture homepage with legacy slug',
+            'slug' => 'inicio',
+            'page_type' => 'home',
+            'excerpt' => 'Homepage fixture.',
+            'meta_title' => 'Homepage fixture',
+            'meta_description' => 'Homepage fixture description.',
+            'canonical_url' => site_url('/' . $this->locale() . '/inicio'),
+            'localized_slugs' => array_fill_keys($this->locales(), 'inicio'),
+            'blocks' => [],
+        ]);
+
+        $result = $this->get('/' . $this->locale() . '/');
+        $result->assertStatus(200);
+        $body = $result->response()->getBody();
+
+        $this->assertStringContainsString(
+            '<link rel="canonical" href="' . site_url('/' . $this->locale() . '/inicio') . '">',
+            $body,
+        );
+        $this->assertStringContainsString(
+            'hreflang="' . $this->locale() . '" href="' . site_url('/' . $this->locale() . '/inicio') . '"',
+            $body,
+        );
+        $this->assertStringContainsString('/' . $this->locale() . '/inicio', $body);
+    }
+
+    public function testMainMenuPublishesTheLocalizedHomepageSlug(): void
+    {
+        $locale = $this->locale();
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/page-resolve/home', [
+            'outcome' => 'page',
+            'page' => [
+                'page_type' => 'home',
+                'title' => 'Fixture homepage',
+                'excerpt' => 'Fixture homepage excerpt.',
+                'meta_title' => 'Fixture homepage',
+                'meta_description' => 'Fixture homepage description.',
+                'slug' => 'inicio',
+                'localized_slugs' => array_fill_keys($this->locales(), 'inicio'),
+                'canonical_url' => site_url('/' . $locale . '/inicio'),
+                'blocks' => [],
+            ],
+            'layout' => [
+                'settings' => [],
+                'mainMenu' => [
+                    'items' => [
+                        ['label' => 'Inicio', 'custom_url' => '/' . $locale . '/inicio'],
+                        ['label' => 'Destino editorial', 'custom_url' => '/custom-destination'],
+                    ],
+                ],
+                'footerMenu' => ['items' => []],
+                'legalMenu' => ['items' => []],
+                'socialLinks' => [],
+            ],
+            'block_context' => ['block_prefetch' => [], 'block_prefetch_complete' => true],
+            'meta' => ['locale' => $locale, 'route' => 'home'],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
+        ]);
+
+        $result = $this->get('/' . $locale . '/');
+        $result->assertStatus(200);
+        $body = $result->response()->getBody();
+
+        $this->assertStringContainsString(
+            'href="' . site_url('/' . $locale . '/inicio') . '"',
+            $body,
+        );
+        $this->assertStringContainsString('/' . $locale . '/inicio', $body);
+        $this->assertStringContainsString('/' . $locale . '/custom-destination', $body);
     }
 
     /**
@@ -478,35 +638,36 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         $entryTitle = 'Fixture SEO Entry ' . $locale;
         $entryExcerpt = 'Fixture SEO excerpt ' . $locale;
 
-        // 1. Mock collections (so resolving routes works)
-        $collection = [
-            'id'                       => $collectionId,
-            'collection_key'           => $collectionKey,
-            'slug'                     => $collectionSlug,
-            'name'                     => 'Fixture SEO Collection',
-            'listing_title'            => 'Fixture SEO Collection',
-            'listing_intro'            => '',
-            'default_meta_description' => 'Fixture SEO collection description',
-            'index_page'               => [
-                'localized_slugs' => [
-                    ...array_fill_keys($this->locales(), $collectionSlug),
+        $this->domainAdapter->fakeGet('public-read/' . $locale . '/page-resolve/' . $collectionSlug . '/' . $entrySlug, [
+            'outcome' => 'page',
+            'page' => [
+                'page_type' => 'collection_entry',
+                'title' => $entryTitle,
+                'slug' => $entrySlug,
+                'excerpt' => $entryExcerpt,
+                'meta_title' => '   ',
+                'meta_description' => '',
+                'robots' => '',
+                'canonical_url' => '',
+                'published_at' => '2024-10-07 04:15:23',
+                'blocks' => [],
+                'localized_slugs' => array_fill_keys($this->locales(), $entrySlug),
+                'featured_image' => [],
+                'categories' => [],
+                'tags' => [],
+                'collection' => [
+                    'id' => $collectionId,
+                    'collection_key' => $collectionKey,
+                    'name' => 'Fixture SEO Collection',
+                    'localized_slugs' => array_fill_keys($this->locales(), $collectionSlug),
                 ],
+                'related_entries' => [],
             ],
-        ];
-        $this->domainAdapter->fakeGet('public/' . $locale . '/collections', [$collection]);
-
-        // 2. Mock a collection entry with empty/whitespace SEO fields
-        $this->domainAdapter->fakeGet('public/' . $locale . '/entries/' . $collectionKey . '/' . $entrySlug, [
-            'title'              => $entryTitle,
-            'slug'               => $entrySlug,
-            'excerpt'            => $entryExcerpt,
-            'meta_title'         => '   ', // whitespace
-            'meta_description'   => '',    // empty
-            'robots'             => '',    // empty
-            'canonical_url'      => '',
-            'published_at'       => '2024-10-07 04:15:23',
-            'blocks'             => [],
-            'localized_slugs'    => array_fill_keys($this->locales(), $entrySlug),
+            'layout' => ['settings' => [], 'mainMenu' => ['items' => []], 'footerMenu' => ['items' => []], 'legalMenu' => ['items' => []], 'socialLinks' => []],
+            'block_context' => ['block_prefetch' => [], 'block_prefetch_complete' => true],
+            'meta' => ['locale' => $locale, 'route' => $collectionSlug . '/' . $entrySlug],
+            'source' => ['domain' => 'bff', 'state' => 'fresh', 'stale' => false],
+            'messages' => [],
         ]);
 
         // Act: GET the page
@@ -521,8 +682,13 @@ final class SeoMarkupTest extends HermeticFeatureTestCase
         // Description should fall back to entry excerpt
         $this->assertStringContainsString('<meta name="description" content="' . $entryExcerpt . '">', $body);
 
-        // Robots should fall back to \'index, follow\'
-        $this->assertStringContainsString('<meta name="robots" content="index, follow">', $body);
+        // Robots should fall back to the configured site default (overridable
+        // via WEB_DEFAULT_META_ROBOTS; currently 'noindex, nofollow' while this
+        // app stays out of search indexes pre-launch — see CHANGELOG.md).
+        $this->assertStringContainsString(
+            '<meta name="robots" content="' . config('App')->defaultMetaRobots . '">',
+            $body,
+        );
     }
 
     private function localizedPath(int $position = 0, string $suffix = ''): string

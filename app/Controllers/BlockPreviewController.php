@@ -11,9 +11,25 @@ class BlockPreviewController extends BasePublicWebController
 {
     /**
      * Render a single block type dynamically using the actual frontend BlockRenderer.
+     *
+     * Server-to-server only: called by the Admin panel's own
+     * BlockPreviewController, which is itself gated by
+     * `permission:cms.pages.read` (2026-08-12 audit finding — this endpoint
+     * had no authentication of its own, only throttling). Protection is
+     * opt-in via BLOCK_PREVIEW_KEY, matching CacheController's shared-secret
+     * pattern: when unset, the endpoint keeps its previous throttle-only
+     * behavior (no regression for deployments that haven't configured the
+     * key yet); when set, a missing/incorrect X-Block-Preview-Key is
+     * rejected.
      */
     public function preview(): ResponseInterface
     {
+        if (! $this->hasValidPreviewKeyOrNoneConfigured()) {
+            return $this->response
+                ->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)
+                ->setJSON(['ok' => false, 'message' => 'Unauthorized.']);
+        }
+
         $blockKeyRaw = $this->request->getPost('block_key');
         $configRaw   = $this->request->getPost('block_config');
         $dataRaw     = $this->request->getPost('block_data');
@@ -115,7 +131,7 @@ class BlockPreviewController extends BasePublicWebController
 
         if ($blockKey === 'document_download') {
             if (! is_array($config['document'] ?? null) || empty($config['document']['url'])) {
-                $config['document'] = $this->mediaReference('http://localhost:8186/uploads/reporte_anual_2025.pdf');
+                $config['document'] = $this->mediaReference('http://localhost:8184/uploads/reporte_anual_2025.pdf');
             }
         }
 
@@ -360,4 +376,15 @@ class BlockPreviewController extends BasePublicWebController
         ];
     }
 
+    private function hasValidPreviewKeyOrNoneConfigured(): bool
+    {
+        $expectedKey = (string) env('BLOCK_PREVIEW_KEY', '');
+        if ($expectedKey === '') {
+            return true;
+        }
+
+        $receivedKey = $this->request->getHeaderLine('X-Block-Preview-Key');
+
+        return hash_equals($expectedKey, $receivedKey);
+    }
 }

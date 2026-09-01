@@ -17,7 +17,7 @@
         <?= view($view, $data ?? [], ['saveData' => false]) ?>
     </main>
 
-    <?= view('layouts/partials/footer', ['menu' => $footerMenu ?? [], 'legalMenu' => $legalMenu ?? [], 'settings' => $settings ?? []], ['saveData' => false]) ?>
+    <?= view('layouts/partials/footer', ['menu' => $footerMenu ?? [], 'legalMenu' => $legalMenu ?? [], 'settings' => $settings ?? [], 'socialLinks' => $socialLinks ?? []], ['saveData' => false]) ?>
     <?= view('layouts/partials/flash_messages', [], ['saveData' => false]) ?>
 </body>
 </html>

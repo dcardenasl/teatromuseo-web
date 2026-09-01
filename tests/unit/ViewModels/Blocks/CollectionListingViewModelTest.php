@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Unit\ViewModels\Blocks;
 
-use App\Services\SiteCategoryService;
-use App\Services\SiteCollectionService;
-use App\Services\SiteEntryService;
-use App\Services\SiteTagService;
 use App\ViewModels\Blocks\CollectionListingViewModel;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\URI;
@@ -16,12 +12,9 @@ use CodeIgniter\Test\CIUnitTestCase;
 use Config\App;
 
 /**
- * Characterization tests for CollectionListingViewModel — this view model had
- * zero direct unit coverage before (only a view-rendering test with a
- * hand-built vars array). Rewritten for DEEP-WEB-02: the view model no longer
- * calls `service()`/`Config\Services::x()` itself, so tests construct it with
- * an explicit `$context` array (the same collaborators BlockRenderer resolves
- * in production) instead of mutating global service state.
+ * The view model consumes only the path-keyed listing envelope assembled by
+ * PageDelivery/BlockRenderer. These tests use that same boundary directly;
+ * no domain service is available during rendering.
  *
  * @internal
  */
@@ -54,28 +47,28 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         array $get = [],
         string $path = '/'
     ): array {
-        $collectionService = $this->createMock(SiteCollectionService::class);
-        $collectionService->method('getAll')->willReturn($collections);
-
-        $entryService = $this->createMock(SiteEntryService::class);
-        $entryService->method('list')->willReturn($entriesResult);
-
-        $categoryService = $this->createMock(SiteCategoryService::class);
-        $categoryService->method('list')->willReturn($categories);
-
-        $tagService = $this->createMock(SiteTagService::class);
-        $tagService->method('list')->willReturn($tags);
-
         $request = new IncomingRequest(config(App::class), new URI('http://localhost/' . ltrim($path, '/')), null, new UserAgent());
         $request->setGlobal('get', $get);
         $request->setLocale('es');
 
+        $data = is_array($entriesResult['data'] ?? null) ? $entriesResult['data'] : [];
+        $meta = is_array($entriesResult['meta'] ?? null) ? $entriesResult['meta'] : [];
+
         return [
             'request' => $request,
-            'siteCollectionService' => $collectionService,
-            'siteEntryService' => $entryService,
-            'siteCategoryService' => $categoryService,
-            'siteTagService' => $tagService,
+            'blockPath' => '0',
+            'block_prefetch_complete' => true,
+            'block_prefetch' => ['0' => [
+                'ok' => true,
+                'status' => 200,
+                'data' => $data,
+                'meta' => $meta,
+                'facets' => [
+                    'categories' => $categories,
+                    'tags' => $tags,
+                ],
+                'collection' => $collections[0] ?? null,
+            ]],
         ];
     }
 
@@ -98,7 +91,16 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
     public function testResolvedCollectionListsEntriesWithDefaultOrdering(): void
     {
         $vm = new CollectionListingViewModel(
-            ['block_config' => ['collection_id' => 1]],
+            [
+                'block_config' => ['collection_id' => 1],
+                'navigation' => [
+                    'status' => 'resolved',
+                    'target_type' => 'collection_index',
+                    'target_id' => 10,
+                    'url' => '/es/noticias',
+                    'label' => 'Ver más',
+                ],
+            ],
             'es',
             $this->context(
                 [self::COLLECTION],
@@ -124,6 +126,104 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame(1, $vars['currentPage']);
         $this->assertSame('Noticias', $vars['pageTitle']);
         $this->assertSame('Últimas noticias.', $vars['metaDescription']);
+        $this->assertSame('/es/noticias/post-1', $vars['entries'][0]['navigation']['url']);
+        $this->assertSame('Ver más', $vars['viewAllLabel']);
+    }
+
+    public function testResolvedCollectionNormalizesVideoFichaForCardPresentation(): void
+    {
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $this->context(
+                [array_replace(self::COLLECTION, [
+                    'collection_key' => 'videos',
+                    'slug' => 'videos',
+                    'listing_title' => 'Videos',
+                    'name' => 'Videos',
+                ])],
+                ['data' => [[
+                    'title' => 'Video de prueba',
+                    'slug' => 'video-de-prueba',
+                    'listing_content' => [
+                        'video' => [
+                            'provider' => 'youtube',
+                            'id' => 'dQw4w9WgXcQ',
+                        ],
+                    ],
+                ]], 'meta' => ['pagination' => ['total' => 1]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame(
+            'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+            $vars['entries'][0]['listing_content']['video']['poster_url'],
+        );
+        $this->assertSame(
+            'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1',
+            $vars['entries'][0]['listing_content']['video']['embed_url'],
+        );
+    }
+
+    public function testResolvedCollectionNormalizesLegacyFeaturedImageFields(): void
+    {
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $this->context(
+                [self::COLLECTION],
+                ['data' => [[
+                    'title'              => 'Curso antiguo',
+                    'slug'               => 'curso-antiguo',
+                    'featured_file_id'   => 142,
+                    'featured_image_url' => 'https://cdn.example.com/course.webp',
+                ]], 'meta' => ['pagination' => ['total' => 1]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame('hub_file', $vars['entries'][0]['featured_image']['source_kind']);
+        $this->assertSame(142, $vars['entries'][0]['featured_image']['file_id']);
+        $this->assertSame('https://cdn.example.com/course.webp', $vars['entries'][0]['featured_image']['url']);
+    }
+
+    public function testFallbackImageUrlIsNeverUsedEvenWhenConfigured(): void
+    {
+        // block_config can carry an admin-authored placeholder photo (a leftover from the
+        // template catalog's demo content) — it must never be surfaced, even when explicitly
+        // set, so every card without a real cover just shows no image instead of the same
+        // generic stock photo repeated across the grid.
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1, 'fallback_image_url' => 'https://images.unsplash.com/photo-placeholder']],
+            'es',
+            $this->context(
+                [self::COLLECTION],
+                ['data' => [], 'meta' => ['pagination' => ['total' => 0]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame('', $vars['fallbackImageUrl']);
+    }
+
+    public function testRowsWithoutDisplayTitleAreNotRenderedAsPlaceholderCards(): void
+    {
+        $vm = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $this->context(
+                [self::COLLECTION],
+                ['data' => [['id' => 999]], 'meta' => ['pagination' => ['total' => 1]]]
+            )
+        );
+
+        $vars = $vm->vars();
+
+        $this->assertSame([], $vars['entries']);
     }
 
     public function testResolvedCollectionFallsBackToNameWhenListingTitleIsEmpty(): void
@@ -146,18 +246,13 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame('Festivales', $vars['pageTitle']);
     }
 
-    public function testCollectionPathFallsBackToCollectionKeyWhenIndexPageIsMissing(): void
+    public function testCollectionPathFallsBackToCurrentListingPageWhenNavigationIsMissing(): void
     {
         $collection = self::COLLECTION;
         unset($collection['index_page']);
 
-        // The listing block is embedded on an unrelated page (path below) —
-        // the resolved URL must still be derived from the collection itself
-        // (`collection_key`), not from whatever page happens to host the
-        // block. Otherwise the same entry would resolve to a different URL
-        // depending on which page rendered it, and entries embedded on the
-        // homepage (empty path beyond the locale) would get no working link
-        // at all.
+        // A full listing page is still navigable when an older or partially
+        // migrated block payload does not include its navigation metadata.
         $vm = new CollectionListingViewModel(
             ['block_config' => ['collection_id' => 1]],
             'es',
@@ -173,7 +268,8 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
 
         $vars = $vm->vars();
 
-        $this->assertSame('/news', $vars['collectionUrlPath']);
+        $this->assertSame('festivales', $vars['collectionUrlPath']);
+        $this->assertSame('http://localhost:8184/es/festivales/post-1', $vars['entries'][0]['navigation']['url']);
     }
 
     public function testCollectionPathFallsBackToCollectionKeyWhenEmbeddedOnHomepage(): void
@@ -201,7 +297,7 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
 
         $vars = $vm->vars();
 
-        $this->assertSame('/news', $vars['collectionUrlPath']);
+        $this->assertSame('', $vars['collectionUrlPath']);
     }
 
     public function testListVariantNormalizesListingContentAndVisibilityFlags(): void
@@ -218,9 +314,16 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
             $this->context([self::COLLECTION], [
                 'data' => [[
                     'id' => 1,
+                    'title' => 'Post 1',
                     'listing_content' => [
                         'rich_text' => '<script>alert(1)</script><p>Seguro</p>',
-                        'image' => ['url' => '/uploads/extra.jpg', 'alt' => 'Extra'],
+                        'image' => [
+                            'url' => '/uploads/extra.jpg',
+                            'alt' => 'Extra',
+                            'variants' => [
+                                'sm' => ['url' => '/uploads/extra_sm.webp', 'width' => 400, 'height' => 300],
+                            ],
+                        ],
                         'secondary_action' => ['label' => 'Más información', 'url' => '/detalle'],
                     ],
                 ]],
@@ -234,6 +337,7 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertTrue($vars['showExtraRichtext']);
         $this->assertStringNotContainsString('<script>', $vars['entries'][0]['listing_content']['rich_text']);
         $this->assertSame('/uploads/extra.jpg', $vars['entries'][0]['listing_content']['image']['url']);
+        $this->assertSame('/uploads/extra_sm.webp', $vars['entries'][0]['listing_content']['image']['variants']['sm']['url']);
         $this->assertStringContainsString('/es/detalle', $vars['entries'][0]['listing_content']['secondary_action']['url']);
     }
 
@@ -260,7 +364,12 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
     public function testGetParamsDriveCurrentPageCategoryTagAndQuery(): void
     {
         $vm = new CollectionListingViewModel(
-            ['block_config' => ['collection_id' => 1]],
+            ['block_config' => [
+                'collection_id' => 1,
+                'listing_projection' => [
+                    'order' => ['public' => true],
+                ],
+            ]],
             'es',
             $this->context(
                 [self::COLLECTION],
@@ -349,7 +458,7 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
         $this->assertSame([], $vmDefault->vars()['tags'], 'show_tags defaults to false');
     }
 
-    public function testPreviewRouteFabricatesAMockCollectionWhenUnresolvable(): void
+    public function testMissingPrefetchedCollectionDoesNotFabricateContent(): void
     {
         $vm = new CollectionListingViewModel(
             ['block_config' => ['collection_id' => 999]],
@@ -359,8 +468,27 @@ final class CollectionListingViewModelTest extends CIUnitTestCase
 
         $vars = $vm->vars();
 
-        $this->assertTrue($vars['isValid']);
-        $this->assertSame('mock-collection', $vars['collection']['collection_key']);
+        $this->assertFalse($vars['isValid']);
+        $this->assertNull($vars['collection']);
+    }
+
+    public function testImageAspectRatioDefaultsTo16By9AndHonorsExplicitConfig(): void
+    {
+        $context = $this->context([self::COLLECTION], ['data' => [], 'meta' => []]);
+
+        $vmDefault = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1]],
+            'es',
+            $context
+        );
+        $this->assertSame('16/9', $vmDefault->vars()['imageAspectRatio']);
+
+        $vmSquare = new CollectionListingViewModel(
+            ['block_config' => ['collection_id' => 1, 'image_aspect_ratio' => '1/1']],
+            'es',
+            $context
+        );
+        $this->assertSame('1/1', $vmSquare->vars()['imageAspectRatio']);
     }
 
     public function testMissingContextCollaboratorsProduceSafeDefaultsInsteadOfErrors(): void

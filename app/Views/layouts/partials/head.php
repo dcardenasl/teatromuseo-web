@@ -5,7 +5,7 @@ $defaultLocale = $siteConfig->defaultLocale ?? ($supportedLocales[0] ?? service(
 
 $resolvedTitle = (isset($pageTitle) && trim((string) $pageTitle) !== '')
     ? $pageTitle
-    : ($settings['site_name'] ?? $settings['site_title'] ?? lang('Site.site_default_name'));
+    : ($settings['site_name'] ?? lang('Site.site_default_name'));
 $resolvedDescription = (isset($metaDescription) && trim((string) $metaDescription) !== '')
     ? $metaDescription
     : ($settings['site_description'] ?? trim($resolvedTitle));
@@ -22,14 +22,63 @@ $faviconUrl   = is_array($settings['favicon']     ?? null) ? (string) ($settings
 if ($faviconUrl === '') {
     $faviconUrl = (string) ($settings['favicon_url'] ?? '');
 }
-$resolvedOgImage = $ogImage ?? ($siteLogoUrl !== '' ? $siteLogoUrl : null);
+$rawOgImage = $ogImage ?? null;
+$resolvedOgImage = is_array($rawOgImage)
+    ? trim((string) ($rawOgImage['url'] ?? ''))
+    : trim((string) ($rawOgImage ?? ''));
+if ($resolvedOgImage === '') {
+    $resolvedOgImage = trim($siteLogoUrl) !== '' ? trim($siteLogoUrl) : null;
+}
+$normalizeSeoUrl = static function (?string $url): string {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    if (preg_match('#^https?://#i', $url) === 1) {
+        $parsed = parse_url($url);
+        if (! is_array($parsed) || ! isset($parsed['scheme'], $parsed['host'])) {
+            return '';
+        }
+
+        $authority = strtolower((string) $parsed['scheme']) . '://' . $parsed['host'];
+        if (isset($parsed['port'])) {
+            $authority .= ':' . (int) $parsed['port'];
+        }
+
+        return $authority . '/' . ltrim((string) ($parsed['path'] ?? ''), '/');
+    }
+
+    return site_url('/' . ltrim($url, '/'));
+};
+
+$resolvedOgImage = $resolvedOgImage !== null ? $normalizeSeoUrl($resolvedOgImage) : null;
 $resolvedOgType = $ogType ?? 'website';
-$resolvedCanonicalUrl = $canonicalUrl ?? site_url(service('request')->getPath());
+$resolvedCanonicalUrl = $normalizeSeoUrl($canonicalUrl ?? site_url(service('request')->getPath()));
+
+$declaredLocalizedUrls = is_array($localized_urls ?? null) ? $localized_urls : [];
+$seoLocalizedUrls = [];
+foreach ($declaredLocalizedUrls as $locale => $url) {
+    $locale = strtolower(trim((string) $locale));
+    if (! in_array($locale, $supportedLocales, true)) {
+        continue;
+    }
+
+    $normalizedUrl = $normalizeSeoUrl(is_scalar($url) ? (string) $url : '');
+    if ($normalizedUrl !== '') {
+        $seoLocalizedUrls[$locale] = $normalizedUrl;
+    }
+}
+
+$currentLocale = (string) service('request')->getLocale();
+if ($resolvedCanonicalUrl !== '' && $currentLocale !== '' && in_array($currentLocale, $supportedLocales, true)) {
+    $seoLocalizedUrls[$currentLocale] ??= $resolvedCanonicalUrl;
+}
 
 $resolvedSchemaData = $schemaData ?? null;
 if (! is_array($resolvedSchemaData) || $resolvedSchemaData === []) {
     if ($resolvedOgType === 'article') {
-        $siteName = (string) ($settings['site_name'] ?? $settings['site_title'] ?? '');
+        $siteName = (string) ($settings['site_name'] ?? '');
         $publisher = $siteName !== '' || $siteLogoUrl !== ''
             ? array_filter([
                 '@type' => 'Organization',
@@ -62,6 +111,15 @@ if (! is_array($resolvedSchemaData) || $resolvedSchemaData === []) {
 
 $analyticsProvider = $settings['analytics_provider'] ?? 'none';
 $analyticsId       = $settings['analytics_id'] ?? '';
+$defaultMetaRobots = config('App')->defaultMetaRobots ?? 'index, follow';
+$staticAssetUrl = static function (string $path): string {
+    $path = ltrim($path, '/');
+    $url = base_url($path);
+    $absolutePath = FCPATH . $path;
+    $version = is_file($absolutePath) ? (string) (filemtime($absolutePath) ?: '') : '';
+
+    return $version === '' ? $url : $url . '?v=' . rawurlencode($version);
+};
 ?>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -69,21 +127,27 @@ $analyticsId       = $settings['analytics_id'] ?? '';
 <title><?= esc($resolvedTitle) ?></title>
 <meta name="description" content="<?= esc($resolvedDescription) ?>">
 
-<meta name="robots" content="<?= esc((isset($metaRobots) && trim((string) $metaRobots) !== '') ? $metaRobots : 'index, follow') ?>">
+<meta name="robots" content="<?= esc((isset($metaRobots) && trim((string) $metaRobots) !== '') ? $metaRobots : $defaultMetaRobots) ?>">
 
-<?php if (! empty($canonicalUrl)): ?>
-    <link rel="canonical" href="<?= esc($canonicalUrl) ?>">
+<?php if ($resolvedCanonicalUrl !== ''): ?>
+    <link rel="canonical" href="<?= esc($resolvedCanonicalUrl) ?>">
 <?php endif; ?>
 
 <?php if ($faviconUrl !== ''): ?>
     <link rel="icon" href="<?= esc($faviconUrl) ?>">
 <?php endif; ?>
+<link rel="icon" type="image/svg+xml" href="<?= esc($staticAssetUrl('favicon.svg')) ?>">
+<link rel="icon" type="image/x-icon" href="<?= esc($staticAssetUrl('favicon.ico')) ?>">
+<link rel="icon" type="image/png" sizes="96x96" href="<?= esc($staticAssetUrl('favicon-96x96.png')) ?>">
+<link rel="apple-touch-icon" href="<?= esc($staticAssetUrl('apple-touch-icon.png')) ?>">
+<link rel="manifest" href="<?= esc($staticAssetUrl('site.webmanifest')) ?>">
+<meta name="theme-color" content="#ffffff">
 
-<?php foreach ($supportedLocales as $locale): ?>
-    <link rel="alternate" hreflang="<?= esc($locale) ?>" href="<?= esc(current_lang_url($locale, $localized_urls ?? null)) ?>">
+<?php foreach ($seoLocalizedUrls as $locale => $localizedUrl): ?>
+    <link rel="alternate" hreflang="<?= esc($locale) ?>" href="<?= esc($localizedUrl) ?>">
 <?php endforeach; ?>
-<?php if (! empty($defaultLocale)): ?>
-    <link rel="alternate" hreflang="x-default" href="<?= esc(current_lang_url($defaultLocale, $localized_urls ?? null)) ?>">
+<?php if (! empty($defaultLocale) && isset($seoLocalizedUrls[$defaultLocale])): ?>
+    <link rel="alternate" hreflang="x-default" href="<?= esc($seoLocalizedUrls[$defaultLocale]) ?>">
 <?php endif; ?>
 
 <?php if (! empty($resolvedOgImage)): ?>
@@ -92,6 +156,7 @@ $analyticsId       = $settings['analytics_id'] ?? '';
 
 <meta property="og:title" content="<?= esc($resolvedTitle) ?>">
 <meta property="og:description" content="<?= esc($resolvedDescription) ?>">
+<meta property="og:url" content="<?= esc($resolvedCanonicalUrl) ?>">
 <meta property="og:type" content="<?= esc($resolvedOgType) ?>">
 
 <?php if ($resolvedOgType === 'article' && ! empty($articlePublishedTime)): ?>
@@ -101,7 +166,7 @@ $analyticsId       = $settings['analytics_id'] ?? '';
     <meta property="article:modified_time" content="<?= esc(date('c', strtotime((string) $articleModifiedTime))) ?>">
 <?php endif; ?>
 
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="<?= esc($resolvedOgImage !== null && $resolvedOgImage !== '' ? 'summary_large_image' : 'summary') ?>">
 <meta name="twitter:title" content="<?= esc($resolvedTitle) ?>">
 <meta name="twitter:description" content="<?= esc($resolvedDescription) ?>">
 <?php if (! empty($resolvedOgImage)): ?>
@@ -115,12 +180,12 @@ $analyticsId       = $settings['analytics_id'] ?? '';
 <?php endif; ?>
 
 <?php if ($analyticsProvider === 'ga4' && $analyticsId !== ''): ?>
-    <script async src="https://www.googletagmanager.com/gtag/js?id=<?= esc($analyticsId) ?>"></script>
-    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<?= esc($analyticsId, 'js') ?>');</script>
+    <script <?= csp_script_nonce() ?> async src="https://www.googletagmanager.com/gtag/js?id=<?= esc($analyticsId) ?>"></script>
+    <script <?= csp_script_nonce() ?>>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<?= esc($analyticsId, 'js') ?>');</script>
 <?php elseif ($analyticsProvider === 'plausible' && $analyticsId !== ''): ?>
-    <script defer data-domain="<?= esc($analyticsId) ?>" src="https://plausible.io/js/script.js"></script>
+    <script <?= csp_script_nonce() ?> defer data-domain="<?= esc($analyticsId) ?>" src="https://plausible.io/js/script.js"></script>
 <?php elseif ($analyticsProvider === 'fathom' && $analyticsId !== ''): ?>
-    <script src="https://cdn.usefathom.com/script.js" data-site="<?= esc($analyticsId) ?>" defer></script>
+    <script <?= csp_script_nonce() ?> src="https://cdn.usefathom.com/script.js" data-site="<?= esc($analyticsId) ?>" defer></script>
 <?php endif; ?>
 
 <?php

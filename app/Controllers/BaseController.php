@@ -41,34 +41,27 @@ abstract class BaseController extends Controller
         // Caution: Do not edit this line.
         parent::initController($request, $response, $logger);
 
-        // CMS/API is the source of truth. Keep the config list only as a
-        // safe fallback when the public API is unavailable. setLocale() and
-        // setValidLocales() only exist on IncomingRequest (not the CLI
-        // variant), so narrow the type before calling them.
+        // Locale configuration is static because routes are compiled from it
+        // during bootstrap. Do not call the CMS/API here: this controller runs
+        // for every public request, so a discovery request would add one
+        // synchronous network round trip to every page view.
         if ($request instanceof \CodeIgniter\HTTP\IncomingRequest) {
-            try {
-                $codes = \Config\Services::siteLanguageService()->getCodes();
-                if ($codes !== []) {
-                    $config = config('App');
-                    $config->supportedLocales = $codes;
-                    $default = \Config\Services::siteLanguageService()->getDefaultCode();
-                    if ($default !== null) {
-                        $config->defaultLocale = $default;
-                    }
+            $config = config('App');
+            $locales = array_values(array_filter(
+                array_map(static fn (mixed $locale): string => strtolower(trim((string) $locale)), $config->supportedLocales),
+                static fn (string $locale): bool => $locale !== '',
+            ));
 
-                    // CodeIgniter validates setLocale() against the request's
-                    // own list, which is initialized before this controller
-                    // runs. Keep that list in sync with the CMS or a dynamic
-                    // locale (for example `fr`) is silently reset to `es`.
-                    $request->setValidLocales($codes);
+            if ($locales !== []) {
+                $request->setValidLocales($locales);
 
-                    $requestedLocale = strtolower((string) $request->getUri()->getSegment(1));
-                    $request->setLocale(in_array($requestedLocale, $codes, true) ? $requestedLocale : ($default ?? $codes[0]));
-                }
-            } catch (\Throwable $exception) {
-                log_message('warning', 'Dynamic language discovery unavailable: {message}', [
-                    'message' => $exception->getMessage(),
-                ]);
+                $requestedLocale = strtolower((string) $request->getUri()->getSegment(1));
+                $defaultLocale = in_array($config->defaultLocale, $locales, true)
+                    ? $config->defaultLocale
+                    : $locales[0];
+                $request->setLocale(
+                    in_array($requestedLocale, $locales, true) ? $requestedLocale : $defaultLocale,
+                );
             }
         }
 

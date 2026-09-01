@@ -15,22 +15,7 @@ if ($logos === []) {
 
 <section class="section-sm overflow-hidden <?= esc($cssClass) ?>">
     <?php if ($isMarquee): ?>
-        <style>
-            @keyframes marquee {
-                0% { transform: translateX(0%); }
-                100% { transform: translateX(-50%); }
-            }
-            .marquee-track {
-                display: flex;
-                width: max-content;
-                animation: marquee <?= $duration ?> linear infinite;
-            }
-            .marquee-track:hover {
-                animation-play-state: paused;
-            }
-        </style>
-        
-        <div class="relative w-full overflow-hidden flex items-center py-4 mask-gradient-h">
+        <div class="relative w-full overflow-hidden flex items-center py-4 mask-gradient-h" data-marquee-speed="<?= esc($speed, 'attr') ?>">
             <!-- Fade masks for smooth edges -->
             <div class="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-slate-50 to-transparent pointer-events-none z-10"></div>
             <div class="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-slate-50 to-transparent pointer-events-none z-10"></div>
@@ -53,6 +38,9 @@ if ($logos === []) {
                                 'class'      => 'max-h-full max-w-full object-contain ' . $logoStyleClass,
                                 'attributes' => 'title="' . esc($logo['name']) . '"',
                                 'variants'   => $logo['logo']['variants'] ?? null,
+                                'preferredVariant' => 'thumb',
+                                'sizes'      => '8rem',
+                                'maxVariantWidth' => 160,
                             ], ['saveData' => false]) ?>
                         <?php else: ?>
                             <span class="text-sm font-semibold text-slate-500"><?= esc($logo['name']) ?></span>
@@ -82,6 +70,9 @@ if ($logos === []) {
                             'class'      => 'max-h-full max-w-full object-contain ' . $logoStyleClass,
                             'attributes' => 'title="' . esc($logo['name']) . '"',
                             'variants'   => $logo['logo']['variants'] ?? null,
+                            'preferredVariant' => 'thumb',
+                            'sizes'      => '8rem',
+                            'maxVariantWidth' => 160,
                         ], ['saveData' => false]) ?>
                     <?php else: ?>
                         <span class="text-sm font-semibold text-slate-500"><?= esc($logo['name']) ?></span>

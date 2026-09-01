@@ -9,9 +9,14 @@
 $slug       = $entry['slug'] ?? '';
 $title      = $entry['title'] ?? '';
 $excerpt    = $entry['excerpt'] ?? '';
-$date       = $entry['published_at'] ?? $entry['created_at'] ?? '';
-$image      = is_array($entry['featured_image'] ?? null) ? $entry['featured_image'] : [];
+$date       = $entry['display_date'] ?? $entry['published_at'] ?? $entry['created_at'] ?? '';
+$image      = is_array($entry['featured_image'] ?? null) ? $entry['featured_image'] : (is_array($entry['cover_image'] ?? null) ? $entry['cover_image'] : []);
 $imageUrl   = is_string($image['url'] ?? null) ? trim((string) $image['url']) : '';
+
+if ($imageUrl === '') {
+    // Beautiful default fallback so cards never look empty
+    $imageUrl = 'https://images.unsplash.com/photo-1544928147-79a2dbc1f389?auto=format&fit=crop&w=600&q=80';
+}
 $categories = array_slice($entry['categories'] ?? [], 0, 2);
 $entryUrl   = lang_url($collectionUrlPath . '/' . $slug);
 $readMore   = lang('Site.read_more');
@@ -21,18 +26,15 @@ $readMore   = lang('Site.read_more');
     <?php if ($imageUrl): ?>
         <a href="<?= esc($entryUrl) ?>" class="block overflow-hidden aspect-video" tabindex="-1" aria-hidden="true">
             <?= view('components/responsive-image', [
-                'src'      => $imageUrl,
-                'alt'      => $title,
-                'class'    => 'w-full h-full object-cover transition-transform duration-300 group-hover:scale-105',
-                'variants' => $image['variants'] ?? null,
+                'src'              => $imageUrl,
+                'alt'              => $title,
+                'class'            => 'w-full h-full object-cover transition-transform duration-300 group-hover:scale-105',
+                'variants'         => $image['variants'] ?? null,
+                'preferredVariant' => 'sd',
+                'sizes'            => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw',
+                'maxVariantWidth'  => 640,
             ], ['saveData' => false]) ?>
         </a>
-    <?php else: ?>
-        <div class="aspect-video bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-            <svg class="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
-            </svg>
-        </div>
     <?php endif; ?>
 
     <div class="p-5 flex flex-col flex-1">
@@ -49,7 +51,7 @@ $readMore   = lang('Site.read_more');
 
         <?php if ($date): ?>
             <p class="text-xs text-text-muted uppercase tracking-widest mb-2">
-                <?= esc(date('d M Y', strtotime($date))) ?>
+                <?= esc(format_localized_date($date, $lang)) ?>
             </p>
         <?php endif; ?>
 

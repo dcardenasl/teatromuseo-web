@@ -4,11 +4,13 @@
 $heading         = $data['heading'] ?? '';
 $subheading      = $data['subheading'] ?? '';
 $breadcrumbLabel = $data['breadcrumb_label'] ?? '';
-$breadcrumbUrl   = $data['breadcrumb_url'] ?? '/';
+$navigation      = is_array($block['navigation'] ?? null) ? $block['navigation'] : [];
+$breadcrumbUrl   = (string) ($navigation['url'] ?? '');
 // Background color is now a simple config value (e.g., 'bg-gray-100' or 'bg-slate-50')
 // Can be easily changed via the CMS config
 $bgColor         = $config['bg_color'] ?? 'bg-gray-100';
 $cssClass        = $config['css_class'] ?? '';
+$headingTag      = ($isPageHeadingOwner ?? false) ? 'h1' : 'h2';
 
 if ($heading === '') {
     return;
@@ -17,7 +19,7 @@ if ($heading === '') {
 <section class="<?= esc($bgColor) ?> py-10 sm:py-12 border-b border-slate-200 <?= esc($cssClass) ?>">
     <div class="container-base">
         <div class="max-w-4xl">
-            <?php if ($breadcrumbLabel): ?>
+            <?php if ($breadcrumbLabel && $breadcrumbUrl !== ''): ?>
                 <nav class="mb-4 flex items-center gap-2 text-sm text-slate-500" aria-label="Breadcrumb">
                     <a href="<?= esc($breadcrumbUrl) ?>" class="font-medium text-slate-600 transition-colors hover:text-primary">
                         <?= esc($breadcrumbLabel) ?>
@@ -29,9 +31,9 @@ if ($heading === '') {
                 </nav>
             <?php endif; ?>
 
-            <h1 class="section-title text-4xl sm:text-5xl">
+            <<?= $headingTag ?> class="section-title text-4xl sm:text-5xl">
                 <?= esc($heading) ?>
-            </h1>
+            </<?= $headingTag ?>>
             <?php if ($subheading): ?>
                 <p class="section-copy mt-4 max-w-2xl text-lg">
                     <?= esc($subheading) ?>

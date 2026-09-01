@@ -7,14 +7,13 @@ namespace App\Filters;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Services;
+use Throwable;
 
 /**
- * TrackingFilter — fires a non-blocking page-view event to the Domain CMS
- * after every successful page render.
- *
- * Fire-and-forget: uses cURL with a 200ms hard timeout so a slow or
- * unavailable Domain CMS never blocks the response to the visitor.
- * Lost tracking events are acceptable; blocking users is not.
+ * TrackingFilter — queues a page-view event after every successful page
+ * render. The request only performs a local atomic file write; the CMS call
+ * runs later from `php spark analytics:flush`.
  */
 class TrackingFilter implements FilterInterface
 {
@@ -32,6 +31,12 @@ class TrackingFilter implements FilterInterface
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
+        /** @var \Config\App $appConfig */
+        $appConfig = config('App');
+        if (! $appConfig->trackingEnabled) {
+            return $response;
+        }
+
         $statusCode = $response->getStatusCode();
 
         // Skip errors, redirects, and non-page responses
@@ -64,7 +69,16 @@ class TrackingFilter implements FilterInterface
 
         $payload = $this->buildPayload($request, $userAgent, $path, $uri->getQuery());
 
-        $this->dispatchAsync($payload);
+        try {
+            if (! Services::analyticsQueue()->enqueue($payload)) {
+                log_message('warning', 'Analytics event could not be written to the local queue.');
+            }
+        } catch (Throwable $exception) {
+            // Analytics must never turn into a public page failure.
+            log_message('warning', 'Could not enqueue analytics event: {message}', [
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
         return $response;
     }
@@ -225,7 +239,7 @@ class TrackingFilter implements FilterInterface
 
     private function isInternalPath(string $path): bool
     {
-        $skip = ['/health', '/ping', '/ready', '/live', '/sitemap', '/api/', '/assets/'];
+        $skip = ['/health', '/ping', '/ready', '/live', '/sitemap', '/api/', '/diagnostics/', '/assets/'];
         foreach ($skip as $prefix) {
             if (str_starts_with($path, $prefix)) {
                 return true;
@@ -235,33 +249,4 @@ class TrackingFilter implements FilterInterface
         return false;
     }
 
-    /**
-     * @param array<string, string|null> $payload
-     */
-    private function dispatchAsync(array $payload): void
-    {
-        /** @var \Config\App $appConfig */
-        $appConfig  = config('App');
-        $baseUrl    = rtrim($appConfig->webApiBaseUrl, '/');
-        $trackUrl   = $baseUrl . '/api/v1/public/track';
-        $jsonPayload = json_encode($payload) ?: '{}';
-
-        $ch = curl_init($trackUrl);
-        if ($ch === false) {
-            return;
-        }
-
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $jsonPayload,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT_MS     => 200,
-            CURLOPT_CONNECTTIMEOUT_MS => 100,
-            CURLOPT_NOSIGNAL       => true,
-        ]);
-
-        curl_exec($ch);
-        curl_close($ch);
-    }
 }

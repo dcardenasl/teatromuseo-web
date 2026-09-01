@@ -6,47 +6,22 @@ namespace App\Services;
 
 class SiteSettingsService extends BaseSiteService
 {
-    private const CACHE_TTL = 3600; // 1 hour
+    private const CACHE_TTL = 300;
 
     /**
-     * Get all public settings as a key-value array.
+     * Public reCAPTCHA site key for the given language, or '' when unset.
      *
-     * @return array<string, mixed>
+     * This is the same `settings` read the CMS layout composition uses to
+     * decide whether form_embed.php can render the widget (see
+     * FormEmbedViewModel::recaptchaSiteKey()) — FormController must check the
+     * identical condition before requiring a token, or it can demand a token
+     * the visitor was never shown a way to produce.
      */
-    public function getAll(): array
+    public function getRecaptchaSiteKey(string $lang): string
     {
-        return $this->fetchData('public/settings', [], self::CACHE_TTL, 'settings') ?? [];
-    }
+        $settings = $this->fetchData("public/{$lang}/settings", [], self::CACHE_TTL, 'settings');
+        $key      = $settings['recaptcha_site_key'] ?? '';
 
-    /**
-     * Get a single setting by key with optional default value.
-     */
-    public function get(string $key, mixed $default = null): mixed
-    {
-        $all = $this->getAll();
-
-        return $all[$key] ?? $default;
-    }
-
-    /**
-     * Get contact form defaults from public settings.
-     *
-     * @return array{
-     *     contact_admin_email: string,
-     *     contact_from_email: string,
-     *     contact_site_name: string,
-     *     contact_autoreply_message: string
-     * }
-     */
-    public function getContactDefaults(): array
-    {
-        $all = $this->getAll();
-
-        return [
-            'contact_admin_email' => (string) ($all['contact_admin_email'] ?? ''),
-            'contact_from_email' => (string) ($all['contact_from_email'] ?? ''),
-            'contact_site_name' => (string) ($all['contact_site_name'] ?? ''),
-            'contact_autoreply_message' => (string) ($all['contact_autoreply_message'] ?? ''),
-        ];
+        return is_scalar($key) ? trim((string) $key) : '';
     }
 }

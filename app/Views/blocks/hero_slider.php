@@ -3,7 +3,7 @@
  * hero_slider block — all variables prepared by HeroSliderViewModel
  * (registered in BlockRenderer::VIEW_MODELS).
  *
- * @var list<array{image: array{source_kind: string, file_id: int|null, url: string}, image_alt_text: string, heading: string, subtitle: string, cta_label: string, cta_url: string}> $slides
+ * @var list<array{image: array{source_kind: string, file_id: int|null, url: string, variants?: array<string, mixed>|null}, image_alt_text: string, heading: string, subtitle: string, cta_label: string, cta_url: string}> $slides
  * @var string $captionPosition
  * @var string $controlsPosition
  * @var string $transition
@@ -34,6 +34,7 @@ if ($slides === []) {
 // same dark tone as the rest of the page's below-hero copy.
 $captionTextColorOverlay = !empty($slides[0]['text_color']) ? $slides[0]['text_color'] : '#ffffff';
 $captionTextColorBelow   = 'rgb(15, 23, 42)';
+$headingTag = ($isPageHeadingOwner ?? false) ? 'h1' : 'h2';
 ?>
 
 <section class="py-0 <?= esc($cssClass) ?>">
@@ -48,89 +49,23 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
         data-slides='<?= esc($jsonSlides, 'attr') ?>'
         data-overlay-pct="<?= esc((string) $overlayPct) ?>"
     >
-        <style>
-            [data-hero-carousel] .hero-shell {
-                min-height: clamp(16rem, 46vw, 24rem);
-            }
-
-            @media (min-width: 640px) {
-                [data-hero-carousel] .hero-shell {
-                    min-height: clamp(20rem, 42vw, 30rem);
-                }
-            }
-
-            @media (min-width: 1024px) {
-                [data-hero-carousel] .hero-shell {
-                    min-height: clamp(24rem, 38vw, 38rem);
-                }
-            }
-
-            [data-hero-carousel] [data-hero-image] {
-                object-fit: cover;
-                object-position: center center;
-                background: transparent;
-                transform-origin: center center;
-                will-change: opacity, transform;
-            }
-
-            [data-hero-carousel] [data-hero-image].hero-carousel-image--fade {
-                animation: hero-carousel-fade-in 650ms ease both;
-            }
-
-            [data-hero-carousel] [data-hero-image].hero-carousel-image--slide {
-                animation: hero-carousel-slide-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
-            }
-
-            [data-hero-carousel] [data-hero-image].hero-carousel-image--zoom {
-                animation: hero-carousel-zoom-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
-            }
-
-            @keyframes hero-carousel-fade-in {
-                from { opacity: 0.2; }
-                to { opacity: 1; }
-            }
-
-            @keyframes hero-carousel-slide-in {
-                from { opacity: 0.45; transform: translateX(4%); }
-                to { opacity: 1; transform: translateX(0); }
-            }
-
-            @keyframes hero-carousel-zoom-in {
-                from { opacity: 0.45; transform: scale(1.08); }
-                to { opacity: 1; transform: scale(1); }
-            }
-
-            @media (prefers-reduced-motion: reduce) {
-                [data-hero-carousel] [data-hero-image] {
-                    animation: none !important;
-                    transition: none !important;
-                }
-            }
-
-            [data-hero-carousel] [data-hero-dot-fill] {
-                transform: scaleX(0);
-                transform-origin: left center;
-                transition: transform 50ms linear;
-            }
-        </style>
-
         <div
             class="hero-shell relative overflow-hidden bg-transparent"
-            style="width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);"
         >
             <?= view('components/responsive-image', [
                 'src'        => $slides[0]['image']['url'] ?? '',
                 'alt'        => $slides[0]['image_alt_text'] ?? $slides[0]['heading'] ?? '',
                 'class'      => 'absolute inset-0 h-full w-full object-cover',
                 'variants'   => $slides[0]['image']['variants'] ?? null,
-                'responsive' => false,
+                'preferredVariant' => 'lg',
+                'sizes'      => '100vw',
                 'attributes' => 'data-hero-image',
             ], ['saveData' => false]) ?>
 
             <div
                 data-hero-overlay
                 class="absolute inset-0"
-                style="background: <?= !empty($slides[0]['overlay_color']) ? esc($slides[0]['overlay_color']) : 'linear-gradient(to bottom, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 100%)' ?>;"
+                style="background: <?= !empty($slides[0]['overlay_color']) ? esc($slides[0]['overlay_color']) : 'linear-gradient(to bottom, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 0%, rgba(15, 23, 42, 0) 42%, rgba(15, 23, 42, '.number_format($overlayPct / 100, 2, '.', '').') 100%)' ?>;<?= $captionIsOverlay ? '' : ' display: none;' ?>"
             ></div>
 
             <?php if ($captionIsOverlay): ?>
@@ -138,7 +73,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                     <div class="max-w-3xl">
                         <div data-hero-caption-card class="surface-overlay rounded-2xl bg-slate-950/65 px-4 py-3 shadow-2xl shadow-slate-950/20 ring-1 ring-white/10 backdrop-blur-md sm:px-5 sm:py-4" style="color: <?= esc($captionTextColorOverlay) ?>;">
                             <?php if (($slides[0]['heading'] ?? '') !== ''): ?>
-                                <h2 data-hero-caption-title class="text-lg font-semibold tracking-tight sm:text-[1.45rem]" style="color: <?= esc($captionTextColorOverlay) ?>;"><?= esc($slides[0]['heading']) ?></h2>
+                                <<?= $headingTag ?> data-hero-caption-title class="text-lg font-semibold tracking-tight sm:text-[1.45rem]" style="color: <?= esc($captionTextColorOverlay) ?>;"><?= esc($slides[0]['heading']) ?></<?= $headingTag ?>>
                             <?php endif; ?>
                             <?php if (($slides[0]['subtitle'] ?? '') !== ''): ?>
                                 <p data-hero-caption-subtitle class="mt-1 text-sm leading-relaxed text-white/85 sm:text-base"><?= esc($slides[0]['subtitle']) ?></p>
@@ -154,10 +89,10 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
             <?php endif; ?>
 
             <a
-                href="<?= esc(lang_url($slides[0]['cta_url'] ?? '#')) ?>"
+                href="<?= esc($slides[0]['cta_url'] ?? '') ?>"
                 data-hero-link
-                class="absolute inset-0 z-10 block"
-                aria-label="<?= esc($slides[0]['heading'] ?? '') ?>"
+                class="absolute inset-0 z-10 block <?= !empty($slides[0]['cta_url']) ? '' : 'pointer-events-none' ?>"
+                <?= !empty($slides[0]['cta_url']) ? 'aria-label="' . esc($slides[0]['heading'] ?? '') . '"' : 'aria-hidden="true" tabindex="-1"' ?>
             ></a>
 
             <?php if ($controlsIsOverlay): ?>
@@ -177,7 +112,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                                     aria-label="<?= esc(lang('Site.carousel_go_to_slide', [$index + 1])) ?>"
                                 >
                                     <span data-hero-dot-visual class="flex h-2 w-2 items-stretch overflow-hidden rounded-full border border-slate-300 <?= $index === 0 ? 'bg-slate-100' : 'bg-slate-200' ?>">
-                                        <span data-hero-dot-fill class="block h-full w-full bg-slate-900" style="transform-origin:left center;"></span>
+                                        <span data-hero-dot-fill class="block h-full w-full bg-slate-900"></span>
                                     </span>
                                 </button>
                             <?php endforeach; ?>
@@ -199,7 +134,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                         <div class="max-w-2xl">
                             <div data-hero-caption-card class="px-0 py-0" style="color: <?= esc($captionTextColorBelow) ?>;">
                                 <?php if (($slides[0]['heading'] ?? '') !== ''): ?>
-                                    <h2 data-hero-caption-title class="section-title text-xl sm:text-[1.6rem]" style="color: <?= esc($captionTextColorBelow) ?>;"><?= esc($slides[0]['heading']) ?></h2>
+                                    <<?= $headingTag ?> data-hero-caption-title class="section-title text-xl sm:text-[1.6rem]" style="color: <?= esc($captionTextColorBelow) ?>;"><?= esc($slides[0]['heading']) ?></<?= $headingTag ?>>
                                 <?php endif; ?>
                                 <?php if (($slides[0]['subtitle'] ?? '') !== ''): ?>
                                     <p data-hero-caption-subtitle class="section-copy mt-1 max-w-2xl text-sm sm:text-[0.98rem]"><?= esc($slides[0]['subtitle']) ?></p>
@@ -230,7 +165,7 @@ $captionTextColorBelow   = 'rgb(15, 23, 42)';
                                             aria-label="<?= esc(lang('Site.carousel_go_to_slide', [$index + 1])) ?>"
                                         >
                                             <span data-hero-dot-visual class="flex h-2 w-2 items-stretch overflow-hidden rounded-full border border-slate-300 <?= $index === 0 ? 'bg-slate-100' : 'bg-slate-200' ?>">
-                                                <span data-hero-dot-fill class="block h-full w-full bg-slate-900" style="transform-origin:left center;"></span>
+                                                <span data-hero-dot-fill class="block h-full w-full bg-slate-900"></span>
                                             </span>
                                         </button>
                                     <?php endforeach; ?>

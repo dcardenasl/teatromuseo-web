@@ -20,8 +20,11 @@ abstract class HermeticFeatureTestCase extends CIUnitTestCase
         $config = config('App');
         $config->supportedLocales = ['es', 'en'];
         $config->defaultLocale = 'es';
+        $config->pageDeliveryMode = 'sync';
+        $config->pageDeliveryAllowSynchronousFallback = true;
+        $config->trackingEnabled = false;
         $this->domainAdapter = new DeterministicDomainAdapter();
-        Services::injectMock('webApiClient', $this->domainAdapter);
+        Services::injectMock('bffWebApiClient', $this->domainAdapter);
     }
 
     protected function locale(int $position = 0): string
@@ -36,7 +39,7 @@ abstract class HermeticFeatureTestCase extends CIUnitTestCase
         config('App')->supportedLocales = array_values($locales);
         config('App')->defaultLocale = $locales[0];
         $this->domainAdapter = new DeterministicDomainAdapter($locales);
-        Services::injectMock('webApiClient', $this->domainAdapter);
+        Services::injectMock('bffWebApiClient', $this->domainAdapter);
     }
 
     /** @return list<string> */

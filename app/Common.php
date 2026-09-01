@@ -45,6 +45,33 @@ if (! function_exists('lang_url')) {
     }
 }
 
+if (! function_exists('public_menu_item_url')) {
+    /**
+     * Render the resolved destination of a public menu item, if one exists.
+     *
+     * Menu items without a CMS destination are intentionally not links. In
+     * particular, never turn a missing URL into `#`, because that can be
+     * interpreted as a real homepage destination by the localization layer.
+     *
+     * @param array<string, mixed> $item
+     */
+    function public_menu_item_url(array $item, ?string $locale = null): ?string
+    {
+        if (($item['is_clickable'] ?? false) !== true) {
+            return null;
+        }
+
+        $url = is_scalar($item['custom_url'] ?? null)
+            ? trim((string) $item['custom_url'])
+            : '';
+        if ($url === '' || $url === '#') {
+            return null;
+        }
+
+        return lang_url($url, $locale);
+    }
+}
+
 if (! function_exists('current_lang_url')) {
     /**
      * Get the current URL in a different locale.
@@ -70,6 +97,16 @@ if (! function_exists('current_lang_url')) {
         $supportedLocales = config('App')->supportedLocales;
 
         if (!empty($segments) && in_array($segments[0], $supportedLocales, true)) {
+            $currentPath = implode('/', array_slice($segments, 1));
+            if ($currentPath === '' || \App\Support\PublicPaths::isHomepageSlug($currentPath)) {
+                $query = $uri->getQuery();
+
+                return base_url(
+                    '/' . $locale . \App\Support\PublicPaths::homepagePath($locale)
+                    . ($query !== '' ? '?' . $query : ''),
+                );
+            }
+
             $segments[0] = $locale;
         } else {
             array_unshift($segments, $locale);
@@ -211,6 +248,16 @@ if (! function_exists('localized_collection_url_path')) {
      */
     function localized_collection_url_path(array $collection, string $locale): string
     {
+        $collectionKey = strtolower(trim((string) ($collection['collection_key'] ?? ''), '/'));
+        $domainRoutePath = match ($collectionKey) {
+            'cartelera', 'events', 'eventos' => \App\Support\PublicPaths::eventsSegment($locale),
+            'museo', 'catalogo', 'catalog', 'fichas', 'collection_items' => \App\Support\PublicPaths::catalogSegment($locale),
+            default => null,
+        };
+        if ($domainRoutePath !== null) {
+            return '/' . trim($domainRoutePath, '/');
+        }
+
         $indexPage = $collection['index_page'] ?? null;
         if (is_array($indexPage)) {
             $localizedSlugs = $indexPage['localized_slugs'] ?? [];
@@ -260,7 +307,33 @@ if (! function_exists('localized_entry_urls')) {
     function localized_entry_urls(array $collection, array $entry): array
     {
         $urls = [];
-        $localizedSlugs = is_array($entry['localized_slugs'] ?? null) ? $entry['localized_slugs'] : [];
+        $localizedSlugs = [];
+        foreach (['slugs', 'localized_slugs'] as $field) {
+            if (! is_array($entry[$field] ?? null)) {
+                continue;
+            }
+
+            foreach ($entry[$field] as $locale => $slug) {
+                if (is_scalar($slug) && trim((string) $slug, '/') !== '') {
+                    $localizedSlugs[(string) $locale] = trim((string) $slug, '/');
+                }
+            }
+        }
+
+        // Some public readers expose translations instead of a compact slug
+        // map. Accept that shape too so language links remain driven by the
+        // configured per-locale slug rather than the current request slug.
+        foreach (is_array($entry['translations'] ?? null) ? $entry['translations'] : [] as $translation) {
+            if (! is_array($translation)) {
+                continue;
+            }
+
+            $locale = (string) ($translation['language_code'] ?? $translation['locale'] ?? $translation['lang'] ?? '');
+            $slug = trim((string) ($translation['slug'] ?? ''), '/');
+            if ($locale !== '' && $slug !== '' && ! isset($localizedSlugs[$locale])) {
+                $localizedSlugs[$locale] = $slug;
+            }
+        }
 
         foreach (config('App')->supportedLocales as $locale) {
             $collectionPath = localized_collection_url_path($collection, $locale);
@@ -277,6 +350,59 @@ if (! function_exists('localized_entry_urls')) {
         }
 
         return $urls;
+    }
+}
+
+if (! function_exists('localized_date_intl_locale')) {
+    /**
+     * Maps a page language code to the ICU locale used for date formatting.
+     * Shared by `format_localized_date()` below and
+     * `App\ViewModels\Blocks\Concerns\FormatsLocalizedDateTime` so both stay
+     * in sync from a single source.
+     */
+    function localized_date_intl_locale(string $lang): string
+    {
+        return match ($lang) {
+            'en' => 'en_US',
+            'fr' => 'fr_FR',
+            'pt' => 'pt_PT',
+            default => 'es_ES',
+        };
+    }
+}
+
+if (! function_exists('format_localized_date')) {
+    /**
+     * Locale-aware, date-only display string (day + month name + year, no time
+     * component) for entry cards and listings. PHP's `date()` always renders
+     * English month names regardless of the page language — this formats
+     * through `IntlDateFormatter` so "04 Aug 2026" reads as "4 ago 2026" on a
+     * Spanish page, "4 août 2026" on a French one, etc.
+     */
+    function format_localized_date(string $value, string $lang): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return '';
+        }
+
+        if (class_exists(\IntlDateFormatter::class)) {
+            $formatter = new \IntlDateFormatter(
+                localized_date_intl_locale($lang),
+                \IntlDateFormatter::MEDIUM,
+                \IntlDateFormatter::NONE,
+            );
+            $formatted = $formatter->format($timestamp);
+            if (is_string($formatted) && $formatted !== '') {
+                return $formatted;
+            }
+        }
+
+        return date('d-m-Y', $timestamp);
     }
 }
 
@@ -385,7 +511,6 @@ if (! function_exists('cms_block_preview_samples')) {
                 'section_title' => 'Contenido destacado',
                 'section_subtitle' => 'Últimas publicaciones de la colección seleccionada.',
                 'view_all_label' => 'Ver todo',
-                'view_all_url' => '/coleccion',
                 'empty_message' => 'No hay contenido publicado por el momento.',
             ],
             'collection_listing' => [
@@ -406,6 +531,45 @@ if (! function_exists('cms_block_preview_samples')) {
                 'video_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
                 'heading' => 'Video de Presentación de Ejemplo',
             ],
+            'compania_ficha' => [
+                'name' => 'Compañía de ejemplo',
+                'summary' => 'Colectivo artístico de referencia.',
+            ],
+            'persona_ficha' => [
+                'name' => 'Persona de ejemplo',
+                'role' => 'Dirección artística',
+            ],
+            'obra_ficha' => [
+                'subtitle' => 'Pieza escénica de ejemplo',
+                'synopsis' => '<p>Sinopsis breve de la obra.</p>',
+                'duration' => '90 min',
+            ],
+            'video_ficha' => [
+                'provider' => 'youtube',
+                'video_id' => 'example',
+            ],
+            'festival_ficha' => [
+                'edition' => 'Edición de ejemplo',
+                'venue' => 'Teatro Museo',
+                'status' => 'upcoming',
+            ],
+            'exposicion_ficha' => [
+                'venue' => 'Sala de exposiciones',
+                'description' => '<p>Descripción breve de la exposición.</p>',
+            ],
+            'teatroescuela_ficha' => [
+                'modality' => 'presencial',
+                'schedule' => 'Sábados, 10:00–13:00',
+                'venue' => 'Teatro Museo',
+                'capacity' => 20,
+            ],
+            'publicacion_metadata' => [
+                'publication_type' => 'editorial',
+                'publisher' => 'TeatroMuseo',
+            ],
+            'related_entries' => [
+                'relation_type' => 'related',
+            ],
             'alert' => [
                 'title' => 'Aviso Importante',
                 'message' => '<p>Este es un mensaje de alerta de ejemplo para mostrar cómo se ve el diseño en tu sitio público.</p>',
@@ -414,7 +578,6 @@ if (! function_exists('cms_block_preview_samples')) {
                 'heading' => 'Contact Us',
                 'subheading' => 'We\'d love to hear from you',
                 'breadcrumb_label' => 'Home',
-                'breadcrumb_url' => '/',
             ],
             'contact_info' => [
                 'section_title' => 'Contacto',
@@ -454,5 +617,21 @@ if (! function_exists('cms_block_preview_sample')) {
     function cms_block_preview_sample(string $blockKey): array
     {
         return cms_block_preview_samples()[$blockKey] ?? [];
+    }
+}
+
+if (! function_exists('csp_style_nonce')) {
+    /**
+     * Generates a nonce attribute for style tag.
+     */
+    function csp_style_nonce(): string
+    {
+        $csp = service('csp');
+
+        if (! $csp->enabled()) {
+            return '';
+        }
+
+        return 'nonce="' . $csp->getStyleNonce() . '"';
     }
 }

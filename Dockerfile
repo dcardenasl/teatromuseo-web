@@ -44,6 +44,14 @@ WORKDIR /var/www/html
 
 COPY --from=composer-build /app /var/www/html
 COPY --from=asset-build /app/public/assets /var/www/html/public/assets
+COPY --from=composer-build /usr/bin/composer /usr/local/bin/composer
+
+# The dependency stage is intentionally isolated from the runtime image. This
+# final check validates the actual PHP 8.2 image and its installed extensions,
+# so --ignore-platform-reqs in the composer stage cannot hide a production
+# incompatibility.
+RUN composer check-platform-reqs --no-dev \
+    && rm /usr/local/bin/composer
 
 RUN mkdir -p writable/cache writable/logs writable/session writable/uploads writable/debugbar writable/htmlpurifier \
     && chown -R www-data:www-data /var/www/html \

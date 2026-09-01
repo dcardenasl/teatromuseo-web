@@ -34,16 +34,28 @@ $shellClass = $presentationMode === 'inline_preview'
 
 $showInlinePreview = $presentationMode === 'inline_preview';
 $showModalPreview = $presentationMode === 'modal_preview';
+$title = trim((string) ($data['title'] ?? ''));
+$description = trim((string) ($data['description'] ?? ''));
 $openImageLabel = lang('Site.gallery_open_image');
 $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
 ?>
 
-<div
+<section
     data-gallery-root
     data-gallery-id="<?= esc($galleryId) ?>"
     data-gallery-mode="<?= esc($presentationMode) ?>"
     class="<?= esc($shellClass) ?> <?= esc($cssClass) ?>"
 >
+    <?php if ($title !== '' || $description !== ''): ?>
+        <header class="mb-6 max-w-3xl">
+            <?php if ($title !== ''): ?>
+                <h2 class="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl"><?= esc($title) ?></h2>
+            <?php endif; ?>
+            <?php if ($description !== ''): ?>
+                <p class="mt-2 text-base leading-7 text-slate-600"><?= esc($description) ?></p>
+            <?php endif; ?>
+        </header>
+    <?php endif; ?>
     <?php if ($showInlinePreview): ?>
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
             <div class="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
@@ -89,83 +101,86 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
             role="dialog"
             aria-modal="true"
             aria-hidden="true"
-            class="fixed inset-0 z-[100] hidden flex-col bg-black/95 p-2 text-white select-none sm:p-4 md:p-8"
+            class="fixed inset-0 z-[100] hidden overflow-hidden bg-slate-950/95 text-white select-none"
         >
-            <!-- Close button (top-right) -->
-            <div class="flex justify-end flex-shrink-0">
-                <button
-                    type="button"
-                    data-gallery-close
-                    class="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
-                    aria-label="<?= esc(lang('Site.gallery_close_modal')) ?>"
-                    title="<?= esc(lang('Site.gallery_close_modal')) ?> (Esc)"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Image and navigation -->
-            <div class="flex flex-1 items-center justify-between gap-2 sm:gap-3 md:gap-4 min-h-0 overflow-hidden">
-                <!-- Prev button -->
-                <button
-                    type="button"
-                    data-gallery-prev
-                    class="shrink-0 rounded-full bg-white/10 p-2 sm:p-3 text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50"
-                    aria-label="<?= esc(lang('Site.gallery_previous')) ?>"
-                    title="<?= esc(lang('Site.gallery_previous')) ?> (←)"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-
-                <!-- Image container -->
-                <div class="relative flex-1 flex items-center justify-center min-h-0 min-w-0">
-                    <img
-                        data-gallery-modal-image
-                        src=""
-                        alt=""
-                        class="max-h-full max-w-full object-contain rounded shadow-2xl transition-all duration-300"
-                        decoding="async"
-                        onerror="this.classList.add('opacity-50'); this.alt='<?= esc(lang('Site.image_failed_to_load')) ?>';"
+            <div class="relative z-10 flex h-full min-h-0 flex-col p-3 sm:p-4 md:p-6">
+                <!-- Close button (top-right) -->
+                <div class="flex shrink-0 justify-end">
+                    <button
+                        type="button"
+                        data-gallery-close
+                        class="rounded-full bg-white/10 p-3 text-white shadow-lg shadow-black/30 backdrop-blur-sm transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                        aria-label="<?= esc(lang('Site.gallery_close_modal')) ?>"
+                        title="<?= esc(lang('Site.gallery_close_modal')) ?> (Esc)"
                     >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
-                <!-- Next button -->
-                <button
-                    type="button"
-                    data-gallery-next
-                    class="shrink-0 rounded-full bg-white/10 p-2 sm:p-3 text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50"
-                    aria-label="<?= esc(lang('Site.gallery_next')) ?>"
-                    title="<?= esc(lang('Site.gallery_next')) ?> (→)"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Caption and metadata (bottom) -->
-            <div class="flex-shrink-0 mx-auto max-w-2xl space-y-2 p-2 sm:p-4 text-center text-white/90 w-full">
-                <p data-gallery-modal-caption class="text-sm sm:text-base font-medium md:text-lg truncate text-white/90"></p>
-                <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-                    <p data-gallery-modal-counter class="text-xs text-white/50 flex-shrink-0"></p>
-                    <a
-                        data-gallery-modal-link
-                        href="#"
-                        class="hidden rounded-full bg-white/15 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-white transition-colors hover:bg-white/25 flex-shrink-0"
+                <!-- Image and navigation -->
+                <div class="flex min-h-0 flex-1 items-center justify-between gap-2 overflow-hidden sm:gap-4 md:gap-6">
+                    <!-- Prev button -->
+                    <button
+                        type="button"
+                        data-gallery-prev
+                        class="shrink-0 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:opacity-50 sm:p-3"
+                        aria-label="<?= esc(lang('Site.gallery_previous')) ?>"
+                        title="<?= esc(lang('Site.gallery_previous')) ?> (←)"
                     >
-                        <?= esc(lang('Site.gallery_view_page')) ?>
-                    </a>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+
+                    <!-- Image container -->
+                    <div class="relative flex h-full min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
+                        <img
+                            data-gallery-modal-image
+                            src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+                            alt=""
+                            class="max-h-full max-w-full rounded-lg object-contain shadow-2xl transition-all duration-300"
+                            data-image-fallback="fail"
+                            data-image-fallback-alt="<?= esc(lang('Site.image_failed_to_load'), 'attr') ?>"
+                            decoding="async"
+                        >
+                    </div>
+
+                    <!-- Next button -->
+                    <button
+                        type="button"
+                        data-gallery-next
+                        class="shrink-0 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:opacity-50 sm:p-3"
+                        aria-label="<?= esc(lang('Site.gallery_next')) ?>"
+                        title="<?= esc(lang('Site.gallery_next')) ?> (→)"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Caption and metadata (bottom) -->
+                <div class="mx-auto w-full max-w-3xl shrink-0 space-y-2 p-2 text-center text-white/90 sm:p-3">
+                    <p data-gallery-modal-caption class="truncate text-sm font-medium text-white/90 sm:text-base md:text-lg"></p>
+                    <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                        <p data-gallery-modal-counter class="shrink-0 text-xs text-white/50"></p>
+                        <a
+                            data-gallery-modal-link
+                            href="#"
+                            class="hidden shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/25 sm:px-4 sm:py-2"
+                        >
+                            <?= esc(lang('Site.gallery_view_page')) ?>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     <?php endif; ?>
-</div>
+</section>
 
-<script>
+<script <?= csp_script_nonce() ?>>
 (function () {
     const root = document.querySelector('[data-gallery-id="<?= esc($galleryId) ?>"]');
     if (!root || root.dataset.galleryInitialized === '1') {
@@ -194,6 +209,9 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
 
         return {
             url: item.dataset.galleryUrl || '',
+            previewUrl: item.dataset.galleryPreviewUrl || item.dataset.galleryUrl || '',
+            previewSrcset: item.dataset.galleryPreviewSrcset || '',
+            previewSizes: item.dataset.galleryPreviewSizes || '',
             alt: item.dataset.galleryAlt || '',
             caption: item.dataset.galleryCaption || '',
             linkUrl: item.dataset.galleryLinkUrl || '',
@@ -275,7 +293,16 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
             previewActiveClasses.forEach((className) => item.classList.toggle(className, itemIndex === index));
         });
 
-        previewImage.src = data.url;
+        if (data.previewSrcset) {
+            previewImage.srcset = data.previewSrcset;
+            if (data.previewSizes) {
+                previewImage.sizes = data.previewSizes;
+            }
+        } else {
+            previewImage.removeAttribute('srcset');
+            previewImage.removeAttribute('sizes');
+        }
+        previewImage.src = data.previewUrl;
         previewImage.alt = data.alt || '';
         previewImage.classList.remove('hidden');
         previewEmpty.classList.add('hidden');
@@ -304,13 +331,16 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
     }
 
     const modal = root.querySelector('[data-gallery-modal]');
-    const modalImage = root.querySelector('[data-gallery-modal-image]');
-    const modalCaption = root.querySelector('[data-gallery-modal-caption]');
-    const modalCounter = root.querySelector('[data-gallery-modal-counter]');
-    const modalLink = root.querySelector('[data-gallery-modal-link]');
-    const closeButton = root.querySelector('[data-gallery-close]');
-    const prevButton = root.querySelector('[data-gallery-prev]');
-    const nextButton = root.querySelector('[data-gallery-next]');
+    if (modal) {
+        document.body.appendChild(modal);
+    }
+    const modalImage = modal ? modal.querySelector('[data-gallery-modal-image]') : null;
+    const modalCaption = modal ? modal.querySelector('[data-gallery-modal-caption]') : null;
+    const modalCounter = modal ? modal.querySelector('[data-gallery-modal-counter]') : null;
+    const modalLink = modal ? modal.querySelector('[data-gallery-modal-link]') : null;
+    const closeButton = modal ? modal.querySelector('[data-gallery-close]') : null;
+    const prevButton = modal ? modal.querySelector('[data-gallery-prev]') : null;
+    const nextButton = modal ? modal.querySelector('[data-gallery-next]') : null;
     let activeIndex = 0;
 
     const renderModal = (index) => {
@@ -320,6 +350,7 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
         }
 
         activeIndex = index;
+        modalImage.classList.remove('opacity-50');
         modalImage.src = data.url;
         modalImage.alt = data.alt || '';
         modalCaption.textContent = data.caption || '';
@@ -410,10 +441,13 @@ $openImageCaptionLabel = lang('Site.gallery_open_image_caption');
     prevButton?.addEventListener('click', () => step(-1));
     nextButton?.addEventListener('click', () => step(1));
 
+    const modalInteractiveSelector = '[data-gallery-modal-image], [data-gallery-close], [data-gallery-prev], [data-gallery-next], [data-gallery-modal-link]';
     modal?.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            closeModal();
+        if (!(event.target instanceof Element) || event.target.closest(modalInteractiveSelector)) {
+            return;
         }
+
+        closeModal();
     });
 
     document.addEventListener('keydown', (event) => {

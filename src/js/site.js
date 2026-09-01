@@ -12,6 +12,9 @@ import { initMetricsCounters } from './components/metricsCounter.js';
 import { initVideoPlayers } from './components/videoPlayer.js';
 import { initCollectionFilters } from './components/collectionFilters.js';
 import { initShareButtons } from './components/shareButtons.js';
+import { initCollectionVideoPlayers } from './components/collectionVideoPlayers.js';
+import { initImageFallbacks } from './components/imageFallbacks.js';
+import { initPublicForms } from './components/publicForms.js';
 
 const boot = () => {
   initMobileDrawer();
@@ -21,6 +24,9 @@ const boot = () => {
   initVideoPlayers();
   initCollectionFilters();
   initShareButtons();
+  initCollectionVideoPlayers();
+  initImageFallbacks();
+  initPublicForms();
 };
 
 if (document.readyState === 'loading') {

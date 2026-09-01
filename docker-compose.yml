@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ci4-web-app
+    restart: unless-stopped
+    ports:
+      - "8184:80"
+    environment:
+      - CI_ENVIRONMENT=${CI_ENVIRONMENT:-development}
+    volumes:
+      - ./writable:/var/www/html/writable
+    networks:
+      - ci4-web-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+
+networks:
+  ci4-web-network:
+    driver: bridge
+    name: ci4-web-network

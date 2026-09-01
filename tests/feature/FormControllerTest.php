@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Services\SiteFormService;
+use App\Services\SiteSettingsService;
+use CodeIgniter\Security\Exceptions\SecurityException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\Mock\MockCache;
+use CodeIgniter\Test\TestResponse;
 use Config\Services;
 
 /**
@@ -17,21 +20,45 @@ final class FormControllerTest extends CIUnitTestCase
 {
     use FeatureTestTrait;
 
+    private string $csrfToken;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         Services::resetSingle('siteFormService');
+        Services::resetSingle('siteSettingsService');
         Services::resetSingle('cache');
+        Services::resetSingle('security');
+        $_COOKIE = [];
+        service('superglobals')->setCookieArray([]);
+        $this->csrfToken = bin2hex(random_bytes(16));
+
+        // No test exercises the real Domain settings lookup — default to "no
+        // reCAPTCHA site key configured" so has_captcha alone never blocks a
+        // submission. mockRecaptchaSiteKey() overrides this per test.
+        $this->mockRecaptchaSiteKey('');
     }
 
     protected function tearDown(): void
     {
         Services::resetSingle('siteFormService');
+        Services::resetSingle('siteSettingsService');
         Services::resetSingle('cache');
+        Services::resetSingle('security');
+        $_COOKIE = [];
+        service('superglobals')->setCookieArray([]);
         $this->disableThrottleInTests();
 
         parent::tearDown();
+    }
+
+    private function mockRecaptchaSiteKey(string $siteKey): void
+    {
+        $settingsService = $this->createMock(SiteSettingsService::class);
+        $settingsService->method('getRecaptchaSiteKey')->willReturn($siteKey);
+
+        Services::injectMock('siteSettingsService', $settingsService);
     }
 
     public function testHoneypotFilledRedirectsSilentlyWithoutSubmitting(): void
@@ -54,8 +81,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email'   => 'bot@example.com',
                 'website' => 'https://spam.example',
             ]);
@@ -66,6 +92,8 @@ final class FormControllerTest extends CIUnitTestCase
 
     public function testSubmitValidationFailsWhenCaptchaIsRequiredButMissing(): void
     {
+        $this->mockRecaptchaSiteKey('test-site-key');
+
         $formService = $this->createMock(SiteFormService::class);
         $formService->expects($this->once())
             ->method('getDefinition')
@@ -85,14 +113,58 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email' => 'ada@example.com',
             ]);
 
         $result->assertStatus(302);
         $errors = session()->getFlashdata('form_errors_contact');
         $this->assertArrayHasKey('_captcha', $errors);
+    }
+
+    /**
+     * A form can have has_captcha=true in the Domain while the site-wide
+     * recaptcha_site_key setting is unset. form_embed.php never renders the
+     * widget in that case (FormEmbedViewModel::recaptchaSiteKey()), so a
+     * visitor has no way to produce a token — the submission must still go
+     * through instead of demanding input the page never offered.
+     */
+    public function testSubmitDoesNotRequireCaptchaWhenSiteKeyIsNotConfigured(): void
+    {
+        $this->mockRecaptchaSiteKey('');
+
+        $formService = $this->createMock(SiteFormService::class);
+        $formService->expects($this->once())
+            ->method('getDefinition')
+            ->with('es', 'contact')
+            ->willReturn([
+                'form_key'    => 'contact',
+                'has_captcha' => 1,
+                'fields'      => [
+                    [
+                        'field_key'   => 'email',
+                        'field_type'  => 'email',
+                        'is_required' => 1,
+                    ],
+                ],
+            ]);
+        $formService->expects($this->once())
+            ->method('submit')
+            ->with('contact', ['email' => 'ada@example.com'], null)
+            ->willReturn([
+                'ok'       => true,
+                'id'       => 123,
+                'messages' => [],
+            ]);
+
+        Services::injectMock('siteFormService', $formService);
+
+        $result = $this->postForm('forms/contact/submit', [
+                'email' => 'ada@example.com',
+            ]);
+
+        $result->assertStatus(302);
+        $this->assertTrue(session()->getFlashdata('form_sent_contact'));
     }
 
     public function testSubmitValidationFailsWhenRequiredFieldIsEmpty(): void
@@ -115,8 +187,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'name' => '',
             ]);
 
@@ -146,8 +217,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email' => 'not-an-email',
             ]);
 
@@ -197,8 +267,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'name'  => 'Ada Lovelace',
                 'email' => 'ada@example.com',
             ]);
@@ -236,8 +305,7 @@ final class FormControllerTest extends CIUnitTestCase
 
         Services::injectMock('siteFormService', $formService);
 
-        $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-            ->post('forms/contact/submit', [
+        $result = $this->postForm('forms/contact/submit', [
                 'email'                => 'Ada@Example.com',
                 'g_recaptcha_response' => 'captcha-token',
             ]);
@@ -276,14 +344,69 @@ final class FormControllerTest extends CIUnitTestCase
 
         $result = null;
         for ($i = 0; $i < 11; $i++) {
-            $result = $this->withHeaders(['Referer' => 'http://localhost:8186/contacto'])
-                ->post('forms/contact/submit', [
-                    'email' => "ada{$i}@example.com",
-                ]);
+            $result = $this->postForm('forms/contact/submit', [
+                        'email' => "ada{$i}@example.com",
+                    ]);
         }
 
         $this->assertNotNull($result);
         $result->assertStatus(429);
+    }
+
+    public function testSubmitRejectsMissingCsrfBeforeLoadingFormDefinition(): void
+    {
+        $formService = $this->createMock(SiteFormService::class);
+        $formService->expects($this->never())->method('getDefinition');
+        Services::injectMock('siteFormService', $formService);
+
+        $this->expectException(SecurityException::class);
+
+        $result = $this->withHeaders(['Referer' => 'http://localhost:8184/contacto'])
+            ->post('forms/contact/submit', ['email' => 'ada@example.com']);
+    }
+
+    public function testSubmitRejectsMismatchedCsrfBeforeLoadingFormDefinition(): void
+    {
+        $formService = $this->createMock(SiteFormService::class);
+        $formService->expects($this->never())->method('getDefinition');
+        Services::injectMock('siteFormService', $formService);
+
+        $securityConfig = config('Security');
+        $_COOKIE[$securityConfig->cookieName] = $this->csrfToken;
+        service('superglobals')->setCookieArray($_COOKIE);
+        Services::resetSingle('incomingrequest');
+        Services::resetSingle('security');
+
+        $this->expectException(SecurityException::class);
+
+        $result = $this->withHeaders([
+            'Referer'                  => 'http://localhost:8184/contacto',
+            $securityConfig->headerName => bin2hex(random_bytes(16)),
+        ])->post('forms/contact/submit', ['email' => 'ada@example.com']);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function postForm(string $path, array $params): TestResponse
+    {
+        $securityConfig = config('Security');
+        $_COOKIE[$securityConfig->cookieName] = $this->csrfToken;
+        service('superglobals')->setCookieArray($_COOKIE);
+        Services::resetSingle('incomingrequest');
+        Services::resetSingle('security');
+
+        $result = $this->withHeaders([
+            'Referer'                  => 'http://localhost:8184/contacto',
+            $securityConfig->headerName => $this->csrfToken,
+        ])->post($path, $params);
+
+        $rotatedCookie = $result->response()->getCookie($securityConfig->cookieName);
+        if ($rotatedCookie !== null) {
+            $this->csrfToken = $rotatedCookie->getValue();
+        }
+
+        return $result;
     }
 
     private function enableThrottleInTests(): void

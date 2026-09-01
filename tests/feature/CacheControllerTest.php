@@ -95,9 +95,36 @@ final class CacheControllerTest extends CIUnitTestCase
             ->post('cache/invalidate', ['scopes' => ['pages']]);
 
         $result->assertStatus(200);
-        $result->assertJSONFragment(['ok' => true, 'invalidated' => ['pages']]);
+        $result->assertJSONFragment(['ok' => true, 'invalidated' => ['pages', 'page-resolve']]);
         $this->assertNull($cache->get('web_api_v4_pages_abc'));
         $this->assertNull($cache->get('web_api_stale_v4_pages_abc'));
         $this->assertNotNull($cache->get('web_api_v4_menus_xyz'));
+    }
+
+    public function testStatusRequiresTheSharedKey(): void
+    {
+        $this->setInvalidateKey(self::VALID_KEY);
+
+        $result = $this->get('cache/status');
+
+        $result->assertStatus(401);
+    }
+
+    public function testStatusReportsTheLastInvalidation(): void
+    {
+        $this->setInvalidateKey(self::VALID_KEY);
+
+        $result = $this->withHeaders(['X-Invalidate-Key' => self::VALID_KEY])
+            ->withBodyFormat('json')
+            ->post('cache/invalidate', ['scopes' => ['pages']]);
+
+        $result->assertStatus(200);
+
+        $status = $this->withHeaders(['X-Invalidate-Key' => self::VALID_KEY])->get('cache/status');
+        $status->assertStatus(200);
+        $payload = json_decode((string) $status->getJSON(), true);
+        $this->assertIsArray($payload);
+        $this->assertSame('remote', $payload['data']['last_invalidation_source'] ?? null);
+        $this->assertSame(['pages', 'page-resolve'], $payload['data']['last_invalidation_scopes'] ?? null);
     }
 }

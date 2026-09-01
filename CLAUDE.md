@@ -10,7 +10,7 @@ generated browser assets.
 ```bash
 cd /Users/davidcardenas/Developer/PHP/ci4-website-starter/ci4-website-builder-web
 
-php spark serve --port 8186
+php spark serve --port 8184
 npm run dev:css
 npm run dev:js
 ```
@@ -42,11 +42,13 @@ The root `pre-commit` hook runs PHP formatting checks and PHPStan. Husky runs
 
 Key environment variables:
 
-- `app.baseURL=http://localhost:8186/`
+- `app.baseURL=http://localhost:8184/`
 - `app.defaultLocale=es`
-- `WEB_API_BASE_URL=http://localhost:8190`
-- `WEB_API_KEY=web_api_test_key`
-- `WEB_API_TIMEOUT=15`
+- `BFF_API_BASE_URL=http://localhost:8188`
+- `BFF_API_KEY=<registered BFF application key>`
+- `WEB_TRACKING_API_BASE_URL=http://localhost:8190` (analytics writes only)
+- `WEB_API_KEY=web_api_test_key` (analytics write key only)
+- `WEB_API_TIMEOUT=5`
 - `WEB_API_STALE_TTL=86400`
 - `CACHE_INVALIDATE_KEY=<strong-secret>`
 - `cache.handler=file`
@@ -54,6 +56,11 @@ Key environment variables:
 `CACHE_INVALIDATE_KEY` is mandatory in production. The cache invalidation
 endpoint returns `500` when it is unset, `401` for bad keys, and `422` for empty
 scope lists.
+
+`BLOCK_PREVIEW_KEY` is optional (recommended in production): while unset,
+`/blocks/preview` stays open, mitigated only by `throttle:10,60` — set it, and
+the matching value in `teatromuseo-admin`'s own `BLOCK_PREVIEW_KEY`, to require
+`X-Block-Preview-Key` on every call.
 
 `app.defaultLocale` must match an active CMS language and a localized `home`
 page. It is static CI4 routing configuration, not discovered from Domain.
@@ -63,10 +70,46 @@ page. It is static CI4 routing configuration, not discovered from Domain.
 - Controllers stay thin and call `Config\Services`.
 - `PageController::resolve()` resolves dynamic paths in this order:
   collection prefix/index, collection entry, CMS page, redirect, 404.
+- Production public delivery is snapshot-first for the explicit manifest;
+  synchronous BFF composition is reserved for local development, preview and
+  controlled warm-up. Do not enable synchronous fallback on the production
+  visitor path unless the snapshot backend is intentionally being recovered.
 - `FormController` validates required/email fields, honeypot, and required
   CAPTCHA tokens before submitting to Domain.
 - Public POST routes (`forms/*/submit`, `cache/invalidate`) use
   `throttle:10,60`. GET pages are not throttled, so crawlers are not penalized.
+
+## CSRF On A Fully-Cached Public Site
+
+Form-submission routes (`forms/(:segment)/submit`, localized and not) carry
+the native CI4 `csrf` filter. Nothing else does — do not add it globally.
+
+The site relies on full-page HTML caching (`pagecache`, `WEB_PAGE_CACHE_TTL`),
+so a token rendered server-side into cached HTML would be shared by every
+visitor who hits that cache entry (useless as protection, and it would break
+real submissions once the token no longer matches CI4's regenerated hash).
+The fix is a double-submit-cookie pattern instead of `csrf_field()`:
+
+- `App\Filters\CsrfCookieFilter` is a **required `after` filter that must run
+  after `pagecache`** in `app/Config/Filters.php` (`pagecache` snapshots the
+  response before this filter adds the cookie, so the cookie is never baked
+  into the cached copy). It mirrors CI4's native `HttpOnly` CSRF cookie into a
+  second, JS-readable cookie holding the exact same token — never a
+  separately generated one.
+- Never call `csrf_field()`/`csrf_hash()` in a view that can be served from
+  page cache. If a new form needs CSRF, read the token client-side from the
+  mirror cookie (see `src/js/components/publicForms.js`) and send it as the
+  `X-CSRF-TOKEN` header on submit — do not render it into the HTML.
+- Cookie names use the `__Host-` prefix in production (`Config\Security.php`),
+  which requires `Secure`, `Path=/`, and no `Domain` attribute — changing any
+  of those three silently breaks cookie delivery in production, so keep them
+  in sync if you touch `Config\Cookie.php`.
+
+Regression coverage: `tests/unit/Config/FiltersTest.php` (filter order),
+`tests/unit/Filters/CsrfCookieFilterTest.php` (cookie mirrors the native
+token), `tests/feature/CsrfCacheIntegrationTest.php` (token never leaks into
+the cached response), `tests/feature/FormControllerTest.php` (missing/wrong
+token rejected).
 
 ## API Client And Services
 
@@ -89,13 +132,15 @@ arrays/null, and do not throw for upstream failures.
 In tests, inject a fake client with:
 
 ```php
-Services::injectMock('webApiClient', $fake);
+Services::injectMock('bffWebApiClient', $fake);
 ```
 
 ## Cache Invalidation
 
 `CacheInvalidator` accepts known scopes only and deletes keys matching
 `web_api_*_{scope}_*`, which purges fresh and stale entries together.
+Current public scopes include `events`, `collection_items`, `categories`, and
+`techniques` in addition to the CMS scopes.
 
 Webhook:
 
@@ -104,8 +149,12 @@ POST /cache/invalidate
 X-Invalidate-Key: <CACHE_INVALIDATE_KEY>
 Content-Type: application/json
 
-{"scopes":["pages","entries"]}
+{"scopes":["pages","entries","events","collection_items","categories","techniques"],"locales":["es"],"routes":["home"]}
 ```
+
+`locales` and `routes` are optional narrowing filters for public snapshot
+invalidation. Invalidation marks the active snapshot stale; it does not delete
+the last good pointer before a replacement is built.
 
 ## Block Rendering
 
@@ -165,7 +214,7 @@ Generated `site.js` should keep its banner:
 
 ## Manual Smoke Checks
 
-With Domain on `8190` and Web on `8186`, verify:
+With Domain on `8190` and Web on `8184`, verify:
 
 - localized home page;
 - collection index;

@@ -55,6 +55,9 @@ $galleryId = uniqid('video_gal_');
                                 'alt'      => $video['title'],
                                 'class'    => 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-500',
                                 'variants' => $video['poster']['variants'] ?? null,
+                                'preferredVariant' => 'sd',
+                                'sizes'    => '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw',
+                                'maxVariantWidth' => 640,
                             ], ['saveData' => false]) ?>
                             <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/30 transition-colors duration-300 flex items-center justify-center">
                                 <span class="flex items-center justify-center w-12 h-12 rounded-full bg-white text-violet-600 shadow-md group-hover:scale-110 group-hover:bg-violet-600 group-hover:text-white transition-all duration-300">
@@ -135,7 +138,7 @@ $galleryId = uniqid('video_gal_');
     </div>
 </section>
 
-<script>
+<script <?= csp_script_nonce() ?>>
 (function() {
     const root = document.querySelector('[data-video-gallery-id="<?= $galleryId ?>"]');
     if (!root) return;

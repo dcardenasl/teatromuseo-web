@@ -22,15 +22,20 @@
  */
 
 // Flash data keyed by form_key so multiple forms on the same page don't collide.
-// Session state is render-time only, so it stays in the view, not the view model.
-$sent   = session()->getFlashdata("form_sent_{$formKey}");
-$errors = (array) (session()->getFlashdata("form_errors_{$formKey}") ?? []);
+// Do not start a session for anonymous GETs: only a redirect from a form POST
+// can create the cookie that makes these values available.
+$session = \App\Support\PublicSession::current();
+$sent   = $session?->getFlashdata("form_sent_{$formKey}");
+$errors = (array) ($session?->getFlashdata("form_errors_{$formKey}") ?? []);
 
 $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && ($infoEmailLabel !== '' || $infoPhoneLabel !== '')));
+$isChild = $context['is_child'] ?? false;
 ?>
 
+<?php if (!$isChild): ?>
 <section class="section <?= esc($cssClass) ?>">
     <div class="container-base">
+<?php endif; ?>
         <?php if ($hasLeftContent): ?>
             <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
 
@@ -80,7 +85,7 @@ $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && 
                 <?php /* ── Right column: form ── */ ?>
                 <div class="pt-6 lg:pl-10 lg:pt-0">
         <?php else: ?>
-            <div class="max-w-2xl mx-auto w-full">
+            <div class="<?= $isChild ? 'surface-card p-6 sm:p-8 w-full' : 'max-w-2xl mx-auto w-full' ?>">
                 <?php if ($sent): ?>
                     <div class="surface-card p-6 sm:p-8 shadow-sm text-center">
                         <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4">
@@ -107,8 +112,10 @@ $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && 
                     <form method="post"
                           action="<?= site_url("forms/{$formKey}/submit") ?>"
                           class="space-y-5"
-                          id="form-<?= esc($formKey) ?>">
-                        <?= csrf_field() ?>
+                          id="form-<?= esc($formKey) ?>"
+                          data-public-form
+                          data-csrf-cookie-name="<?= esc(config('Security')->readableCookieName, 'attr') ?>"
+                          <?= $hasCaptcha && $recaptchaSiteKey !== '' ? 'data-recaptcha-site-key="' . esc($recaptchaSiteKey, 'attr') . '"' : '' ?>>
 
                         <?php // Honeypot — hidden from real users, tempting to bots. Handled server-side in FormController. ?>
                         <div class="hidden" aria-hidden="true">
@@ -209,38 +216,23 @@ $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && 
                         <?php endforeach; ?>
 
                         <button type="submit"
-                                class="btn btn-primary w-full rounded-xl px-6 py-3.5 text-sm font-semibold">
-                            <?= esc($submitLabel) ?>
+                                class="btn btn-primary w-full rounded-xl px-6 py-3.5 text-sm font-semibold inline-flex items-center justify-center gap-2">
+                            <svg data-public-form-spinner hidden class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span data-public-form-label><?= esc($submitLabel) ?></span>
                         </button>
+                        <p data-public-form-error class="mt-2 text-sm text-rose-700" role="alert" hidden>
+                            <?= esc(lang('Site.form_submit_error')) ?>
+                        </p>
                     </form>
                 </div>
 
                 <?php if ($hasCaptcha && $recaptchaSiteKey !== ''): ?>
-                    <script>
-                    document.addEventListener('DOMContentLoaded', function () {
-                        var form = document.getElementById('form-<?= esc($formKey) ?>');
-                        if (!form) return;
-                        form.addEventListener('submit', function (e) {
-                            e.preventDefault();
-                            var btn = form.querySelector('button[type=submit]');
-                            if (btn) btn.disabled = true;
-                            grecaptcha.ready(function () {
-                                grecaptcha.execute('<?= esc($recaptchaSiteKey) ?>', { action: 'submit' })
-                                    .then(function (token) {
-                                        var input = document.getElementById('g_recaptcha_response_<?= esc($formKey) ?>');
-                                        if (input) input.value = token;
-                                        form.submit();
-                                    })
-                                    .catch(function () {
-                                        if (btn) btn.disabled = false;
-                                    });
-                            });
-                        });
-                    });
-                    </script>
                     <?php if (! defined('RECAPTCHA_SCRIPT_LOADED')): ?>
                         <?php define('RECAPTCHA_SCRIPT_LOADED', true); ?>
-                        <script src="https://www.google.com/recaptcha/api.js?render=<?= esc($recaptchaSiteKey) ?>" async defer></script>
+                        <script <?= csp_script_nonce() ?> src="https://www.google.com/recaptcha/api.js?render=<?= esc($recaptchaSiteKey) ?>" async defer></script>
                     <?php endif; ?>
                 <?php endif; ?>
             <?php endif; ?>
@@ -250,7 +242,10 @@ $hasLeftContent = ($heading !== '' || $description !== '' || ($showInfoBoxes && 
                 </div> <?php /* Close pt-6 lg:pl-10 lg:pt-0 */ ?>
             </div> <?php /* Close grid ... */ ?>
         <?php else: ?>
-            </div> <?php /* Close max-w-2xl mx-auto w-full */ ?>
+            </div> <?php /* Close max-w-2xl or card wrapper */ ?>
         <?php endif; ?>
+
+<?php if (!$isChild): ?>
     </div>
 </section>
+<?php endif; ?>

@@ -43,6 +43,9 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
+      - name: Check Composer platform requirements
+        run: composer check-platform-reqs --no-dev
+
       - name: Prepare writable directories
         run: |
           mkdir -p writable/cache writable/logs writable/session writable/uploads writable/debugbar writable/htmlpurifier
@@ -56,29 +59,14 @@ jobs:
           echo 'WEB_API_BASE_URL = http://localhost:8190' >> .env
           echo 'WEB_API_KEY = ci_testing_key' >> .env
 
-      - name: PHP CS Fixer (style check)
-        run: composer format:check
+      - name: Quality gate
+        run: composer quality
 
-      - name: PHPStan (static analysis)
-        run: composer analyse
-
-      # The web app has no database. Unit tests mock WebApiClient and run in
-      # isolation; feature tests are hermetic too — HermeticFeatureTestCase
-      # injects DeterministicDomainAdapter (or a mocked service/cache) so no
-      # live Domain API or network access is required.
-      - name: Unit tests
-        run: composer test:unit
-
-      - name: Feature tests
-        run: composer test:feature
-
-      - name: Coverage test suite
+      - name: Coverage gate (>= 60% line coverage)
         if: matrix.php-version == '8.2'
-        run: composer test:coverage
-
-      - name: Coverage gate (>= 54.75% line coverage)
-        if: matrix.php-version == '8.2'
-        run: composer coverage:check
+        run: |
+          composer test:coverage
+          composer coverage:check
 
   frontend:
     name: Frontend quality
@@ -105,3 +93,33 @@ jobs:
 
       - name: Audit frontend dependencies
         run: npm audit --audit-level=moderate
+
+  public-route-contract:
+    name: Web/BFF public route contract parity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Web
+        uses: actions/checkout@v4
+
+      - name: Checkout BFF contract adapter
+        uses: actions/checkout@v4
+        with:
+          repository: dcardenasl/teatromuseo-bff
+          ref: dev
+          path: bff-contract
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Check the canonical Web contract
+        run: php scripts/check-public-route-contract.php
+
+      - name: Compare the BFF adapter with the Web contract
+        run: |
+          php scripts/export-public-route-contract.php > /tmp/web-public-routes.json
+          php bff-contract/scripts/export-public-route-contract.php > /tmp/bff-public-routes.json
+          diff --unified=0 /tmp/web-public-routes.json /tmp/bff-public-routes.json

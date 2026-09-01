@@ -1,0 +1,18 @@
+{
+  "measured_at": "2026-08-08T06:44:54.690Z",
+  "environment": "localhost:8184",
+  "state": "BEFORE (SmartPrefetch NOT integrated)",
+  "page_tested": "http://localhost:8184/es",
+  "timing": {
+    "domContentLoaded_ms": 1360,
+    "loadComplete_ms": 1365,
+    "firstPaint_ms": null
+  },
+  "resources": {
+    "totalRequests": 26,
+    "domainApiCalls_count": 0,
+    "totalTransferSize_kb": 164,
+    "domainApiCallsSize_kb": 0
+  },
+  "notes": "Page is served from cache, no API calls visible. This is baseline before integrating SmartPrefetch into PageController."
+}
